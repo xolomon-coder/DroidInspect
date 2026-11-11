@@ -476,9 +476,11 @@ No milestone is complete solely because code was written or committed.
 
 ## 6. Current Project Status (2026-11-12)
 
-**Current phase: Phase 1 — Foundation and file understanding (M1–M3).**
+**Current phase: Phase 2 — Code and resource analysis. Next milestone: M4 — APK DEX analysis and code browsing.**
 
-The project remains the existing Java + native XML Android application. The original ten-milestone roadmap and project goal are unchanged. Development is on `main`; latest main commit before this documentation update: `58ed87a18128640cd6160cd4a60c405f9505e048`.
+Phase 1 implementation has passed cloud CI and initial Android 11 device smoke checks. The user chose to proceed without the optional native-PE fixture test. Native/non-managed PE rejection therefore remains an explicit unverified limitation; do not claim full M3 classification coverage. M2 has one successful real APK test, and M3 has one successful CLI-bearing mixed-mode .NET DLL test. Phase 2 may begin while this gap remains documented for later regression coverage.
+
+The project remains the existing Java + native XML Android application. The original ten-milestone roadmap and project goal are unchanged. Development is on `main`; latest main commit before this documentation update: `44c313c0939fc5a8bffa9978f9ace833524ea711`.
 
 ### M1 — Foundation and file identification
 
@@ -492,7 +494,7 @@ The project remains the existing Java + native XML Android application. The orig
 - One-tap runtime/cache diagnostics report.
 - No broad external-storage permission.
 
-**Still requires device verification:** build/install from CodeAssist, startup, SAF selection, diagnostics, APK/PE classification, error behavior, and cache cleanup.
+**Device verification (2026-11-12):** User reports CodeAssist build success and provided the one-tap diagnostics report from Android 11/API 30. Cache writable PASS; SAF document picker available; no broad storage permission requested; ZIP reader and PE reader available; offline inspection confirmed. The user successfully selected an APK and a DLL through the picker, demonstrating the basic SAF intake flow. Error-path and cache-cleanup edge cases remain untested.
 
 ### M2 — APK inspection
 
@@ -502,12 +504,14 @@ The project remains the existing Java + native XML Android application. The orig
 - Android PackageManager extraction when it can parse the APK: package name, version name/code, application label, target SDK, declared permissions, and component counts.
 - Clear distinction between archive validity and PackageManager metadata availability.
 
+**Android 11 device test (2026-11-12): PASS for the tested APK.** User inspected `Git MANAGER_1.0.apk` (298,716 bytes): ZIP structure PASS; 51 entries; 9 DEX files (`classes.dex` through `classes9.dex`); binary `AndroidManifest.xml`, resources, and `resources.arsc` present. PackageManager returned package `com.tanvir.gitmanager`, version `1.0` / code `1`, label `Git MANAGER`, target SDK 36, 6 permissions, 13 activities, 1 service, 0 receivers, and 1 provider.
+
 **Known limits:**
+- This is one representative APK test, not broad compatibility coverage.
 - Minimum SDK is not yet decoded.
 - Full binary AndroidManifest.xml decoding is not implemented.
 - Resource decoding/editing and DEX decompilation are not implemented.
 - PackageManager may not parse malformed, split-only, or unusual APK variants.
-- Representative APK results have not yet been tested on Android 11.
 
 ### M3 — .NET assembly inspection
 
@@ -524,11 +528,14 @@ The project remains the existing Java + native XML Android application. The orig
   - Field and MethodDef names associated with types.
 - Original files remain untouched; inspection uses temporary working copies.
 
-**Known limits:**
+**Android 11 device test (2026-11-12): PASS for a CLI-bearing mixed-mode DLL candidate.** User inspected a 71,224-byte `ISymWrapper.dll` candidate. PE signature PASS; x64 / PE32+; 7 sections; CLI header present; runtime string `v4.0.30319`; metadata root and 5 streams parsed; Assembly, Module, TypeDef (52), MethodDef (242), and AssemblyRef (2) rows found. Module/assembly identity, MVID, references, type names, field names, and method names were decoded. Flags and native C++ implementation-detail types suggest a mixed-mode C++/CLI assembly, not a pure-managed C# fixture.
+
+**Known limits and verification gap:**
 - Metadata inspection is not C# decompilation, IL editing, or assembly rewriting.
 - Display caps: 200 assembly references, 300 types, and 200 members per type.
 - Unsupported or malformed metadata tables are reported as incomplete.
-- Real managed DLL/EXE and native PE files still require device verification.
+- No pure-managed .NET fixture was tested in this device session.
+- User declined the optional native PE fixture test. Native/non-managed PE rejection is therefore NOT DEVICE-VERIFIED; do not claim exhaustive M3 classification coverage.
 
 ### GitHub Actions build and artifact
 
@@ -584,20 +591,19 @@ The automated tests found and corrected real issues:
 
 | Check | Status |
 |---|---|
-| Original starter project build | User previously reported PASS |
-| Phase 1 source committed to main | PASS |
-| Synthetic .NET metadata decoder test | PASS |
-| GitHub Actions Android compilation | PASS |
-| Debug APK artifact uploaded | PASS |
-| APK ZIP integrity check | PASS |
-| CodeAssist build of latest main source | NOT TESTED BY USER |
-| Installation and startup on Android 11 | NOT TESTED |
-| SAF picker and diagnostics on device | NOT TESTED |
-| M1 device verification | NOT VERIFIED |
-| M2 known-good APK inspection | NOT TESTED |
-| M3 managed DLL/EXE inspection | NOT TESTED |
-| M3 native PE rejection test | NOT TESTED |
-| Phase 1 completion | NOT VERIFIED — device tests remain |
+| Phase 1 GitHub Actions host parser test | PASS |
+| Phase 1 GitHub Actions Android compilation | PASS |
+| Debug APK artifact upload and ZIP integrity | PASS |
+| User CodeAssist build of latest main source | PASS (user report) |
+| Android 11/API 30 diagnostics | PASS for reported runtime checks |
+| SAF file selection | PASS — APK and DLL were selected and inspected |
+| M1 basic device smoke check | PASS; error-path/cache-cleanup edge cases remain |
+| M2 sample APK inspection | PASS — one 51-entry, 9-DEX APK |
+| M3 CLI-bearing mixed-mode DLL metadata inspection | PASS — one sample |
+| M3 pure-managed .NET fixture | NOT TESTED |
+| M3 native/non-managed PE rejection | NOT TESTED — user chose to skip this fixture |
+| Phase 1 overall | ACCEPTED TO PROCEED WITH A DOCUMENTED M3 VERIFICATION GAP |
+| Phase 2 | READY TO START — M4 |
 
 ### Dependencies and compatibility
 
@@ -640,16 +646,22 @@ No new Android runtime dependency or broad storage permission was introduced.
 - 2026-11-12: Fixed Android SDK setup to avoid the removed legacy `tools` package.
 - 2026-11-12: Fixed the malformed PE report newline literal found by the Android Java compiler.
 - 2026-11-12: GitHub Actions run #26 passed; debug APK artifact was downloaded and ZIP integrity checked.
-- 2026-11-12: Updated README with actual CI results. Android 11 device testing remains pending.
+- 2026-11-12: User reported successful CodeAssist build and supplied Android 11 diagnostics: cache writable, SAF picker available, no broad storage permission, ZIP/PE readers available, offline inspection supported.
+- 2026-11-12: User inspected `Git MANAGER_1.0.apk`: 51 ZIP entries, 9 DEX files, and PackageManager metadata decoded successfully. Recorded as an initial M2 device PASS for this sample.
+- 2026-11-12: User inspected a 71,224-byte CLI-bearing `ISymWrapper.dll` candidate: PE/CLI headers and core ECMA-335 metadata parsed, including assembly/module identity, references, types, fields, and methods. Recorded as an initial M3 device PASS for this mixed-mode candidate; not evidence of C# decompilation.
+- 2026-11-12: User declined the optional native PE fixture test. Native/non-managed PE rejection and pure-managed fixture coverage remain explicitly unverified.
+- 2026-11-12: User chose to proceed to Phase 2 despite the documented M3 verification gap. Next milestone is M4; do not restart Phase 1 or silently mark the missing native-PE test as passed.
 
 ## 8. New-Chat Continuation Instructions
 
 When continuing DroidInspect:
-- Read this README and inspect the latest `main` commit before modifying anything.
+- Read this README and inspect the latest `main` commit, build files, and relevant source before modifying anything.
 - Continue the existing project; do not recreate it or discard working features.
-- The Phase 1 implementation batch and GitHub CI build are complete and verified.
-- The next task is the user's CodeAssist 3.36.1 build/install and Android 11 device verification.
-- Test a known-good APK, a known managed .NET DLL/EXE, and a native PE file. Run the one-tap diagnostics and review complete reports.
-- Fix device-test failures before marking M1, M2, or M3 complete.
-- Do not begin Phase 2 until all Phase 1 exit criteria have been verified on the phone.
-- Preserve the original ten-milestone roadmap.
+- Phase 1 source and CI build are complete. Initial Android 11 smoke checks passed for SAF intake, one APK, and one CLI-bearing mixed-mode DLL.
+- The user explicitly chose to skip the optional native PE fixture test. Keep native/non-managed PE rejection and pure-managed fixture coverage marked unverified; do not block M4 on these skipped tests unless a later issue makes them necessary.
+- Start Phase 2 immediately with **M4 — APK DEX analysis and code browsing**.
+- First inspect the existing source and CI workflow, then compare feasible DEX analysis engines and run a minimal Android 11 / CodeAssist-compatible prototype before adding a dependency. Check licenses, Android API compatibility, memory/storage cost, and offline operation.
+- Do not add JADX or another large engine without proving Android-host compatibility. If no viable embedded engine exists, explain the trade-off and propose a bounded native/alternative approach before changing architecture.
+- M4 should cover DEX parsing/browsing first: multidex discovery, package/class/type/member navigation, safe limits, background work, search, and readable errors. Clearly separate structural parsing from actual Java decompilation.
+- Implement M4 as one coherent GitHub batch where feasible, run CI and produce a debug APK artifact, then ask the user to build/install in CodeAssist 3.36.1 and test on Android 11.
+- Preserve the original ten-milestone roadmap and the user's phone-only Java/XML workflow.
