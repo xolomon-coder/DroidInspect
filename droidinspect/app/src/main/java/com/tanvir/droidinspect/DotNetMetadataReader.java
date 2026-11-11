@@ -8,15 +8,22 @@ import java.util.Locale;
 
 /** Bounded ECMA-335 metadata reader for identity, references, TypeDef, Field and MethodDef rows. */
 final class DotNetMetadataReader {
-    private static final int[] CODED_BITS = {2,2,2,5,3,2,3,1,2,3,1,2,1,2};
+    private static final int[] CODED_BITS = {2,2,3,2,5,3,1,2,1,1,1,2,1};
     private static final int[][] CODED_TABLES = {
-        {2,1,27}, {4,8,23}, {6,10}, {4,6}, {2,1,27},
-        {2,1,26,35}, {20,23}, {6,10}, {4,8}, {2,6},
-        {0,1,2,3,4,6,8,9,10,11,_event(), _event2(), 14,15,16,17,18,19,20,21,22,23},
-        {0,1,26,35}, {6,10}, {0,1,26,35}, {6,10}
+        {0,26,35,1},                         // ResolutionScope
+        {2,1,27},                            // TypeDefOrRef
+        {2,1,26,6,27},                       // MemberRefParent
+        {4,8,23},                            // HasConstant
+        {6,4,1,2,8,9,10,0,14,23,20,17,26,27,32,35,38,39,40,42,44,43}, // HasCustomAttribute
+        {6,10},                              // CustomAttributeType
+        {4,8},                               // HasFieldMarshal
+        {2,6,32},                            // HasDeclSecurity
+        {20,23},                             // HasSemantics
+        {6,10},                              // MethodDefOrRef
+        {4,6},                               // MemberForwarded
+        {38,35,39},                          // Implementation
+        {2,6}                                // TypeOrMethodDef
     };
-    private static int _event(){ return 20; }
-    private static int _event2(){ return 23; }
 
     private final RandomAccessFile r;
     private final long fileLength, root, rootSize;
@@ -111,12 +118,12 @@ final class DotNetMetadataReader {
         for(int i=0;i<limit;i++){
             long p=tableBase[2]+i*typeSize;
             long flags=u32(p); int name=indexString(p+4), ns=indexString(p+4+stringWidth());
-            long listPos=p+4+2L*stringWidth()+codedWidth(0)+tableWidth(4);
+            long listPos=p+4+2L*stringWidth()+codedWidth(1)+tableWidth(4);
             long firstField=tableIndex(listPos,4), firstMethod=tableIndex(listPos+tableWidth(4),6);
             long nextField=rows[4]+1, nextMethod=rows[6]+1;
             if(i+1<rows[2]){
                 long np=p+typeSize;
-                nextField=tableIndex(np+4+2L*stringWidth()+codedWidth(0),4);
+                nextField=tableIndex(np+4+2L*stringWidth()+codedWidth(1),4);
                 nextMethod=tableIndex(np+4+2L*stringWidth()+codedWidth(0)+tableWidth(4),6);
             }
             String typeName=str(name), namespace=str(ns);
@@ -144,33 +151,33 @@ final class DotNetMetadataReader {
         switch(t){
             case 0:return 2+stringWidth()+3L*guidWidth();
             case 1:return codedWidth(0)+2L*stringWidth();
-            case 2:return 4+2L*stringWidth()+codedWidth(4)+tableWidth(4)+tableWidth(6);
+            case 2:return 4+2L*stringWidth()+codedWidth(1)+tableWidth(4)+tableWidth(6);
             case 3:return tableWidth(4);
             case 4:return 2+stringWidth()+blobWidth();
             case 5:return tableWidth(6);
             case 6:return 8+stringWidth()+blobWidth()+tableWidth(8);
             case 7:return tableWidth(8);
             case 8:return 4+stringWidth();
-            case 9:return tableWidth(2)+codedWidth(4);
-            case 10:return codedWidth(5)+stringWidth()+blobWidth();
-            case 11:return 2+codedWidth(1)+blobWidth();
-            case 12:return codedWidth(10)+codedWidth(2)+blobWidth();
-            case 13:return codedWidth(8)+blobWidth();
-            case 14:return 2+codedWidth(9)+blobWidth();
+            case 9:return tableWidth(2)+codedWidth(1);
+            case 10:return codedWidth(2)+stringWidth()+blobWidth();
+            case 11:return 2+codedWidth(3)+blobWidth();
+            case 12:return codedWidth(4)+codedWidth(5)+blobWidth();
+            case 13:return codedWidth(6)+blobWidth();
+            case 14:return 2+codedWidth(7)+blobWidth();
             case 15:return 6+tableWidth(2);
             case 16:return 4+tableWidth(4);
             case 17:return blobWidth();
             case 18:return tableWidth(2)+tableWidth(20);
             case 19:return tableWidth(20);
-            case 20:return 2+stringWidth()+codedWidth(4);
+            case 20:return 2+stringWidth()+codedWidth(1);
             case 21:return tableWidth(2)+tableWidth(23);
             case 22:return tableWidth(23);
             case 23:return 2+stringWidth()+blobWidth();
-            case 24:return 2+tableWidth(6)+codedWidth(6);
-            case 25:return tableWidth(2)+2L* codedWidth(7);
+            case 24:return 2+tableWidth(6)+codedWidth(8);
+            case 25:return tableWidth(2)+2L* codedWidth(9);
             case 26:return stringWidth();
             case 27:return blobWidth();
-            case 28:return 2+codedWidth(3)+stringWidth()+tableWidth(26);
+            case 28:return 2+codedWidth(10)+stringWidth()+tableWidth(26);
             case 29:return 4+tableWidth(4);
             case 30:return 8;
             case 31:return 4;
@@ -185,8 +192,8 @@ final class DotNetMetadataReader {
             case 40:return 8+stringWidth()+codedWidth(11);
             case 41:return 2L*tableWidth(2);
             case 42:return 4+codedWidth(12)+stringWidth();
-            case 43:return codedWidth(7)+blobWidth();
-            case 44:return tableWidth(42)+codedWidth(4);
+            case 43:return codedWidth(9)+blobWidth();
+            case 44:return tableWidth(42)+codedWidth(1);
             default:return -1;
         }
     }
