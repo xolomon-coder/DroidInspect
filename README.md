@@ -319,3 +319,203 @@ Before declaring the application complete:
 Final principle:
 
 Build progressively, preserve existing work, verify actual functionality, maintain GitHub as the project source of truth, and make every development step manageable from my Android phone.
+
+
+---
+
+# DroidInspect — Product Specification and Development Plan
+
+Last project-plan update: 2026-11-12
+
+## 1. App Goal
+
+DroidInspect is an offline-first Android application for inspecting, analyzing, editing, and (where technically supported) rebuilding two kinds of software packages:
+
+1. **Android APK files** — inspect APK structure, package metadata, manifest, resources, DEX contents, and decompiled code; provide selected editing and rebuild capabilities.
+2. **.NET assemblies** — inspect Windows/.NET DLL and EXE files, read PE/CLI metadata, browse types and members, decompile supported IL into C# where possible, inspect/edit IL or metadata where safe, and export modified assemblies.
+
+The project is inspired by the capabilities of dnSpyEx and Android reverse-engineering tools, but it is an Android-native implementation. It is not a promise of complete dnSpyEx, JADX, or Apktool feature parity.
+
+**Core principles**
+
+- Run locally on the phone wherever possible; no mandatory cloud service.
+- Java + native Android XML is the preferred app UI and starting architecture.
+- Work with user-selected files through Android's Storage Access Framework; do not request broad storage access without a demonstrated need.
+- Preserve originals. Write modified output to a new file unless the user explicitly chooses otherwise.
+- Clearly distinguish read-only inspection, editing, rebuilding, and debugging.
+- Handle large files carefully, use background work, and report memory/performance limits.
+- Do not claim support for a file or feature until it has been tested on the target Android device.
+- Treat advanced debugging and runtime attachment as experimental; Android restrictions may prevent full dnSpy-style debugging.
+
+## 2. Target Development Environment
+
+Current project target recorded for this development session:
+
+- Test OS: Android 11 (API 30).
+- IDE: CodeAssist 3.36.1.
+- Preferred source language: Java.
+- Preferred UI: native Android XML.
+- Existing application package: `com.tanvir.droidinspect`.
+- Existing project directory in repository: `droidinspect/`.
+- Existing Gradle project uses Android Gradle Plugin 8.13.0, Gradle 8.13, compileSdk 36, minSdk 26, targetSdk 36, and Java 8 source/target compatibility.
+
+These are the repository's current settings, not proof that every future library or engine supports Android 11. Re-check device and toolchain details when they materially affect a build.
+
+## 3. Technical Architecture Direction
+
+Use a modular architecture so the app UI is not coupled to a single reverse-engineering engine.
+
+- **Android UI layer:** Java activities/fragments and XML layouts.
+- **File intake layer:** Android document picker / Storage Access Framework, file-type detection, safe temporary working storage.
+- **Common inspection layer:** file identity, hashes, size, archive listing, errors, export handling.
+- **APK processing layer:** APK/ZIP inspection first; then independently validated DEX decompilation and resource/manifest decoding or rebuilding components.
+- **.NET processing layer:** PE/CLI metadata inspection first; then validate a compatible .NET runtime/bridge and decompiler/assembly libraries before committing to them.
+- **Editing/export layer:** operate on working copies, validate outputs, and preserve the original input.
+- **Testing layer:** repeatable test fixtures, diagnostic reports, and a one-tap test entry point for major test suites where practical.
+
+Important feasibility constraints:
+
+- A Java Android app cannot directly use .NET-only libraries such as dnlib or the ILSpy decompiler engine as ordinary Java dependencies. A .NET runtime integration/interop bridge or a separately justified alternative must be proven before selecting that route.
+- JADX and Apktool have Android-hosting constraints. Do not assume their desktop/CLI builds can simply be embedded and run on Android. Prototype and measure memory, CPU, API compatibility, temporary storage, and licensing first.
+- If a preferred engine cannot run reliably on Android 11 / CodeAssist, investigate a smaller native implementation or clearly document a reduced feature scope. Do not silently change the Java/XML preference; discuss a major architecture change first.
+- Check and document each dependency's license and redistribution requirements before packaging it.
+
+## 4. Complete Roadmap — 10 Milestones
+
+The roadmap has **10 milestones**, grouped into three phases. The sequence may be refined only when a verified technical blocker requires it; document the reason and preserve the original goal.
+
+### Phase 1 — Foundation and file understanding
+
+**M1 — Project foundation and on-device feasibility**
+- Confirm the existing CodeAssist project builds, installs, and starts on the Android 11 test phone.
+- Establish the project structure and basic file-selection flow.
+- Detect APK, DLL, and EXE file types safely.
+- Prototype APK ZIP/container reading and basic PE/CLI header detection.
+- Record engine compatibility findings before adopting large dependencies.
+- Exit criteria: baseline app works on-device and both file families can be identified; any metadata-reader prototype is tested and its limits recorded.
+
+**M2 — APK inspection**
+- Open a user-selected APK without installing it.
+- List archive contents and inspect package/application metadata, version, SDK declarations, permissions, and manifest information where parsing is supported.
+- Inspect DEX file presence and basic structure.
+- Provide readable errors for malformed, encrypted, unsupported, or oversized inputs.
+- Exit criteria: test APKs produce correct, cross-checked inspection results on the phone.
+
+**M3 — .NET assembly inspection**
+- Identify PE files and determine whether they contain a valid .NET/CLI header.
+- Read assembly/module identity, version, architecture/runtime flags, metadata tables, references, and type/member names as supported.
+- Distinguish native PE files from managed .NET assemblies.
+- Exit criteria: known managed DLL/EXE fixtures and native/non-managed PE fixtures are classified correctly, with limitations documented.
+
+### Phase 2 — Code and resource analysis
+
+**M4 — APK DEX analysis and code browsing**
+- Evaluate and integrate an Android-compatible DEX analysis/decompilation engine only after an on-device prototype passes.
+- Browse packages, classes, methods, fields, and decompiled source where supported.
+- Add search and navigation.
+- Measure memory use and handle large APKs without freezing the UI.
+- Exit criteria: representative APKs can be browsed reliably on the test phone; unsupported cases are reported.
+
+**M5 — .NET code decompilation and IL browsing**
+- Prove a practical Android-compatible execution route for a .NET decompiler engine.
+- Browse assemblies, namespaces, types, methods, properties, and fields.
+- Display decompiled C# and/or IL for supported assemblies.
+- Add text search and navigation.
+- Exit criteria: representative managed DLL/EXE files decompile on-device with reproducible results. If the runtime bridge is not viable, document the alternative scope before proceeding.
+
+**M6 — APK resources and manifest analysis/editing**
+- Decode supported manifest and resource structures.
+- Provide controlled editing of selected manifest/resource values and, if feasible, Smali/DEX-related text representations.
+- Validate edits and preserve an untouched source copy.
+- Exit criteria: supported edits are saved to a working project and pass structural validation.
+
+**M7 — .NET assembly editing**
+- Evaluate safe assembly metadata and IL editing using a validated engine.
+- Support selected metadata/member edits and IL editing only where the engine and format permit.
+- Validate output structure and report unsupported or risky operations.
+- Exit criteria: a test assembly can be modified, reopened, and checked for expected changes without corrupting the original.
+
+### Phase 3 — Output, advanced tools, and release
+
+**M8 — APK rebuild and signing**
+- Rebuild supported APK changes into a new APK.
+- Validate archive integrity, manifest/resources, and DEX payload.
+- Provide signing using an appropriate user-controlled signing key and explain that a rebuilt APK will not retain the original developer's signature.
+- Do not imply that every APK can be rebuilt.
+- Exit criteria: a controlled sample APK can be rebuilt, signed, installed for testing, and its changed behavior/content verified.
+
+**M9 — .NET export, file tools, and advanced search**
+- Export supported modified assemblies.
+- Add a hex/binary viewer for safe inspection, with editing only after bounds and output validation are implemented.
+- Add cross-file search/usage navigation where supported.
+- Verify exported assemblies can be reopened and inspected.
+- Exit criteria: representative exports are valid and all implemented file tools pass their tests.
+
+**M10 — Advanced analysis, debugging feasibility, hardening, and release**
+- Investigate whether any useful debugging or runtime-analysis features are possible within Android's security and runtime constraints. Treat full dnSpy-style attach/debug as optional and potentially unsupported.
+- Improve crash handling, large-file behavior, cancellation, recovery, and diagnostics.
+- Complete regression tests, permission review, dependency/license review, documentation, and release packaging.
+- Exit criteria: all committed features have device-test evidence; remaining limitations are explicit; README and handoff documentation match the released state.
+
+## 5. Development and Creation Process
+
+This is the required process for building DroidInspect:
+
+1. **Repository-first:** inspect the latest `main` branch, commit, README, build files, and source before every implementation task.
+2. **Feasibility before dependency adoption:** create small, isolated on-device prototypes for risky engines. Do not add a major decompiler/rebuilder dependency until its Android compatibility is demonstrated.
+3. **One milestone at a time:** implement only the current milestone's agreed scope. Keep the ten-milestone roadmap visible.
+4. **Plan exact changes:** list files to add/change, dependencies and exact versions, permissions, compatibility effects, and test cases before coding.
+5. **Implement phone-friendly code:** provide complete replacement files with full paths; avoid partial snippets and desktop-only instructions.
+6. **Build and install:** user builds in CodeAssist and installs on the Android phone.
+7. **Test actual behavior:** provide practical test steps and sample fixture requirements. A successful Gradle build alone does not pass functional criteria.
+8. **Analyze evidence:** inspect user-provided reports/logs/results; fix failures before marking a milestone complete.
+9. **Document continuously:** update this README with status, decisions, changed files, test evidence, limitations, and next action. Keep chronological notes.
+10. **Handoff safely:** before a new chat, update documentation and prepare a handoff with branch/commit, milestone state, exact stopping point, and next action.
+
+No milestone is complete solely because code was written or committed.
+
+## 6. Current Project Status (2026-11-12)
+
+**Current milestone: M1 — Project foundation and on-device feasibility.**
+
+Completed and verified:
+- Existing GitHub starter project inspected; it was continued rather than recreated.
+- User reports the existing project builds successfully in CodeAssist.
+- User reports the baseline build is OK.
+
+Not yet verified:
+- Installation and startup on the phone for this exact repository build.
+- APK file selection, APK archive inspection, and package metadata extraction.
+- DLL/EXE selection and .NET/CLI metadata extraction.
+- Any decompilation, editing, rebuilding, or debugging engine.
+
+Current starter-project facts:
+- Repository: `xolomon-coder/DroidInspect`.
+- Branch: `main`.
+- Last inspected pre-documentation commit: `7c92f184fa79b3938235f67ce95c410d64e9f54c`.
+- Android module: `droidinspect/app`.
+- Main activity: `droidinspect/app/src/main/java/com/tanvir/droidinspect/MainActivity.java`.
+- Main layout: `droidinspect/app/src/main/res/layout/activity_main.xml`.
+- Current starter screen is a basic Hello World screen; no inspection features are implemented yet.
+- Build configuration: see `droidinspect/app/build.gradle.kts`.
+
+**Exact next action:** after confirming the starter app installs and opens, implement M1's first small on-device file-intake and file-identification test. Then prototype APK ZIP inspection and .NET PE/CLI detection separately. Do not jump to full decompiler integration yet.
+
+## 7. Chronological Development History
+
+- 2026-11-12: User confirmed Android 11 and CodeAssist 3.36.1 for the current development session.
+- 2026-11-12: Existing DroidInspect repository and starter source were inspected. The app module is Java/XML with package `com.tanvir.droidinspect`; the initial screen is Hello World.
+- 2026-11-12: User reported the existing CodeAssist build succeeded. This confirms build success only; install/startup and feature tests remain pending.
+- 2026-11-12: Added this product specification, ten-milestone roadmap, development process, and current-state handoff information to the README.
+
+## 8. New-Chat Continuation Instructions
+
+When continuing DroidInspect in a new ChatGPT chat:
+
+- Read this README completely before proposing work.
+- Inspect the latest repository branch and commit and compare it with this documented state.
+- Continue from **M1**, not from project creation.
+- Do not recreate the project or replace the existing architecture without a demonstrated reason and discussion.
+- Ask for a build/install result only if it is not already recorded here or in the current chat.
+- The next task is the M1 file-intake/file-identification prototype, followed by isolated APK ZIP and .NET PE/CLI detection tests.
+- Preserve the total roadmap of ten milestones unless a verified technical blocker requires a documented revision.
