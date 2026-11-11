@@ -46,7 +46,7 @@
         android:id="@+id/browseResourcesButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="APK Manifest / Resource Editor"
+        android:text="APK Manifest and Resource Editor"
         android:enabled="false" />
 
     <ProgressBar
