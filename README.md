@@ -476,7 +476,7 @@ No milestone is complete solely because code was written or committed.
 
 ## 6. Current Project Status (2026-11-12)
 
-**Current phase: Phase 2 — Code and resource analysis. Next milestone: M4 — APK DEX analysis and code browsing.**
+**Current phase: Phase 2 — Code and resource analysis. Active milestone: M4 — APK DEX analysis and code browsing.** The first implementation batch is committed; cloud CI and device verification are pending.
 
 Phase 1 implementation has passed cloud CI and initial Android 11 device smoke checks. The user chose to proceed without the optional native-PE fixture test. Native/non-managed PE rejection therefore remains an explicit unverified limitation; do not claim full M3 classification coverage. M2 has one successful real APK test, and M3 has one successful CLI-bearing mixed-mode .NET DLL test. Phase 2 may begin while this gap remains documented for later regression coverage.
 
@@ -603,7 +603,51 @@ The automated tests found and corrected real issues:
 | M3 pure-managed .NET fixture | NOT TESTED |
 | M3 native/non-managed PE rejection | NOT TESTED — user chose to skip this fixture |
 | Phase 1 overall | ACCEPTED TO PROCEED WITH A DOCUMENTED M3 VERIFICATION GAP |
-| Phase 2 | READY TO START — M4 |
+| Phase 2 / M4 | IMPLEMENTATION IN PROGRESS — host tests, cloud build, and Android 11 verification pending |
+
+### M4 — APK DEX analysis and code browsing (implementation in progress)
+
+**Feasibility decision (2026-11-12):**
+- JADX can produce Java-like source, but its maintainers explicitly warn that its library is not suited to Android because of CPU and memory constraints. Its documented Android minimum is API 26, which alone does not prove reliable operation on this API 30 device.
+- Google Smali/dexlib2 is a mature DEX library under BSD-3-Clause terms. The inspected AOSP device build metadata for the current dexlib2 module specifies min SDK 33, above this project's Android 11 / API 30 test device. It was therefore not adopted as an unverified runtime dependency.
+- Decision: implement a small, read-only, bounded Java DEX structural reader first. No Android runtime dependency was added. Re-evaluate JADX as a separate optional decompilation prototype only after structural browsing is tested on-device.
+- Sources reviewed: JADX library-use / Android notes; Google Smali project README and AOSP dexlib2 Android build metadata. This is a feasibility decision, not a claim that every third-party dexlib2 distribution is incompatible.
+
+**Implemented in the current source batch:**
+- Detect root-level `classes.dex`, `classes2.dex` through `classesN.dex`, including multidigit names such as `classes10.dex`. Nested asset files are not treated as APK code DEX entries.
+- Sort DEX files in numeric order and process them one at a time.
+- Validate DEX magic/version (035–040), header size, file size, endian tag, table bounds, indices, and ULEB128 class-data values.
+- Decode class descriptors, package names, superclass, class access flags, field names/types/access flags, method names/prototypes/access flags.
+- Show per-DEX PASS / REJECTED / SKIPPED results and class counts.
+- Add a native XML DEX browser with package/class listing, search across package/class/field/method names, and a class detail dialog.
+- Keep parsing off the UI thread. APK intake is capped at 512 MB; each extracted DEX is capped at 128 MB; the result is capped at 20,000 classes and 200 displayed fields/methods per class. Each DEX is extracted to a temporary cache file and deleted after parsing.
+- A malformed DEX entry is reported separately; successfully parsed earlier DEX entries can still be browsed.
+- Original APK is never modified. No broad storage permission or network access is required.
+- Structural browsing only: method bodies are not decompiled; Java source reconstruction is NOT implemented.
+
+**New / changed M4 files:**
+- Added `droidinspect/app/src/main/java/com/tanvir/droidinspect/DexFileParser.java` — bounded, read-only DEX header/table/class-data parser.
+- Added `droidinspect/app/src/main/java/com/tanvir/droidinspect/DexAnalysisActivity.java` — background APK/DEX analysis, search, and class/member navigation.
+- Added `droidinspect/app/src/main/res/layout/activity_dex_analysis.xml` — native XML browser UI.
+- Updated `droidinspect/app/src/main/java/com/tanvir/droidinspect/MainActivity.java` — launch the DEX browser for the selected document.
+- Updated `droidinspect/app/src/main/res/layout/activity_main.xml` — add the DEX browser entry button.
+- Updated `droidinspect/app/src/main/AndroidManifest.xml` — register the internal browser activity.
+- Added `tools/dex-parser-test/DexFileParserSelfTest.java` — synthetic valid DEX plus malformed and multidex ZIP fixture.
+- Updated `.github/workflows/phase1-android.yml` — run both .NET metadata and DEX parser host tests, build the Android app, and upload `DroidInspect-Phase2-M4-debug`.
+
+**Dependencies:** no new Android runtime dependencies. Existing AGP 8.13.0 / Gradle 8.13 / compileSdk 36 / minSdk 26 / targetSdk 36 / Java 8 remain unchanged.
+
+**Verification state:** source changes are committed, but the M4 host test and Android cloud build have not yet been confirmed in GitHub Actions at the time of this documentation update. No Android 11 device test has been performed for the new browser. Do not mark M4 complete until CI passes and the user verifies the browser on-device.
+
+**Known technical limits to review during verification:**
+- The custom reader is a bounded structural parser, not a full DEX verifier or bytecode disassembler.
+- DEX versions 041 and future versions are rejected explicitly.
+- Modified UTF-8 strings are decoded using UTF-8; this is sufficient for ordinary ASCII identifiers but may not faithfully represent every unusual encoded string.
+- DEX checksum/signature verification and instruction decoding are not implemented.
+- Search is in-memory over the capped parsed class/member names.
+- The 128 MB per-DEX / 20,000 class / 200 member display caps are deliberate safety limits, not universal DEX format limits.
+- Large and obfuscated real-world APKs still require device performance testing.
+- Java-like decompilation remains deferred; do not describe this milestone build as a Java decompiler.
 
 ### Dependencies and compatibility
 
@@ -617,12 +661,12 @@ The automated tests found and corrected real issues:
 
 - `droidinspect/app/src/main/java/com/tanvir/droidinspect/MainActivity.java` — dashboard, SAF picker, background execution, diagnostics.
 - `droidinspect/app/src/main/java/com/tanvir/droidinspect/FileInspectionEngine.java` — safe temporary copy, APK archive/PackageManager inspection, file-signature detection, PE/CLI inspection.
-- `droidinspect/app/src/main/java/com/tanvir/droidinspect/DotNetMetadataReader.java` — bounded ECMA-335 metadata reader for module, assembly, references, types, fields, and methods.
-- `droidinspect/app/src/main/res/layout/activity_main.xml` — dashboard and report layout.
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/DotNetMetadataReader.java` — bounded ECMA-335 metadata reader for module, assembly, references, types, fields, and methods.\n- `droidinspect/app/src/main/java/com/tanvir/droidinspect/DexFileParser.java` — bounded DEX structural parser for multidex, classes, fields, and methods.\n- `droidinspect/app/src/main/java/com/tanvir/droidinspect/DexAnalysisActivity.java` — DEX browser UI/controller and background analysis.
+- `droidinspect/app/src/main/res/layout/activity_main.xml` — dashboard and report layout.\n- `droidinspect/app/src/main/res/layout/activity_dex_analysis.xml` — DEX class/member browser layout.
 - `droidinspect/app/src/main/AndroidManifest.xml` — launcher activity and permissions.
 - `droidinspect/app/build.gradle.kts` — existing Android build configuration.
 - `.github/workflows/phase1-android.yml` — CI build, host parser test, and debug APK artifact.
-- `tools/metadata-reader-test/DotNetMetadataReaderSelfTest.java` — synthetic metadata fixture and host-JVM decoder test.
+- `tools/metadata-reader-test/DotNetMetadataReaderSelfTest.java` — synthetic metadata fixture and host-JVM decoder test.\n- `tools/dex-parser-test/DexFileParserSelfTest.java` — synthetic multidex ZIP and malformed DEX host-JVM regression test.
 
 ### Exact Phase 1 implementation batch files
 
@@ -650,14 +694,14 @@ No new Android runtime dependency or broad storage permission was introduced.
 - 2026-11-12: User inspected `Git MANAGER_1.0.apk`: 51 ZIP entries, 9 DEX files, and PackageManager metadata decoded successfully. Recorded as an initial M2 device PASS for this sample.
 - 2026-11-12: User inspected a 71,224-byte CLI-bearing `ISymWrapper.dll` candidate: PE/CLI headers and core ECMA-335 metadata parsed, including assembly/module identity, references, types, fields, and methods. Recorded as an initial M3 device PASS for this mixed-mode candidate; not evidence of C# decompilation.
 - 2026-11-12: User declined the optional native PE fixture test. Native/non-managed PE rejection and pure-managed fixture coverage remain explicitly unverified.
-- 2026-11-12: User chose to proceed to Phase 2 despite the documented M3 verification gap. Next milestone is M4; do not restart Phase 1 or silently mark the missing native-PE test as passed.
+- 2026-11-12: User chose to proceed to Phase 2 despite the documented M3 verification gap. Do not restart Phase 1 or silently mark the missing native-PE test as passed.\n- 2026-11-12: Inspected JADX Android-use guidance and Google Smali/dexlib2 Android build metadata. Deferred JADX because its maintainers warn about Android CPU/RAM limitations; did not adopt dexlib2 because the inspected AOSP device module targets API 33 while the test phone is API 30.\n- 2026-11-12: Added a dependency-free bounded DEX structural parser, native XML browser, multidex handling, class/member search, safety caps, and synthetic host-JVM test.\n- 2026-11-12: Extended the GitHub Actions workflow to run the DEX host test and publish a Phase 2 M4 debug APK artifact. CI and Android 11 device verification are pending.
 
 ## 8. New-Chat Continuation Instructions
 
 When continuing DroidInspect:
 - Read this README and inspect the latest `main` commit, build files, and relevant source before modifying anything.
 - Continue the existing project; do not recreate it or discard working features.
-- Phase 1 source and CI build are complete. Initial Android 11 smoke checks passed for SAF intake, one APK, and one CLI-bearing mixed-mode DLL.
+- Phase 1 source and CI build are complete. Initial Android 11 smoke checks passed for SAF intake, one APK, and one CLI-bearing mixed-mode DLL. Native/non-managed PE rejection and a pure-managed .NET fixture remain unverified.
 - The user explicitly chose to skip the optional native PE fixture test. Keep native/non-managed PE rejection and pure-managed fixture coverage marked unverified; do not block M4 on these skipped tests unless a later issue makes them necessary.
 - Start Phase 2 immediately with **M4 — APK DEX analysis and code browsing**.
 - First inspect the existing source and CI workflow, then compare feasible DEX analysis engines and run a minimal Android 11 / CodeAssist-compatible prototype before adding a dependency. Check licenses, Android API compatibility, memory/storage cost, and offline operation.
