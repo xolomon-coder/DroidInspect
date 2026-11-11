@@ -86,18 +86,18 @@ final class DotNetMetadataReader {
     }
 
     private void decodeModule(StringBuilder o) throws Exception {
-        o.append("\\nMODULE IDENTITY\\n");
-        if(rows[0]==0){o.append("Module table: absent.\\n");return;}
+        o.append("\nMODULE IDENTITY\n");
+        if(rows[0]==0){o.append("Module table: absent.\n");return;}
         long p=tableBase[0];
         int generation=u16(p), name=indexString(p+2);
         long guidPos=p+2L+stringWidth();
         int mvid=guidWidth()==2?u16(guidPos):(int)u32(guidPos);
-        o.append("Module name: ").append(str(name)).append('\\n');
-        o.append("Generation: ").append(generation).append('\\n');
+        o.append("Module name: ").append(str(name)).append('\n');
+        o.append("Generation: ").append(generation).append('\n');
         if(mvid>0 && guidBase>0 && (long)(mvid-1)*16+16<=guidSize) {
             byte[] g=new byte[16]; r.seek(guidBase+(long)(mvid-1)*16); r.readFully(g);
-            o.append("MVID: ").append(guid(g)).append('\\n');
-        } else o.append("MVID: unavailable\\n");
+            o.append("MVID: ").append(guid(g)).append('\n');
+        } else o.append("MVID: unavailable\n");
     }
 
     private static String guid(byte[] g) {
@@ -117,7 +117,7 @@ final class DotNetMetadataReader {
         o.append("Version: ").append(major).append('.').append(minor).append('.').append(build).append('.').append(revision).append('\n');
         o.append("Culture: ").append(empty(str(culture))).append('\n');
         o.append("Flags: 0x").append(hex(flags)).append('\n');
-        o.append("Public key blob: ").append(blob).append(" bytes/index\n");
+        o.append("Public key blob index: ").append(blob).append("; payload: ").append(blobLength(blob)).append(" bytes\n");
     }
 
     private void decodeReferences(StringBuilder o) throws Exception {
