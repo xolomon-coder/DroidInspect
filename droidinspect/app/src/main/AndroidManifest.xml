@@ -11,6 +11,10 @@
         android:theme="@style/Theme.App">
 
         <activity
+            android:name=".DexAnalysisActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
