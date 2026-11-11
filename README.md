@@ -95,46 +95,61 @@ If AI Studio is not suitable, use another practical phone-compatible starting ap
 
 4. GitHub-Based Development
 
-GitHub is an important part of my development workflow.
+GitHub is the source of truth for DroidInspect. The user's preferred development and delivery workflow is phone-only and uses the repository's `main` branch ZIP.
 
-The objective is to avoid repeatedly exporting, downloading ZIP files, and manually rebuilding the entire project.
+**Branch policy — main only**
+- Use only the `main` branch for all project source, README, workflow, and CI updates.
+- Do not create, recommend, or use feature, development, release, or other working branches.
+- Make source and documentation commits directly on `main`, after inspecting its latest HEAD.
+- Before every change, verify the current `main` HEAD. If the repository state is unexpected or a write cannot safely target `main`, stop and report the issue rather than creating another branch.
 
-Before making changes
+**Before making changes**
 
 Always:
+1. Inspect the latest `main` branch and identify its HEAD commit.
+2. Read the current README and relevant project documentation.
+3. Inspect the existing source, build files, manifest, resources, and CI workflow relevant to the task.
+4. Understand the architecture, previous decisions, completed work, pending work, and known limitations.
+5. Continue the existing project; do not recreate it or overwrite working functionality unnecessarily.
 
-1. Inspect the latest GitHub repository.
-2. Identify the current branch and latest commit.
-3. Read the existing project documentation.
-4. Inspect the existing source code.
-5. Understand the architecture and previous decisions.
-6. Identify completed, pending, and unfinished features.
-7. Continue the existing project rather than recreating it.
+**Assistant's GitHub development cycle**
 
-Never overwrite existing functionality unnecessarily.
+- Implement the agreed scope directly on `main`.
+- Run relevant host-side tests and GitHub Actions.
+- Fix source, test, or CI failures and repeat verification as needed.
+- Keep the README and development history accurate.
+- For work spanning multiple sessions, continue from the latest `main` HEAD and the documented stopping point.
+- Do not hand the user an unfinished intermediate build merely because one commit has been made.
 
-During implementation
+**Normal delivery to the user — repository ZIP, not CI APK artifact**
 
-- Work on the existing source.
-- Implement only the requested scope.
-- Preserve established architecture.
-- Avoid unnecessary dependencies.
-- Keep the application compatible with phone-based development.
-- Verify changes before considering a milestone complete.
-- Keep GitHub updated with relevant changes.
+When the agreed implementation batch is ready for the user's local build:
+1. Ensure all intended source and README changes are committed to `main` and the relevant GitHub Actions checks have completed.
+2. Provide the repository page and a direct ZIP download for the latest `main` branch:
+   - Repository: https://github.com/xolomon-coder/DroidInspect
+   - Main branch ZIP: https://github.com/xolomon-coder/DroidInspect/archive/refs/heads/main.zip
+3. State the exact latest `main` commit.
+4. Explain whether the user should import/open the extracted project or update the listed files in the existing CodeAssist project.
+5. List the exact files/folders to add, replace, or update, with full repository paths. Mention any required CodeAssist Library Manager dependencies and exact versions before code changes.
+6. The user builds the project in CodeAssist, installs the locally built APK, and performs the requested Android device tests.
+7. The user reports build output, test results, logs, or errors. Investigate and fix issues on `main`, then repeat CI and handoff as necessary.
 
-GitHub responsibilities
+**GitHub Actions artifact policy**
+
+- GitHub Actions artifacts are primarily for assistant-side/cloud verification, reproducibility, and build-output checks.
+- Do not make downloading an Actions APK artifact the user's normal build or delivery workflow.
+- Do not tell the user to install a CI artifact when the agreed workflow is to download the latest `main` ZIP and build in CodeAssist.
+- Provide a direct APK artifact download only when the user explicitly requests it or when a specific diagnostic requires a separately identified CI build. Explain why it is being requested.
+
+**GitHub responsibilities**
 
 Use GitHub for:
+- README: project overview, requirements, architecture, current state, decisions, verification, and handoff instructions.
+- Actions: automated host tests, Android compilation, APK output verification, and artifact publishing where configured.
+- Commits: chronological record of changes made directly on `main`.
+- Issues and Projects: optional tracking when useful; they do not require additional branches.
 
-- README: Project overview, requirements, architecture, current state, and development documentation.
-- Issues: Features, bugs, pending work, and development tasks.
-- Actions: Automated build and verification results where configured.
-- Projects: Milestone and task tracking where useful.
-- Commits: Chronological record of development changes.
-
-Do not assume that a successful GitHub commit or build means the feature works correctly on my phone.
-
+A successful commit or cloud build does not prove the feature works on the user's phone. The user's CodeAssist build and Android device test remain separate verification gates.
 5. Implementation Rules
 
 My preferred coding delivery format is FAST-TRACK.
@@ -467,11 +482,11 @@ This is the required process for building DroidInspect:
 3. **One milestone at a time:** implement only the current milestone's agreed scope. Keep the ten-milestone roadmap visible.
 4. **Plan exact changes:** list files to add/change, dependencies and exact versions, permissions, compatibility effects, and test cases before coding.
 5. **Implement phone-friendly code:** provide complete replacement files with full paths; avoid partial snippets and desktop-only instructions.
-6. **Build and install:** user builds in CodeAssist and installs on the Android phone.
-7. **Test actual behavior:** provide practical test steps and sample fixture requirements. A successful Gradle build alone does not pass functional criteria.
-8. **Analyze evidence:** inspect user-provided reports/logs/results; fix failures before marking a milestone complete.
-9. **Document continuously:** update this README with status, decisions, changed files, test evidence, limitations, and next action. Keep chronological notes.
-10. **Handoff safely:** before a new chat, update documentation and prepare a handoff with branch/commit, milestone state, exact stopping point, and next action.
+6. **Cloud verification:** run the configured host tests and GitHub Actions on the latest `main` source; fix failures before handoff. CI artifacts are for verification, not the normal user delivery route.
+7. **Source handoff:** provide the repository page, latest `main` commit, and direct `main` ZIP link. Give exact instructions for importing the ZIP or updating/replacing the required files in CodeAssist.
+8. **User build and device test:** the user builds in CodeAssist, installs the locally built APK, and runs the agreed test cases. A cloud build alone does not pass functional criteria.
+9. **Analyze evidence:** inspect user-provided build output, reports, logs, and results; fix failures directly on `main`, rerun CI, and provide an updated ZIP handoff.
+10. **Document and hand off safely:** update this README with status, decisions, changed files, test evidence, limitations, latest `main` commit, exact stopping point, and next action.
 
 No milestone is complete solely because code was written or committed.
 
@@ -638,7 +653,7 @@ The automated tests found and corrected real issues:
 
 **Dependencies:** no new Android runtime dependencies. Existing AGP 8.13.0 / Gradle 8.13 / compileSdk 36 / minSdk 26 / targetSdk 36 / Java 8 remain unchanged.
 
-**Verification state (2026-11-12):** GitHub Actions run #64 (`43092921972`) PASS. Existing ECMA-335 host test PASS; DEX parser host test PASS; Android 36 resource processing and Java compilation PASS; debug APK output verification PASS; artifact upload PASS. Artifact: `DroidInspect-Phase2-M4-debug`, ID `13888828737`, size 44,218 bytes, SHA-256 `5cfbc700f9242ca014483ab62e537b61010a0c8c6dfc1a2d6692163ddd3bb0f3`, expires 2026-11-25 20:04:22 UTC. This proves host fixture behavior and cloud packaging, not runtime behavior on Android 11. No Android 11 device test has yet been performed for the new browser. M4 is implemented and CI-verified, but must remain OPEN until the user installs and functionally tests the artifact on the phone.
+**Verification state (2026-11-12):** GitHub Actions run #64 (`43092921972`) PASS. Existing ECMA-335 host test PASS; DEX parser host test PASS; Android 36 resource processing and Java compilation PASS; debug APK output verification PASS; artifact upload PASS. Artifact: `DroidInspect-Phase2-M4-debug`, ID `13888828737`, size 44,218 bytes, SHA-256 `5cfbc700f9242ca014483ab62e537b61010a0c8c6dfc1a2d6692163ddd3bb0f3`, expires 2026-11-25 20:04:22 UTC. This proves host fixture behavior and cloud packaging, not runtime behavior on Android 11. The CI artifact is retained as a verification record; it is not the normal user delivery method. No Android 11 device test has yet been performed for the new browser. M4 remains OPEN until the user downloads the latest `main` ZIP, builds in CodeAssist, installs that locally built APK, and completes the agreed device checks.
 
 **M4 GitHub Actions result (2026-11-12):**
 - Workflow run: #64; run ID `43092921972`; result PASS.
@@ -721,6 +736,7 @@ No new Android runtime dependency or broad storage permission was introduced.
 - 2026-11-12: CI initially caught a synthetic DEX fixture sizing error, dashboard XML newline escaping, and malformed MainActivity Java literals. All three were corrected; final run #64 passed both host tests, Android resource processing and Java compilation, APK output verification, and artifact upload.
 - 2026-11-12: Updated MainActivity so the DEX browser launch button is enabled only for a selected APK. Latest M4 dashboard Java fix commit: `6f67cad16e4dab99cc2e13b7a49dbcd8d058eaa9`.
 - 2026-11-12: Final M4 debug artifact produced: `DroidInspect-Phase2-M4-debug`, artifact ID `13888828737`; SHA-256 `5cfbc700f9242ca014483ab62e537b61010a0c8c6dfc1a2d6692163ddd3bb0f3`. User device verification is the remaining gate.
+- 2026-11-12: User clarified the mandatory phone-only delivery workflow: use only the `main` branch; assistant performs implementation and CI verification directly on `main`; deliver the latest repository `main` ZIP with exact file update/import instructions; user builds and device-tests in CodeAssist. GitHub Actions APK artifacts are for CI verification and are not the default user download/install route.
 
 ## 8. New-Chat Continuation Instructions
 
@@ -736,7 +752,7 @@ No new Android runtime dependency or broad storage permission was introduced.
 - Test device: Android 11 / API 30.
 - Language/UI: Java + native Android XML.
 - M4 CI: GitHub Actions run #64, ID `43092921972`, PASS.
-- Artifact: `DroidInspect-Phase2-M4-debug`, ID `13888828737`, expires 2026-11-25 20:04:22 UTC.
+- CI artifact (verification record only; not the normal user delivery): `DroidInspect-Phase2-M4-debug`, ID `13888828737`, expires 2026-11-25 20:04:22 UTC.
 - CI artifact SHA-256: `5cfbc700f9242ca014483ab62e537b61010a0c8c6dfc1a2d6692163ddd3bb0f3`.
 - Workflow page: https://github.com/xolomon-coder/DroidInspect/actions/runs/43092921972
 - Artifact ZIP was downloaded and checked; the generated debug APK was also extracted and checked for ZIP integrity. The user has not yet reported installing or functionally testing this M4 build.
@@ -756,8 +772,8 @@ No new Android runtime dependency or broad storage permission was introduced.
 
 **Immediate next action — continue, do not restart**
 1. Inspect the latest `main` HEAD and README; inspect `DexFileParser.java`, `DexAnalysisActivity.java`, `MainActivity.java`, their XML layouts, manifest, Gradle config, and CI workflow before making any change.
-2. Help the user install/build the existing M4 artifact through CodeAssist 3.36.1 on Android 11. Use the GitHub Actions artifact above; do not recreate the project or ask the user to repeat Phase 1 tests.
-3. Use `Git MANAGER_1.0.apk` as the first fixture (previously inspected in M2; it contains 9 DEX files). Confirm:
+2. Give the user the latest `main` branch ZIP (https://github.com/xolomon-coder/DroidInspect/archive/refs/heads/main.zip), confirm the commit, and provide exact CodeAssist import/update and build instructions. Do not send the CI APK artifact as the default route. Do not recreate the project or ask the user to repeat Phase 1 tests.
+3. The user installs the APK built locally in CodeAssist and uses `Git MANAGER_1.0.apk` as the first fixture (previously inspected in M2; it contains 9 DEX files). Confirm:
    - Existing APK inspection still works.
    - DEX browser opens for the selected APK.
    - All 9 root-level DEX files are discovered.
