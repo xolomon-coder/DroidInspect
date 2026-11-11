@@ -80,7 +80,7 @@ final class DotNetIlReader {
         MethodInfo(int row,int flags,String owner,String name,long rva,long nameIndex,String body){
             this.row=row;this.flags=flags;this.owner=owner;this.name=name;this.rva=rva;this.nameIndex=nameIndex;this.body=body;
         }
-        String label(){return owner+" :: "+name+"  (RVA 0x"+DotNetIlReader.hex8(rva)+")";}
+        String label(){return owner+" :: "+name+"  (RVA 0x"+DotNetIlReader.h8(rva)+")";}
     }
     static final class Result {
         final List<MethodInfo> methods=new ArrayList<>();
