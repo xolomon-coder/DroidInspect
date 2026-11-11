@@ -20,7 +20,7 @@ public class MainActivity extends Activity {
     private TextView statusView;
     private ProgressBar progressBar;
     private Button openButton;
-    private Button diagnosticsButton;
+    private Button diagnosticsButton;\n    private Button browseDexButton;\n    private Uri selectedUri;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -30,10 +30,10 @@ public class MainActivity extends Activity {
         statusView = findViewById(R.id.statusView);
         progressBar = findViewById(R.id.progressBar);
         openButton = findViewById(R.id.openButton);
-        diagnosticsButton = findViewById(R.id.diagnosticsButton);
+        diagnosticsButton = findViewById(R.id.diagnosticsButton);\n        browseDexButton = findViewById(R.id.browseDexButton);\n        browseDexButton.setEnabled(false);
 
         openButton.setOnClickListener(v -> openDocument());
-        diagnosticsButton.setOnClickListener(v -> runDiagnostics());
+        diagnosticsButton.setOnClickListener(v -> runDiagnostics());\n        browseDexButton.setOnClickListener(v -> {\n            if (selectedUri == null) return;\n            Intent intent = new Intent(this, DexAnalysisActivity.class);\n            intent.putExtra("apk_uri", selectedUri.toString());\n            startActivity(intent);\n        });
         reportView.setText("Choose an APK, DLL, or EXE file to begin.\n\n"
                 + "APK: archive listing, DEX detection, package metadata and declared permissions.\n\n"
                 + ".NET DLL/EXE: PE structure, CLI header, runtime version, metadata streams and table counts.");
@@ -56,7 +56,7 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_OPEN_FILE && resultCode == RESULT_OK && data != null && data.getData() != null) {
-            Uri uri = data.getData();
+            Uri uri = data.getData();\n            selectedUri = uri;\n            browseDexButton.setEnabled(false);
             try {
                 getContentResolver().takePersistableUriPermission(uri,
                         data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION));
@@ -128,7 +128,7 @@ public class MainActivity extends Activity {
     private void setBusy(boolean busy, String status) {
         progressBar.setVisibility(busy ? View.VISIBLE : View.GONE);
         openButton.setEnabled(!busy);
-        diagnosticsButton.setEnabled(!busy);
+        diagnosticsButton.setEnabled(!busy);\n        browseDexButton.setEnabled(!busy && selectedUri != null);
         statusView.setText(status);
     }
 
