@@ -7,6 +7,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 /** Host-JVM regression test for multidex, class, field, method, and malformed-entry handling. */
+// Includes a valid DEX, a malformed DEX, and a nested assets/classes3.dex entry.
 public final class DexFileParserSelfTest {
     public static void main(String[] args) throws Exception {
         File apk = File.createTempFile("droidinspect-dex-test-", ".apk");
