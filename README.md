@@ -480,7 +480,7 @@ No milestone is complete solely because code was written or committed.
 
 Phase 1 implementation has passed cloud CI and initial Android 11 device smoke checks. The user chose to proceed without the optional native-PE fixture test. Native/non-managed PE rejection therefore remains an explicit unverified limitation; do not claim full M3 classification coverage. M2 has one successful real APK test, and M3 has one successful CLI-bearing mixed-mode .NET DLL test. Phase 2 may begin while this gap remains documented for later regression coverage.
 
-The project remains the existing Java + native XML Android application. The original ten-milestone roadmap and project goal are unchanged. Development is on `main`; latest main commit for this M4 handoff: `091075ad6172337580e88b18a76e476d0b87b918`.
+The project remains the existing Java + native XML Android application. The original ten-milestone roadmap and project goal are unchanged. Development is on `main`; latest M4 implementation commit before final documentation-only updates: `091075ad6172337580e88b18a76e476d0b87b918`.
 
 ### M1 — Foundation and file identification
 
