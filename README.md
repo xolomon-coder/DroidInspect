@@ -717,7 +717,7 @@ The automated tests found and corrected real issues:
 - It accepts only a replacement byte sequence with exactly the original method-body length.
 - Both the original and replacement bodies must consist entirely of supported, single-byte, operand-free IL instructions. Branches, operands, metadata tokens, unsupported opcodes, and methods with extra data sections such as exception-handler tables are rejected.
 - Strong-name-signed and Authenticode-signed PE files are rejected.
-- The writer creates a separate copy, updates the PE checksum field, reopens the output with the existing reader, and verifies that the exact replacement IL bytes are present. The source file remains unchanged.
+- The writer creates a separate copy, updates the PE checksum field, reopens the output with the existing reader, and verifies that the exact replacement IL bytes are present. Editable method bodies are capped at 4 KB to avoid retaining large hex strings in phone memory. The source file remains unchanged.
 - The UI exposes **Edit IL / Export** alongside the existing constrained method metadata rename/export action.
 
 **Host regression additions:** the synthetic managed PE fixture changes `1819582A` to `1919592A`, verifies the reopened IL disassembly, verifies that the source still contains the original bytes, and rejects a changed body length and an operand-bearing replacement.
@@ -797,7 +797,7 @@ No new Android runtime dependency or broad storage permission was introduced.
 - Existing build settings: AGP 8.13.0, Gradle 8.13, compileSdk 36, minSdk 26, targetSdk 36, Java 8 source/target.
 - Added Android dependency: ARSCLib 1.4.0 (Apache-2.0).
 - Current CI workflow: `.github/workflows/phase1-android.yml`; it runs the .NET metadata test, .NET IL test, DEX parser test, Android debug compilation, APK existence check, and publishes `DroidInspect-Phase2-debug`.
-- The latest M7 source commits add bounded IL-body editing and its host test. Do not claim the latest CI run passed until the latest `main` push's Actions jobs and artifact have been inspected.
+- The latest M7 source commits add bounded IL-body editing (4 KB editable-body cap) and its host test. The push workflow is configured to run on `main`, but the connected GitHub Actions tools in this session do not expose a list-workflow-runs operation; the commit status endpoint currently returns no status contexts. Therefore the latest M7 CI result and artifact are **not yet verified**. Do not claim a pass until the run, every job, and artifact are inspected.
 - Normal user delivery remains the latest `main` ZIP: https://github.com/xolomon-coder/DroidInspect/archive/refs/heads/main.zip. CI APK artifacts are verification records, not the default installation route.
 
 **Milestone state**
@@ -814,7 +814,7 @@ No new Android runtime dependency or broad storage permission was introduced.
 **Exact next work**
 
 1. Verify the latest `main` HEAD and inspect the new M7 reader, activity, and host test.
-2. Confirm the GitHub Actions run triggered by the latest `main` push. Inspect every job, logs for failures, the final APK artifact, and artifact ZIP integrity. If any check fails, fix it directly on `main`, push again, and repeat. The GitHub Actions connector available in this session may not expose a list-workflow-runs operation; if run/job inspection is unavailable, report that limitation honestly rather than claiming a pass.
+2. Confirm the GitHub Actions run triggered by the latest `main` push. Inspect every job, logs for failures, the final APK artifact, and artifact ZIP integrity. If any check fails, fix it directly on `main`, push again, and repeat. The currently connected GitHub tools do not expose workflow-run listing, and the commit status endpoint returned no status contexts; do not treat that as a pass. Use an Actions run ID or run details if available in a later session.
 3. If CI passes, provide the latest `main` ZIP, exact commit, and precise CodeAssist instructions. The user builds and installs locally.
 4. Device test batch for M4–M7:
    - M4: use `Git MANAGER_1.0.apk`; verify all 9 DEX entries, package/class listing, class details, search, malformed-entry handling, and large-APK responsiveness.
