@@ -48,10 +48,19 @@ jobs:
         working-directory: droidinspect
         run: gradle --no-daemon --stacktrace :app:assembleDebug
 
-      - name: Verify APK output exists
+      - name: Verify APK output exists and record provenance
         run: |
           test -s droidinspect/app/build/outputs/apk/debug/app-debug.apk
           ls -lh droidinspect/app/build/outputs/apk/debug/app-debug.apk
+          {
+            echo "Repository: $GITHUB_REPOSITORY"
+            echo "Commit: $(git rev-parse HEAD)"
+            echo "Branch/ref: $GITHUB_REF"
+            echo "Workflow run: $GITHUB_RUN_ID"
+            echo "Build type: debug"
+            echo "Android compile SDK: 36"
+            echo "Gradle: 8.13"
+          } > droidinspect-build-info.txt
 
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
