@@ -314,7 +314,7 @@ final class DotNetIlReader {
     }
     private static String methodBody(RandomAccessFile f,long off,long len)throws Exception{
         long[] layout=bodyLayout(f,off,len);byte[] code=readBytes(f,layout[0],(int)layout[1]);
-        return "Header: "+(layout[3]==2?"tiny":"fat")+"; IL bytes: "+layout[1]+"\\n"+disassemble(code);
+        return "Header: "+(layout[3]==2?"tiny":"fat")+"; IL bytes: "+layout[1]+"\n"+disassemble(code);
     }
     private static byte[] readBytes(RandomAccessFile f,long offset,int size)throws Exception{
         if(size<0||size>MAX_BODY)throw new IOException("Invalid method body size.");
@@ -323,7 +323,7 @@ final class DotNetIlReader {
     private static String toHex(byte[] data){StringBuilder b=new StringBuilder(data.length*2);for(byte v:data)b.append(h2(v&255));return b.toString();}
     private static byte[] parseHex(String value)throws IOException{
         if(value==null)throw new IOException("Enter replacement IL bytes as hexadecimal.");
-        String compact=value.replaceAll("[\\\\s,:-]","");
+        String compact=value.replaceAll("[\\s,:-]","");
         if(compact.isEmpty()||(compact.length()&1)!=0||compact.length()>MAX_BODY*2)throw new IOException("Hex input must contain an even number of bytes and be no larger than 256 KB.");
         byte[] data=new byte[compact.length()/2];
         for(int i=0;i<data.length;i++){int hi=Character.digit(compact.charAt(i*2),16),lo=Character.digit(compact.charAt(i*2+1),16);if(hi<0||lo<0)throw new IOException("Invalid hexadecimal character.");data[i]=(byte)((hi<<4)|lo);}
