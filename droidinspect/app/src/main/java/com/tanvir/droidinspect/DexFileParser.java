@@ -20,8 +20,9 @@ import java.util.zip.ZipFile;
  */
 public final class DexFileParser {
     public static final long MAX_DEX_BYTES = 128L * 1024L * 1024L;
-    public static final int MAX_CLASSES = 20000;
-    private static final int MAX_MEMBERS_PER_CLASS = 200;
+    public static final int MAX_CLASSES = 10000;
+    public static final int MAX_TOTAL_MEMBERS = 100000;
+    private static final int MAX_MEMBERS_PER_CLASS = 100;
     private static final int MAX_TABLE_ITEMS = 1000000;
 
     private DexFileParser() { }
@@ -52,7 +53,9 @@ public final class DexFileParser {
         public final List<String> dexReports = new ArrayList<>();
         public int dexCount;
         public int totalClasses;
+        public int totalMembers;
         public boolean classLimitReached;
+        public boolean memberLimitReached;
         public String warning = "";
     }
 
@@ -177,16 +180,17 @@ public final class DexFileParser {
                 result.classes.add(info);
                 if (classDataOff != 0) {
                     if (classDataOff >= file.length()) throw new IOException("class_data offset is out of bounds.");
-                    parseClassData(raf, classDataOff, file.length(), info, typeStringIndexes,
+                    parseClassData(raf, classDataOff, file.length(), info, result, typeStringIndexes,
                             stringOffsets, strings, protoOff, protoCount, fieldOff, fieldCount,
                             methodOff, methodCount);
                 }
             }
             if (classCount > result.classes.size() && result.classes.size() >= MAX_CLASSES) result.classLimitReached = true;
+            if (result.totalMembers >= MAX_TOTAL_MEMBERS) result.memberLimitReached = true;
         }
     }
 
-    private static void parseClassData(RandomAccessFile raf, long p, long length, ClassInfo info,
+    private static void parseClassData(RandomAccessFile raf, long p, long length, ClassInfo info, Result result,
             int[] typeStrings, int[] stringOffsets, Map<Integer, String> strings,
             long protoOff, int protoCount, long fieldOff, int fieldCount,
             long methodOff, int methodCount) throws Exception {
@@ -201,8 +205,8 @@ public final class DexFileParser {
         for (int i = 0; i < staticFields + instanceFields; i++) {
             fieldIndex += uleb(raf, c, length);
             int flags = uleb(raf, c, length);
-            if (fieldIndex >= fieldCount) throw new IOException("Field index out of bounds.");
-            if (info.fields.size() < MAX_MEMBERS_PER_CLASS) {
+            if (fieldIndex < 0 || fieldIndex >= fieldCount) throw new IOException("Field index out of bounds.");
+            if (info.fields.size() < MAX_MEMBERS_PER_CLASS && result.totalMembers < MAX_TOTAL_MEMBERS) {
                 long f = fieldOff + fieldIndex * 8L;
                 int type = u16(raf, f + 2);
                 int name = (int) u32(raf, f + 4);
@@ -210,6 +214,7 @@ public final class DexFileParser {
                 String fieldName = string(raf, name, stringOffsets, strings, length);
                 String fieldType = javaName(string(raf, typeStrings[type], stringOffsets, strings, length));
                 info.fields.add(accessFlags(flags) + fieldType + " " + fieldName);
+                result.totalMembers++;
             }
         }
         int methodIndex = 0;
@@ -217,8 +222,8 @@ public final class DexFileParser {
             methodIndex += uleb(raf, c, length);
             int flags = uleb(raf, c, length);
             uleb(raf, c, length); // code_off; instructions are not decompiled in M4 structural mode.
-            if (methodIndex >= methodCount) throw new IOException("Method index out of bounds.");
-            if (info.methods.size() < MAX_MEMBERS_PER_CLASS) {
+            if (methodIndex < 0 || methodIndex >= methodCount) throw new IOException("Method index out of bounds.");
+            if (info.methods.size() < MAX_MEMBERS_PER_CLASS && result.totalMembers < MAX_TOTAL_MEMBERS) {
                 long m = methodOff + methodIndex * 8L;
                 int proto = u16(raf, m + 2);
                 int name = (int) u32(raf, m + 4);
@@ -226,6 +231,7 @@ public final class DexFileParser {
                 String methodName = string(raf, name, stringOffsets, strings, length);
                 String signature = protoSignature(raf, protoOff, proto, typeStrings, stringOffsets, strings, length);
                 info.methods.add(accessFlags(flags) + signature + " " + methodName);
+                result.totalMembers++;
             }
         }
     }
@@ -239,8 +245,9 @@ public final class DexFileParser {
         StringBuilder b = new StringBuilder("(");
         if (paramsOff != 0) {
             if (paramsOff > length - 4) throw new IOException("Parameter type list is out of bounds.");
-            int size = (int) u32(raf, paramsOff);
-            if (size > 4096 || paramsOff + 4L + size * 2L > length) throw new IOException("Invalid parameter type list.");
+            long sizeLong = u32(raf, paramsOff);
+            if (sizeLong > 4096 || paramsOff + 4L + sizeLong * 2L > length) throw new IOException("Invalid parameter type list.");
+            int size = (int) sizeLong;
             for (int i = 0; i < size; i++) {
                 int t = u16(raf, paramsOff + 4L + i * 2L);
                 if (t >= typeStrings.length) throw new IOException("Invalid parameter type index.");
