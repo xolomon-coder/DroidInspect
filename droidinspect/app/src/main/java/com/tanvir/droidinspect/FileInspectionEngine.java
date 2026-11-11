@@ -247,7 +247,7 @@ final class FileInspectionEngine {
                 long p = cursor + 8;
                 int count = 0;
                 while (p < file.length() && count < 32) {
-                    int b = raf.readUnsignedByteAt(p++);
+                    int b = readByteAt(raf, p++);
                     if (b == 0) break;
                     streamName.append((char) b);
                     count++;
@@ -283,7 +283,7 @@ final class FileInspectionEngine {
                 StringBuilder n = new StringBuilder();
                 long q = p + 8;
                 for (int j = 0; j < 32; j++) {
-                    int c = raf.readUnsignedByteAt(q++);
+                    int c = readByteAt(raf, q++);
                     if (c == 0) break;
                     n.append((char)c);
                 }
@@ -327,7 +327,7 @@ final class FileInspectionEngine {
         return offset >= 0 && size >= 0 && offset <= length && size <= length - offset;
     }
     private static long align4(long value) { return (value + 3L) & ~3L; }
-    private static int readU16(RandomAccessFile r, long p) throws Exception {
+    private static int readByteAt(RandomAccessFile r, long p) throws Exception { r.seek(p); return r.readUnsignedByte(); }\n    private static int readU16(RandomAccessFile r, long p) throws Exception {
         r.seek(p); return r.readUnsignedByte() | (r.readUnsignedByte() << 8);
     }
     private static long readU32(RandomAccessFile r, long p) throws Exception {
