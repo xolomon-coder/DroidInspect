@@ -709,3 +709,6 @@ When continuing DroidInspect:
 - M4 should cover DEX parsing/browsing first: multidex discovery, package/class/type/member navigation, safe limits, background work, search, and readable errors. Clearly separate structural parsing from actual Java decompilation.
 - Implement M4 as one coherent GitHub batch where feasible, run CI and produce a debug APK artifact, then ask the user to build/install in CodeAssist 3.36.1 and test on Android 11.
 - Preserve the original ten-milestone roadmap and the user's phone-only Java/XML workflow.
+
+
+CI validation note (2026-11-12): The first synthetic DEX test run found an incorrectly sized test fixture header. The fixture was corrected on main by allocating the 112-byte header plus identifier tables (212 bytes total) separately from the 54-byte data section. The current PR reruns the corrected test and Android build.
