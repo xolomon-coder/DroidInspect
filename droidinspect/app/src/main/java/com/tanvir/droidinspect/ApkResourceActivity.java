@@ -5,8 +5,10 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
@@ -15,6 +17,9 @@ import com.reandroid.archive.InputSource;
 import com.reandroid.arsc.chunk.PackageBlock;
 import com.reandroid.arsc.chunk.TableBlock;
 import com.reandroid.arsc.chunk.xml.AndroidManifestBlock;
+import com.reandroid.arsc.model.ResourceEntry;
+import com.reandroid.arsc.value.DataType;
+import com.reandroid.arsc.value.Entry;
 import com.reandroid.xml.base.XmlSerializable;
 
 import java.io.File;
@@ -22,31 +27,43 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.zip.ZipFile;
 
 /**
- * Bounded APK manifest/resource inspection and controlled manifest edits.
- * The source APK is copied into the app cache and is never modified.
+ * Binary Android manifest/resource browser with controlled default-string edits.
+ * All work is performed against a cache copy; the selected original APK is preserved.
  */
 public final class ApkResourceActivity extends Activity {
     private static final int REQUEST_CREATE_APK = 5101;
     private static final long MAX_APK_BYTES = 512L * 1024L * 1024L;
+    private static final int MAX_RESOURCE_SCAN = 50000;
+    private static final int MAX_STRING_RESOURCES = 1500;
+    private static final int MAX_STRING_VALUE_LENGTH = 8192;
+
+    private final java.util.concurrent.ExecutorService worker =
+            java.util.concurrent.Executors.newSingleThreadExecutor();
+    private final ArrayList<ResourceEntry> stringResources = new ArrayList<>();
+    private final ArrayList<String> stringResourceLabels = new ArrayList<>();
 
     private EditText packageName;
     private EditText versionName;
     private EditText versionCode;
+    private EditText resourceStringValue;
+    private ListView resourceList;
+    private ArrayAdapter<String> resourceAdapter;
     private TextView summary;
     private TextView manifestText;
     private TextView status;
     private ProgressBar progress;
     private Button saveButton;
-    private final java.util.concurrent.ExecutorService worker =
-            java.util.concurrent.Executors.newSingleThreadExecutor();
 
     private File sourceCopy;
     private File pendingOutput;
     private ApkModule apkModule;
+    private ResourceEntry selectedResource;
     private Uri sourceUri;
 
     @Override protected void onCreate(Bundle state) {
@@ -55,11 +72,17 @@ public final class ApkResourceActivity extends Activity {
         packageName = findViewById(R.id.resourcePackageName);
         versionName = findViewById(R.id.resourceVersionName);
         versionCode = findViewById(R.id.resourceVersionCode);
+        resourceStringValue = findViewById(R.id.resourceStringValue);
+        resourceList = findViewById(R.id.resourceStringList);
         summary = findViewById(R.id.resourceSummary);
         manifestText = findViewById(R.id.resourceManifestText);
         status = findViewById(R.id.resourceStatus);
         progress = findViewById(R.id.resourceProgress);
         saveButton = findViewById(R.id.resourceSaveButton);
+
+        resourceAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, stringResourceLabels);
+        resourceList.setAdapter(resourceAdapter);
+        resourceList.setOnItemClickListener((parent, view, position, id) -> selectStringResource(position));
         saveButton.setEnabled(false);
         saveButton.setOnClickListener(v -> prepareModifiedApk());
 
@@ -73,7 +96,7 @@ public final class ApkResourceActivity extends Activity {
     }
 
     private void loadApk() {
-        setBusy(true, "Copying APK and decoding binary resources…");
+        setBusy(true, "Copying APK and decoding binary manifest/resources…");
         worker.execute(() -> {
             String error = null;
             String xml = "";
@@ -81,6 +104,8 @@ public final class ApkResourceActivity extends Activity {
             String pkg = "";
             String verName = "";
             String verCode = "";
+            ArrayList<ResourceEntry> foundStrings = new ArrayList<>();
+            ArrayList<String> foundLabels = new ArrayList<>();
             try {
                 sourceCopy = File.createTempFile("droidinspect-resource-", ".apk", getCacheDir());
                 long copied = copyUri(sourceUri, sourceCopy);
@@ -96,6 +121,7 @@ public final class ApkResourceActivity extends Activity {
                 Integer code = manifest.getVersionCode();
                 verCode = code == null ? "" : String.valueOf(code);
                 xml = XmlSerializable.toXmlString(manifest, true);
+
                 StringBuilder b = new StringBuilder();
                 b.append("APK RESOURCE ANALYSIS\n\n");
                 b.append("Copied input: ").append(copied).append(" bytes\n");
@@ -103,6 +129,7 @@ public final class ApkResourceActivity extends Activity {
                 b.append("Package: ").append(pkg).append('\n');
                 b.append("Version name: ").append(verName).append('\n');
                 b.append("Version code: ").append(verCode).append('\n');
+
                 TableBlock table = apkModule.getTableBlock();
                 if (table == null) {
                     b.append("Resource table: not present\n");
@@ -114,18 +141,41 @@ public final class ApkResourceActivity extends Activity {
                         b.append(" • ").append(p == null ? "(unavailable)" : p.getName()).append('\n');
                     }
                     if (table.size() > 100) b.append(" • Remaining package names omitted by display cap.\n");
+
+                    Iterator<ResourceEntry> entries = table.getResources();
+                    int scanned = 0;
+                    while (entries.hasNext() && scanned < MAX_RESOURCE_SCAN
+                            && foundStrings.size() < MAX_STRING_RESOURCES) {
+                        ResourceEntry resource = entries.next();
+                        scanned++;
+                        if (resource == null || !"string".equals(resource.getType()) || resource.getName() == null) continue;
+                        Entry valueEntry = resource.get();
+                        if (valueEntry == null || !valueEntry.isDefault() || valueEntry.getResValue() == null
+                                || valueEntry.getResValue().getDataType() != DataType.STRING) continue;
+                        foundStrings.add(resource);
+                        foundLabels.add(resource.getName() + "  •  0x"
+                                + String.format(Locale.ROOT, "%08X", resource.getResourceId()));
+                    }
+                    b.append("Resource entries scanned: ").append(scanned);
+                    if (scanned >= MAX_RESOURCE_SCAN) b.append(" (scan cap reached)");
+                    b.append('\n');
+                    b.append("Editable named default string values found: ").append(foundStrings.size());
+                    if (foundStrings.size() >= MAX_STRING_RESOURCES) b.append(" (display cap reached)");
+                    b.append('\n');
                 }
                 b.append("\nEDITING SAFETY\n");
-                b.append("Only package name, version name, and version code are editable in this build.\n");
-                b.append("The saved output is unsigned; the original APK signature is removed.\n");
-                b.append("Use the later signing milestone/tooling before installation.\n");
-                b.append("The selected source APK is never overwritten.");
+                b.append("Editable: package name, version name, version code, and one selected named default string resource.\n");
+                b.append("Other resource types/configuration variants are read-only in this build.\n");
+                b.append("The saved output is unsigned; source signing material is removed.\n");
+                b.append("The original selected APK is never overwritten.");
                 report = b.toString();
             } catch (Exception e) {
                 error = e.getClass().getSimpleName() + ": " + safe(e.getMessage());
             }
             final String fError = error, fXml = xml, fReport = report;
             final String fPkg = pkg, fName = verName, fCode = verCode;
+            final ArrayList<ResourceEntry> fStrings = foundStrings;
+            final ArrayList<String> fLabels = foundLabels;
             runOnUiThread(() -> {
                 setBusy(false, fError == null ? "Manifest and resource analysis complete." : "APK resource analysis failed.");
                 if (fError != null) {
@@ -139,9 +189,29 @@ public final class ApkResourceActivity extends Activity {
                 versionCode.setText(fCode);
                 summary.setText(fReport);
                 manifestText.setText(fXml);
+                stringResources.clear();
+                stringResources.addAll(fStrings);
+                stringResourceLabels.clear();
+                stringResourceLabels.addAll(fLabels);
+                resourceAdapter.notifyDataSetChanged();
                 saveButton.setEnabled(true);
             });
         });
+    }
+
+    private void selectStringResource(int position) {
+        if (position < 0 || position >= stringResources.size()) return;
+        selectedResource = stringResources.get(position);
+        Entry entry = selectedResource.get();
+        if (entry == null || entry.getResValue() == null
+                || entry.getResValue().getDataType() != DataType.STRING) {
+            status.setText("Selected resource is not an editable default string.");
+            resourceStringValue.setText("");
+            return;
+        }
+        resourceStringValue.setText(entry.getDataAsString());
+        status.setText("Selected string resource: " + selectedResource.getName()
+                + " (only its default configuration will be changed)");
     }
 
     private long copyUri(Uri uri, File destination) throws Exception {
@@ -164,12 +234,20 @@ public final class ApkResourceActivity extends Activity {
         final String newPackage = packageName.getText().toString().trim();
         final String newVersionName = versionName.getText().toString().trim();
         final String codeText = versionCode.getText().toString().trim();
+        final ResourceEntry resourceToEdit = selectedResource;
+        final String newResourceValue = resourceStringValue.getText().toString();
+
         if (!newPackage.matches("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*")) {
             packageName.setError("Enter a valid dotted package identifier.");
             return;
         }
         if (newVersionName.length() > 256 || newVersionName.indexOf('\u0000') >= 0) {
             versionName.setError("Version name must be at most 256 characters.");
+            return;
+        }
+        if (resourceToEdit != null && (newResourceValue.length() > MAX_STRING_VALUE_LENGTH
+                || newResourceValue.indexOf('\u0000') >= 0)) {
+            resourceStringValue.setError("String resource value must be at most 8192 characters and cannot contain NUL.");
             return;
         }
         final int newVersionCode;
@@ -180,8 +258,8 @@ public final class ApkResourceActivity extends Activity {
             versionCode.setError("Enter a non-negative 32-bit version code.");
             return;
         }
-        setBusy(true, "Applying manifest edits and validating a new unsigned APK…");
-        saveButton.setEnabled(false);
+
+        setBusy(true, "Applying selected edits and validating a new unsigned APK…");
         worker.execute(() -> {
             File output = null;
             String error = null;
@@ -191,8 +269,19 @@ public final class ApkResourceActivity extends Activity {
                 manifest.setVersionName(newVersionName);
                 manifest.setVersionCode(newVersionCode);
 
-                // Any content change invalidates APK signing material. Remove both
-                // ZIP v1 signature files and the APK Signing Block before writing.
+                int editedResourceId = 0;
+                if (resourceToEdit != null) {
+                    editedResourceId = resourceToEdit.getResourceId();
+                    Entry valueEntry = resourceToEdit.get();
+                    if (valueEntry == null || valueEntry.getResValue() == null
+                            || valueEntry.getResValue().getDataType() != DataType.STRING) {
+                        throw new IllegalStateException("Selected string resource changed state; edit refused.");
+                    }
+                    valueEntry.setDataAsString(newResourceValue);
+                }
+
+                // Remove v1 signature files and the parsed APK Signing Block;
+                // any content modification invalidates the source signatures.
                 InputSource[] sources = apkModule.getInputSources();
                 for (InputSource source : sources) {
                     String alias = source.getAlias();
@@ -208,10 +297,12 @@ public final class ApkResourceActivity extends Activity {
                 output = File.createTempFile("droidinspect-modified-", ".apk", getCacheDir());
                 apkModule.writeApk(output);
 
-                // Re-open the serialized file and verify the edited values before export.
                 try (ZipFile zip = new ZipFile(output)) {
                     if (zip.getEntry("AndroidManifest.xml") == null) {
                         throw new IllegalStateException("Written APK is missing AndroidManifest.xml.");
+                    }
+                    if (zip.getEntry("resources.arsc") == null && resourceToEdit != null) {
+                        throw new IllegalStateException("Written APK is missing resources.arsc after a resource edit.");
                     }
                 }
                 ApkModule verify = ApkModule.loadApkFile(output);
@@ -222,6 +313,16 @@ public final class ApkResourceActivity extends Activity {
                             || !newVersionName.equals(safe(checked.getVersionName()))
                             || checked.getVersionCode() == null || checked.getVersionCode() != newVersionCode) {
                         throw new IllegalStateException("Re-open validation did not match the requested manifest values.");
+                    }
+                    if (resourceToEdit != null) {
+                        TableBlock checkedTable = verify.getTableBlock();
+                        ResourceEntry checkedResource = checkedTable == null ? null : checkedTable.getResource(editedResourceId);
+                        Entry checkedEntry = checkedResource == null ? null : checkedResource.get();
+                        if (checkedEntry == null || checkedEntry.getResValue() == null
+                                || checkedEntry.getResValue().getDataType() != DataType.STRING
+                                || !newResourceValue.equals(checkedEntry.getDataAsString())) {
+                            throw new IllegalStateException("Re-open validation did not match the edited string resource value.");
+                        }
                     }
                 } finally {
                     verify.close();
@@ -234,7 +335,7 @@ public final class ApkResourceActivity extends Activity {
             final File ready = output;
             final String failure = error;
             runOnUiThread(() -> {
-                setBusy(false, failure == null ? "Modified APK validated. Choose where to save it." : "Manifest edit failed.");
+                setBusy(false, failure == null ? "Modified APK reopened and validated. Choose where to save it." : "APK edit failed.");
                 if (failure != null || ready == null) {
                     summary.append("\n\nEDIT FAILED\n" + safe(failure));
                     saveButton.setEnabled(true);
@@ -255,6 +356,7 @@ public final class ApkResourceActivity extends Activity {
         if (requestCode != REQUEST_CREATE_APK) return;
         if (resultCode != RESULT_OK || data == null || data.getData() == null) {
             status.setText("Save cancelled. The original APK remains unchanged.");
+            deletePendingOutput();
             saveButton.setEnabled(true);
             return;
         }
@@ -274,14 +376,20 @@ public final class ApkResourceActivity extends Activity {
             }
             final String failure = error;
             runOnUiThread(() -> {
-                setBusy(false, failure == null ? "Export complete. Output is unsigned and needs signing." : "Export failed.");
+                setBusy(false, failure == null ? "Export complete. Output is unsigned and needs signing." : "Export failed: " + failure);
                 if (failure == null) summary.append("\n\nEXPORT: PASS — modified unsigned APK saved.");
                 else summary.append("\n\nEXPORT FAILED: " + failure);
-                if (pendingOutput != null) pendingOutput.delete();
-                pendingOutput = null;
+                deletePendingOutput();
                 saveButton.setEnabled(true);
             });
         });
+    }
+
+    private void deletePendingOutput() {
+        if (pendingOutput != null) {
+            pendingOutput.delete();
+            pendingOutput = null;
+        }
     }
 
     private void setBusy(boolean busy, String message) {
@@ -300,6 +408,6 @@ public final class ApkResourceActivity extends Activity {
             apkModule = null;
         }
         if (sourceCopy != null) sourceCopy.delete();
-        if (pendingOutput != null) pendingOutput.delete();
+        deletePendingOutput();
     }
 }

@@ -60,12 +60,50 @@
             android:textColor="#FFFFFF"
             android:textColorHint="#9AA6B2" />
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="NAMED DEFAULT STRING RESOURCES"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:textSize="13sp" />
+
+        <ListView
+            android:id="@+id/resourceStringList"
+            android:layout_width="match_parent"
+            android:layout_height="180dp"
+            android:layout_marginTop="4dp"
+            android:background="#191F27"
+            android:divider="#303944"
+            android:dividerHeight="1dp" />
+
+        <EditText
+            android:id="@+id/resourceStringValue"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:minLines="2"
+            android:gravity="top|start"
+            android:hint="Select a string resource above to edit its default value"
+            android:inputType="textMultiLine"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#9AA6B2" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="The selected default string resource is applied when you export below. Other qualifiers and resource types remain unchanged."
+            android:textColor="#AEB8C6"
+            android:textSize="11sp" />
+
         <Button
             android:id="@+id/resourceSaveButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="Apply edits &amp; export unsigned APK"
+            android:text="Apply edits and export unsigned APK"
             android:enabled="false" />
 
         <ProgressBar
