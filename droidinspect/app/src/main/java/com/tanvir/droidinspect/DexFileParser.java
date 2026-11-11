@@ -308,7 +308,7 @@ public final class DexFileParser {
         return ((long)r.readUnsignedByte()) | ((long)r.readUnsignedByte() << 8)
                 | ((long)r.readUnsignedByte() << 16) | ((long)r.readUnsignedByte() << 24);
     }
-    private static boolean isDexName(String name) { return name.matches("classes([2-9][0-9]*)?\\.dex") || "classes.dex".equals(name); }
+    private static boolean isDexName(String name) { return name.matches("classes([2-9]|[1-9][0-9]+)?\\.dex") || "classes.dex".equals(name); }
     private static int dexNumber(String name) {
         if ("classes.dex".equals(name)) return 1;
         try { return Integer.parseInt(name.substring(7, name.length() - 4)); }
