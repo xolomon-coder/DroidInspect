@@ -227,7 +227,7 @@ final class FileInspectionEngine {
             out.append("Metadata RVA: 0x").append(Long.toHexString(metadataRva).toUpperCase(Locale.ROOT)).append('\n');
             out.append("Metadata size: ").append(metadataSize).append(" bytes\n");
             out.append("Flags: 0x").append(hex(readU32(raf, cliOffset + 16), 8)).append('\n');
-            out.append("Entry point token/RVA: 0x").append(hex(readU32(raf, cliOffset + 20), 8)).append('\n");
+            out.append("Entry point token/RVA: 0x").append(hex(readU32(raf, cliOffset + 20), 8)).append('\n');
             out.append("Classification: MANAGED .NET / CLI PE candidate\n");
 
             if (metadataOffset < 0 || !inBounds(metadataOffset, 20, file.length())) {
