@@ -94,6 +94,7 @@ public class DexAnalysisActivity extends Activity {
                 StringBuilder report = new StringBuilder();
                 report.append("DEX files found: ").append(parsed.dexCount).append('\n');
                 report.append("Classes parsed: ").append(parsed.totalClasses).append('\n');
+                report.append("Members indexed: ").append(parsed.totalMembers).append('\n');
                 report.append("Class limit: ").append(parsed.classLimitReached ? "REACHED" : "not reached").append("\n\n");
                 report.append("DEX FILE RESULTS\n");
                 for (String line : parsed.dexReports) report.append("• ").append(line).append('\n');
