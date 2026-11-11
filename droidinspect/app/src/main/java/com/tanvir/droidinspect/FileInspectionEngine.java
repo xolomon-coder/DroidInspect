@@ -237,7 +237,7 @@ final class FileInspectionEngine {
             out.append("\nMETADATA ROOT\n");
             out.append("Metadata version: ").append(major).append('.').append(minor).append('\n');
             out.append("Runtime version string: ").append(runtimeVersion).append('\n');
-            out.append("Metadata streams: ").append(streamCount).append('\\n');
+            out.append("Metadata streams: ").append(streamCount).append('\n');
             long cursor = flagsPos + 4;
             for (int i = 0; i < streamCount && i < 32; i++) {
                 if (!inBounds(cursor, 9, file.length())) break;
