@@ -1,5 +1,6 @@
 # DroidInspect
-The dll editor app
+
+Offline-first Android APK and .NET assembly inspection and analysis application.
 
 ANDROID APP DEVELOPMENT WORKFLOW
 
@@ -476,11 +477,11 @@ No milestone is complete solely because code was written or committed.
 
 ## 6. Current Project Status (2026-11-12)
 
-**Current phase: Phase 2 — Code and resource analysis. Active milestone: M4 — APK DEX analysis and code browsing.** The first implementation batch is committed; cloud CI and device verification are pending.
+**Current phase: Phase 2 — Code and resource analysis. Active milestone: M4 — APK DEX analysis and code browsing.** The M4 structural browser implementation is committed and GitHub Actions CI passed. The remaining immediate gate is installation and functional verification on the Android 11 test phone.
 
 Phase 1 implementation has passed cloud CI and initial Android 11 device smoke checks. The user chose to proceed without the optional native-PE fixture test. Native/non-managed PE rejection therefore remains an explicit unverified limitation; do not claim full M3 classification coverage. M2 has one successful real APK test, and M3 has one successful CLI-bearing mixed-mode .NET DLL test. Phase 2 may begin while this gap remains documented for later regression coverage.
 
-The project remains the existing Java + native XML Android application. The original ten-milestone roadmap and project goal are unchanged. Development is on `main`; latest M4 implementation commit before final documentation-only updates: `091075ad6172337580e88b18a76e476d0b87b918`.
+The project remains the existing Java + native XML Android application. The original ten-milestone roadmap and project goal are unchanged. Development branch: `main`. M4 dashboard Java fix: `6f67cad16e4dab99cc2e13b7a49dbcd8d058eaa9`. Main HEAD immediately before this handoff documentation refresh: `346b1cb63a2e90fb29b09d122ab173b1024a6e02`. The documentation refresh itself creates a newer main commit; use the latest repository HEAD when continuing.
 
 ### M1 — Foundation and file identification
 
@@ -605,7 +606,7 @@ The automated tests found and corrected real issues:
 | Phase 1 overall | ACCEPTED TO PROCEED WITH A DOCUMENTED M3 VERIFICATION GAP |
 | Phase 2 / M4 | IMPLEMENTED; CI PASS — Android 11 device verification pending |
 
-### M4 — APK DEX analysis and code browsing (implementation in progress)
+### M4 — APK DEX analysis and code browsing (implementation + CI PASS; device verification pending)
 
 **Feasibility decision (2026-11-12):**
 - JADX can produce Java-like source, but its maintainers explicitly warn that its library is not suited to Android because of CPU and memory constraints. Its documented Android minimum is API 26, which alone does not prove reliable operation on this API 30 device.
@@ -637,7 +638,7 @@ The automated tests found and corrected real issues:
 
 **Dependencies:** no new Android runtime dependencies. Existing AGP 8.13.0 / Gradle 8.13 / compileSdk 36 / minSdk 26 / targetSdk 36 / Java 8 remain unchanged.
 
-**Verification state (2026-11-12):** GitHub Actions run #64 (`43092921972`) PASS. Existing ECMA-335 host test PASS; DEX parser host test PASS; Android 36 resource processing and Java compilation PASS; debug APK output verification PASS; artifact upload PASS. Artifact: `DroidInspect-Phase2-M4-debug`, ID `13888828737`, size 44,218 bytes, SHA-256 `5cfbc700f9242ca014483ab62e537b61010a0c8c6dfc1a2d6692163ddd3bb0f3`, expires 2026-11-25 20:04:22 UTC. This proves host fixture behavior and cloud packaging, not runtime behavior on Android 11. No Android 11 device test has yet been performed for the new browser. M4 remains IN PROGRESS until the user installs and tests the artifact on the phone.
+**Verification state (2026-11-12):** GitHub Actions run #64 (`43092921972`) PASS. Existing ECMA-335 host test PASS; DEX parser host test PASS; Android 36 resource processing and Java compilation PASS; debug APK output verification PASS; artifact upload PASS. Artifact: `DroidInspect-Phase2-M4-debug`, ID `13888828737`, size 44,218 bytes, SHA-256 `5cfbc700f9242ca014483ab62e537b61010a0c8c6dfc1a2d6692163ddd3bb0f3`, expires 2026-11-25 20:04:22 UTC. This proves host fixture behavior and cloud packaging, not runtime behavior on Android 11. No Android 11 device test has yet been performed for the new browser. M4 is implemented and CI-verified, but must remain OPEN until the user installs and functionally tests the artifact on the phone.
 
 **M4 GitHub Actions result (2026-11-12):**
 - Workflow run: #64; run ID `43092921972`; result PASS.
@@ -713,18 +714,69 @@ No new Android runtime dependency or broad storage permission was introduced.
 - 2026-11-12: User inspected `Git MANAGER_1.0.apk`: 51 ZIP entries, 9 DEX files, and PackageManager metadata decoded successfully. Recorded as an initial M2 device PASS for this sample.
 - 2026-11-12: User inspected a 71,224-byte CLI-bearing `ISymWrapper.dll` candidate: PE/CLI headers and core ECMA-335 metadata parsed, including assembly/module identity, references, types, fields, and methods. Recorded as an initial M3 device PASS for this mixed-mode candidate; not evidence of C# decompilation.
 - 2026-11-12: User declined the optional native PE fixture test. Native/non-managed PE rejection and pure-managed fixture coverage remain explicitly unverified.
-- 2026-11-12: User chose to proceed to Phase 2 despite the documented M3 verification gap. Do not restart Phase 1 or silently mark the missing native-PE test as passed.\n- 2026-11-12: Inspected JADX Android-use guidance and Google Smali/dexlib2 Android build metadata. Deferred JADX because its maintainers warn about Android CPU/RAM limitations; did not adopt dexlib2 because the inspected AOSP device module targets API 33 while the test phone is API 30.\n- 2026-11-12: Added a dependency-free bounded DEX structural parser, native XML browser, multidex handling, class/member search, safety caps, and synthetic host-JVM test.\n- 2026-11-12: Extended the GitHub Actions workflow to run the DEX host test and publish a Phase 2 M4 debug APK artifact. CI and Android 11 device verification are pending.
+- 2026-11-12: User chose to proceed to Phase 2 despite the documented M3 verification gap. Do not restart Phase 1 or silently mark the missing native-PE test as passed.
+- 2026-11-12: Inspected JADX Android-use guidance and Google Smali/dexlib2 Android build metadata. Deferred JADX because its maintainers warn about Android CPU/RAM limitations; did not adopt dexlib2 because the inspected AOSP device module targets API 33 while the test phone is API 30.
+- 2026-11-12: Added a dependency-free bounded DEX structural parser, native XML browser, multidex handling, class/member search, safety caps, and synthetic host-JVM test.
+- 2026-11-12: Extended GitHub Actions to run both host parser tests, compile the Android app, verify the APK output, and publish the Phase 2 M4 debug artifact.
+- 2026-11-12: CI initially caught a synthetic DEX fixture sizing error, dashboard XML newline escaping, and malformed MainActivity Java literals. All three were corrected; final run #64 passed both host tests, Android resource processing and Java compilation, APK output verification, and artifact upload.
+- 2026-11-12: Updated MainActivity so the DEX browser launch button is enabled only for a selected APK. Latest M4 dashboard Java fix commit: `6f67cad16e4dab99cc2e13b7a49dbcd8d058eaa9`.
+- 2026-11-12: Final M4 debug artifact produced: `DroidInspect-Phase2-M4-debug`, artifact ID `13888828737`; SHA-256 `5cfbc700f9242ca014483ab62e537b61010a0c8c6dfc1a2d6692163ddd3bb0f3`. User device verification is the remaining gate.
 
 ## 8. New-Chat Continuation Instructions
 
-When continuing DroidInspect:
-- Read this README and inspect the latest `main` commit, build files, and relevant source before modifying anything.
-- Continue the existing project; do not recreate it or discard working features.
-- Phase 1 source and CI build are complete. Initial Android 11 smoke checks passed for SAF intake, one APK, and one CLI-bearing mixed-mode DLL. Native/non-managed PE rejection and a pure-managed .NET fixture remain unverified.
-- The user explicitly chose to skip the optional native PE fixture test. Keep native/non-managed PE rejection and pure-managed fixture coverage marked unverified; do not block M4 on these skipped tests unless a later issue makes them necessary.
-- Start Phase 2 immediately with **M4 — APK DEX analysis and code browsing**.
-- First inspect the existing source and CI workflow, then compare feasible DEX analysis engines and run a minimal Android 11 / CodeAssist-compatible prototype before adding a dependency. Check licenses, Android API compatibility, memory/storage cost, and offline operation.
-- Do not add JADX or another large engine without proving Android-host compatibility. If no viable embedded engine exists, explain the trade-off and propose a bounded native/alternative approach before changing architecture.
-- M4 should cover DEX parsing/browsing first: multidex discovery, package/class/type/member navigation, safe limits, background work, search, and readable errors. Clearly separate structural parsing from actual Java decompilation.
-- Implement M4 as one coherent GitHub batch where feasible, run CI and produce a debug APK artifact, then ask the user to build/install in CodeAssist 3.36.1 and test on Android 11.
-- Preserve the original ten-milestone roadmap and the user's phone-only Java/XML workflow.
+**Exact stopping point — 2026-11-12**
+
+- Repository: https://github.com/xolomon-coder/DroidInspect
+- Branch: `main`.
+- Main HEAD immediately before this README handoff refresh: `346b1cb63a2e90fb29b09d122ab173b1024a6e02`. The README refresh creates a newer commit; inspect latest `main` before any changes.
+- Latest M4 source fix before the documentation refresh: `6f67cad16e4dab99cc2e13b7a49dbcd8d058eaa9`.
+- Android package: `com.tanvir.droidinspect`.
+- Android module: `droidinspect/app`.
+- User IDE: CodeAssist 3.36.1.
+- Test device: Android 11 / API 30.
+- Language/UI: Java + native Android XML.
+- M4 CI: GitHub Actions run #64, ID `43092921972`, PASS.
+- Artifact: `DroidInspect-Phase2-M4-debug`, ID `13888828737`, expires 2026-11-25 20:04:22 UTC.
+- CI artifact SHA-256: `5cfbc700f9242ca014483ab62e537b61010a0c8c6dfc1a2d6692163ddd3bb0f3`.
+- Workflow page: https://github.com/xolomon-coder/DroidInspect/actions/runs/43092921972
+- Artifact ZIP was downloaded and checked; the generated debug APK was also extracted and checked for ZIP integrity. The user has not yet reported installing or functionally testing this M4 build.
+
+**What is complete**
+- Phase 1 M1–M3 accepted for progression, with native/non-managed PE rejection and pure-managed .NET fixture still explicitly unverified.
+- M4 bounded DEX structural parser and native XML browser implemented.
+- Multidex discovery, package/class/member browsing, search, malformed-entry reporting, background processing, and safety caps implemented.
+- No new Android runtime dependencies or broad storage permissions.
+- GitHub host tests, Android compilation, APK output verification, and artifact upload all passed in run #64.
+
+**What is not complete**
+- M4 has NOT passed Android 11 device verification.
+- The current browser is a structural DEX/member browser, not a Java decompiler. It does not decode instruction bodies or reconstruct Java source.
+- Real-world large/obfuscated APK performance and unusual Modified UTF-8 identifier handling remain to be evaluated.
+- Do not start M5 until the M4 device test is complete or the user explicitly chooses to defer it.
+
+**Immediate next action — continue, do not restart**
+1. Inspect the latest `main` HEAD and README; inspect `DexFileParser.java`, `DexAnalysisActivity.java`, `MainActivity.java`, their XML layouts, manifest, Gradle config, and CI workflow before making any change.
+2. Help the user install/build the existing M4 artifact through CodeAssist 3.36.1 on Android 11. Use the GitHub Actions artifact above; do not recreate the project or ask the user to repeat Phase 1 tests.
+3. Use `Git MANAGER_1.0.apk` as the first fixture (previously inspected in M2; it contains 9 DEX files). Confirm:
+   - Existing APK inspection still works.
+   - DEX browser opens for the selected APK.
+   - All 9 root-level DEX files are discovered.
+   - Package selector and class list populate.
+   - A class detail view shows fields and methods.
+   - Search finds known class/member names.
+   - Malformed DEX entries are reported without crashing the whole analysis.
+   - A larger APK does not freeze the UI or cause an out-of-memory crash.
+4. Ask the user to provide the observed result/report and any crash or build error. Diagnose from the actual evidence; do not infer success from CI.
+5. Fix any defects on the existing `main` source, rerun host tests and GitHub Actions, publish a new debug artifact, and update README with device results.
+6. Mark M4 complete only after the agreed on-device checks pass. Then proceed to M5 — .NET C# decompilation and IL browsing — by first proving a practical Android-compatible execution/decompiler route.
+
+**Do not**
+- Recreate the Android project.
+- Reimplement Phase 1.
+- Ask the user to repeat Phase 1 tests.
+- Change the original ten-milestone roadmap.
+- Claim Java decompilation works.
+- Add JADX, dexlib2, or another large engine without a demonstrated Android 11 / CodeAssist-compatible prototype, resource measurements, and license review.
+- Mark M4 complete solely because GitHub Actions passed.
+
+Preserve the user's phone-only workflow, Java + XML preference, GitHub as source of truth, and complete-file delivery preference when manual code changes are needed.
