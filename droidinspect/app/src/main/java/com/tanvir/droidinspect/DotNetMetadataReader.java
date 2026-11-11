@@ -27,7 +27,7 @@ final class DotNetMetadataReader {
 
     private final RandomAccessFile r;
     private final long fileLength, root, rootSize;
-    private long stringsBase, stringsSize, tablesBase, tablesSize, blobBase, blobSize;
+    private long stringsBase, stringsSize, tablesBase, tablesSize, blobBase, blobSize, guidBase, guidSize;
     private long[] rows = new long[64], tableBase = new long[64];
     private int heapSizes;
 
@@ -58,6 +58,7 @@ final class DotNetMetadataReader {
             if(off>rootSize || size>rootSize-off) continue;
             if("#Strings".contentEquals(n)){stringsBase=root+off;stringsSize=size;}
             else if("#Blob".contentEquals(n)){blobBase=root+off;blobSize=size;}
+            else if("#GUID".contentEquals(n)){guidBase=root+off;guidSize=size;}
             else if("#~".contentEquals(n)||"#-".contentEquals(n)){tablesBase=root+off;tablesSize=size;}
         }
         if(tablesBase==0) throw new Exception("No #~ or #- metadata tables stream was found.");
@@ -75,12 +76,34 @@ final class DotNetMetadataReader {
         StringBuilder out=new StringBuilder("\nDECODED .NET ASSEMBLY METADATA\n");
         out.append("Metadata tables stream: ").append("#~ / #-").append('\n');
         out.append("String heap: ").append(stringsSize).append(" bytes; Blob heap: ").append(blobSize).append(" bytes\n");
+        decodeModule(out);
         decodeAssembly(out);
         decodeReferences(out);
         decodeTypes(out);
         out.append("\nDecode status: ").append(stringsBase!=0 ? "core identity/type/member tables decoded where present" : "string heap unavailable").append('\n');
         out.append("Note: This is metadata inspection, not C# decompilation or IL editing.\n");
         return out.toString();
+    }
+
+    private void decodeModule(StringBuilder o) throws Exception {
+        o.append("\\nMODULE IDENTITY\\n");
+        if(rows[0]==0){o.append("Module table: absent.\\n");return;}
+        long p=tableBase[0];
+        int generation=u16(p), name=indexString(p+2);
+        long guidPos=p+2L+stringWidth();
+        int mvid=guidWidth()==2?u16(guidPos):(int)u32(guidPos);
+        o.append("Module name: ").append(str(name)).append('\\n');
+        o.append("Generation: ").append(generation).append('\\n');
+        if(mvid>0 && guidBase>0 && (long)(mvid-1)*16+16<=guidSize) {
+            byte[] g=new byte[16]; r.seek(guidBase+(long)(mvid-1)*16); r.readFully(g);
+            o.append("MVID: ").append(guid(g)).append('\\n');
+        } else o.append("MVID: unavailable\\n");
+    }
+
+    private static String guid(byte[] g) {
+        return String.format(Locale.ROOT,"%02X%02X%02X%02X-%02X%02X-%02X%02X-%02X%02X-%02X%02X%02X%02X%02X%02X",
+            g[3]&255,g[2]&255,g[1]&255,g[0]&255,g[5]&255,g[4]&255,g[7]&255,g[6]&255,
+            g[8]&255,g[9]&255,g[10]&255,g[11]&255,g[12]&255,g[13]&255,g[14]&255,g[15]&255);
     }
 
     private void decodeAssembly(StringBuilder o) throws Exception {
@@ -209,6 +232,15 @@ final class DotNetMetadataReader {
     private long tableIndex(long p,int t)throws Exception{return tableWidth(t)==2?u16(p):u32(p);}
     private int indexString(long p)throws Exception{return stringWidth()==2?u16(p):(int)u32(p);}
     private int indexBlob(long p)throws Exception{return blobWidth()==2?u16(p):(int)u32(p);}
+    private int blobLength(int index)throws Exception {
+        if(index<=0||blobBase==0||index>=blobSize)return 0;
+        long p=blobBase+index; int first=b(p++); long length;
+        if((first&0x80)==0) length=first;
+        else if((first&0xC0)==0x80) length=((first&0x3F)<<8)|b(p++);
+        else if((first&0xE0)==0xC0) length=((long)(first&0x1F)<<24)|((long)b(p++)<<16)|((long)b(p++)<<8)|b(p++);
+        else return 0;
+        return length>Integer.MAX_VALUE?0:(int)length;
+    }
     private String str(int index)throws Exception{
         if(index==0||stringsBase==0||index>=stringsSize)return "";
         long p=stringsBase+index; StringBuilder s=new StringBuilder();
