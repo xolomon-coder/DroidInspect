@@ -33,13 +33,20 @@
         android:id="@+id/diagnosticsButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Run Phase 1 Diagnostics" />
+        android:text="Run Runtime Diagnostics" />
 
     <Button
         android:id="@+id/browseDexButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Browse DEX Classes / Methods"
+        android:enabled="false" />
+
+    <Button
+        android:id="@+id/browseResourcesButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="APK Manifest / Resource Editor"
         android:enabled="false" />
 
     <ProgressBar
@@ -79,5 +86,4 @@
             android:textIsSelectable="true"
             android:lineSpacingExtra="3dp" />
     </ScrollView>
-
 </LinearLayout>

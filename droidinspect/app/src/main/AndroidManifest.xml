@@ -11,6 +11,10 @@
         android:theme="@style/Theme.App">
 
         <activity
+            android:name=".ApkResourceActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".DexAnalysisActivity"
             android:exported="false" />
 

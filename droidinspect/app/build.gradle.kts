@@ -25,3 +25,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_1_8
     }
 }
+
+dependencies {
+    // Pure-Java Android resource/manifest reader and writer; Apache-2.0.
+    implementation("io.github.reandroid:ARSCLib:1.4.0")
+}

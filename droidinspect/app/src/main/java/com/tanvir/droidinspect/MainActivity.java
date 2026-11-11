@@ -22,8 +22,10 @@ public class MainActivity extends Activity {
     private Button openButton;
     private Button diagnosticsButton;
     private Button browseDexButton;
+    private Button browseResourcesButton;
     private Uri selectedUri;
     private boolean canBrowseDex;
+    private boolean canBrowseApk;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,7 +37,9 @@ public class MainActivity extends Activity {
         openButton = findViewById(R.id.openButton);
         diagnosticsButton = findViewById(R.id.diagnosticsButton);
         browseDexButton = findViewById(R.id.browseDexButton);
+        browseResourcesButton = findViewById(R.id.browseResourcesButton);
         browseDexButton.setEnabled(false);
+        browseResourcesButton.setEnabled(false);
 
         openButton.setOnClickListener(v -> openDocument());
         diagnosticsButton.setOnClickListener(v -> runDiagnostics());
@@ -45,9 +49,15 @@ public class MainActivity extends Activity {
             intent.putExtra("apk_uri", selectedUri.toString());
             startActivity(intent);
         });
+        browseResourcesButton.setOnClickListener(v -> {
+            if (selectedUri == null || !canBrowseApk) return;
+            Intent intent = new Intent(this, ApkResourceActivity.class);
+            intent.putExtra("apk_uri", selectedUri.toString());
+            startActivity(intent);
+        });
         reportView.setText("Choose an APK, DLL, or EXE file to begin.\n\n"
-                + "APK: archive listing, DEX detection, package metadata and declared permissions.\n\n"
-                + ".NET DLL/EXE: PE structure, CLI header, runtime version, metadata streams and table counts.");
+                + "APK: archive listing, DEX detection, package metadata, manifest/resource analysis and selected manifest editing.\n\n"
+                + ".NET DLL/EXE: PE structure, CLI header, runtime version and metadata inspection.");
     }
 
     private void openDocument() {
@@ -70,7 +80,9 @@ public class MainActivity extends Activity {
             Uri uri = data.getData();
             selectedUri = uri;
             canBrowseDex = false;
+            canBrowseApk = false;
             browseDexButton.setEnabled(false);
+            browseResourcesButton.setEnabled(false);
             try {
                 getContentResolver().takePersistableUriPermission(uri,
                         data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION));
@@ -90,11 +102,13 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     reportView.setText(report);
                     canBrowseDex = isApk;
+                    canBrowseApk = isApk;
                     setBusy(false, "Inspection finished.");
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
                     canBrowseDex = false;
+                    canBrowseApk = false;
                     reportView.setText("INSPECTION FAILED\n\n" + e.getClass().getSimpleName()
                             + ": " + (e.getMessage() == null ? "No additional details." : e.getMessage())
                             + "\n\nThe original selected file was not modified.");
@@ -105,10 +119,10 @@ public class MainActivity extends Activity {
     }
 
     private void runDiagnostics() {
-        setBusy(true, "Running Phase 1 diagnostics…");
+        setBusy(true, "Running runtime diagnostics…");
         worker.execute(() -> {
             StringBuilder report = new StringBuilder();
-            report.append("DROIDINSPECT — PHASE 1 DIAGNOSTICS\n\n");
+            report.append("DROIDINSPECT — RUNTIME DIAGNOSTICS\n\n");
             report.append("Android API: ").append(android.os.Build.VERSION.SDK_INT).append('\n');
             report.append("Android release: ").append(android.os.Build.VERSION.RELEASE).append('\n');
             report.append("App package: ").append(getPackageName()).append('\n');
@@ -120,25 +134,21 @@ public class MainActivity extends Activity {
             } catch (Exception e) {
                 report.append("FAIL — ").append(e.getMessage()).append('\n');
             } finally {
-                if (probe != null) {
-                    //noinspection ResultOfMethodCallIgnored
-                    probe.delete();
-                }
+                if (probe != null) probe.delete();
             }
             report.append("Document picker: available through Android ACTION_OPEN_DOCUMENT\n");
             report.append("External storage permission: not requested (SAF is used)\n");
-            report.append("APK ZIP reader: Java ZipFile API available\n");
-            report.append("DEX structural parser: built-in bounded Java reader available\n");
-            report.append("PE/CLI parser: built-in Java binary reader available\n");
-            report.append("Network required for inspection: NO\n");
-            report.append("\nLIMITS\n");
-            report.append("Current per-file inspection copy limit: 512 MB\n");
-            report.append("APK archive display limit: first 5000 entries\n");
-            report.append("This diagnostic checks app/runtime prerequisites; it does not prove every APK or .NET assembly parses correctly.");
+            report.append("APK ZIP and DEX structural parsers: available\n");
+            report.append("ARSCLib manifest/resource engine: packaged in this build\n");
+            report.append("PE/CLI metadata and IL browser: available in this build\n");
+            report.append("Network required for local inspection: NO\n\n");
+            report.append("LIMITS\n");
+            report.append("Input copy cap: 512 MB; DEX per-file cap: 128 MB\n");
+            report.append("Runtime diagnostics do not prove every parser or edit operation works on every file.");
             String result = report.toString();
             runOnUiThread(() -> {
                 reportView.setText(result);
-                setBusy(false, "Phase 1 diagnostics finished.");
+                setBusy(false, "Runtime diagnostics finished.");
             });
         });
     }
@@ -148,6 +158,7 @@ public class MainActivity extends Activity {
         openButton.setEnabled(!busy);
         diagnosticsButton.setEnabled(!busy);
         browseDexButton.setEnabled(!busy && canBrowseDex);
+        browseResourcesButton.setEnabled(!busy && canBrowseApk);
         statusView.setText(status);
     }
 
