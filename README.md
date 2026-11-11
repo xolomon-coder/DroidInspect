@@ -479,7 +479,7 @@ This is the required process for building DroidInspect:
 
 1. **Repository-first:** inspect the latest `main` branch, commit, README, build files, and source before every implementation task.
 2. **Feasibility before dependency adoption:** create small, isolated on-device prototypes for risky engines. Do not add a major decompiler/rebuilder dependency until its Android compatibility is demonstrated.
-3. **One milestone at a time:** implement only the current milestone's agreed scope. Keep the ten-milestone roadmap visible.
+3. **Phase-level delivery:** when the user asks to complete a whole phase, continue through every milestone in that phase in sequence on `main`, using milestone boundaries as internal checkpoints rather than stopping for a routine handoff after each milestone. Do not arbitrarily expand scope beyond the phase. Pause early only when a user decision, missing fixture, safety constraint, or essential device-only validation genuinely blocks further work; explain the blocker and ask whether to defer that check and continue. Keep the ten-milestone roadmap visible.
 4. **Plan exact changes:** list files to add/change, dependencies and exact versions, permissions, compatibility effects, and test cases before coding.
 5. **Implement phone-friendly code:** provide complete replacement files with full paths; avoid partial snippets and desktop-only instructions.
 6. **Cloud verification:** run the configured host tests and GitHub Actions on the latest `main` source; fix failures before handoff. CI artifacts are for verification, not the normal user delivery route.
@@ -488,7 +488,7 @@ This is the required process for building DroidInspect:
 9. **Analyze evidence:** inspect user-provided build output, reports, logs, and results; fix failures directly on `main`, rerun CI, and provide an updated ZIP handoff.
 10. **Document and hand off safely:** update this README with status, decisions, changed files, test evidence, limitations, latest `main` commit, exact stopping point, and next action.
 
-No milestone is complete solely because code was written or committed.
+No milestone is complete solely because code was written or committed. When delivering a full phase, complete implementation and available automated verification for all milestones in that phase before the normal ZIP handoff. Device-only verification may be collected as a clearly documented user test batch after handoff when it does not block safe implementation of later milestones; never claim device tests passed without user evidence.
 
 ## 6. Current Project Status (2026-11-12)
 
@@ -737,6 +737,7 @@ No new Android runtime dependency or broad storage permission was introduced.
 - 2026-11-12: Updated MainActivity so the DEX browser launch button is enabled only for a selected APK. Latest M4 dashboard Java fix commit: `6f67cad16e4dab99cc2e13b7a49dbcd8d058eaa9`.
 - 2026-11-12: Final M4 debug artifact produced: `DroidInspect-Phase2-M4-debug`, artifact ID `13888828737`; SHA-256 `5cfbc700f9242ca014483ab62e537b61010a0c8c6dfc1a2d6692163ddd3bb0f3`. User device verification is the remaining gate.
 - 2026-11-12: User clarified the mandatory phone-only delivery workflow: use only the `main` branch; assistant performs implementation and CI verification directly on `main`; deliver the latest repository `main` ZIP with exact file update/import instructions; user builds and device-tests in CodeAssist. GitHub Actions APK artifacts are for CI verification and are not the default user download/install route.
+- 2026-11-12: User clarified the phase-level work preference: when a whole phase is requested, continue through all milestones in that phase on `main` and complete implementation plus cloud verification before the normal ZIP handoff. Milestone boundaries are internal checkpoints; pause early only for a genuine blocker or essential user decision/device-only check, and explicitly ask whether that check can be deferred.
 
 ## 8. New-Chat Continuation Instructions
 
