@@ -709,3 +709,6 @@ When continuing DroidInspect:
 - M4 should cover DEX parsing/browsing first: multidex discovery, package/class/type/member navigation, safe limits, background work, search, and readable errors. Clearly separate structural parsing from actual Java decompilation.
 - Implement M4 as one coherent GitHub batch where feasible, run CI and produce a debug APK artifact, then ask the user to build/install in CodeAssist 3.36.1 and test on Android 11.
 - Preserve the original ten-milestone roadmap and the user's phone-only Java/XML workflow.
+
+
+CI validation note (2026-11-12): Android resource compilation then exposed literal escaped newline sequences in the newly inserted dashboard button XML. The main-branch layout has been corrected; this PR synchronization reruns the complete workflow against the updated main base.
