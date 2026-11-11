@@ -637,7 +637,7 @@ The automated tests found and corrected real issues:
 
 **Dependencies:** no new Android runtime dependencies. Existing AGP 8.13.0 / Gradle 8.13 / compileSdk 36 / minSdk 26 / targetSdk 36 / Java 8 remain unchanged.
 
-**Verification state:** source changes are committed, but the M4 host test and Android cloud build have not yet been confirmed in GitHub Actions at the time of this documentation update. No Android 11 device test has been performed for the new browser. Do not mark M4 complete until CI passes and the user verifies the browser on-device.
+**Verification state:** source changes are committed. The M4 host test and Android cloud build are being validated on the dedicated CI pull request; results will be recorded here before merging. No Android 11 device test has been performed for the new browser. Do not mark M4 complete until CI passes and the user verifies the browser on-device.
 
 **Known technical limits to review during verification:**
 - The custom reader is a bounded structural parser, not a full DEX verifier or bytecode disassembler.
