@@ -24,6 +24,8 @@ public final class DotNetIlReaderSelfTest {
 
         File source = File.createTempFile("di-managed-fixture-", ".dll");
         File renamed = File.createTempFile("di-renamed-fixture-", ".dll");
+        File ilEdited = File.createTempFile("di-il-edited-fixture-", ".dll");
+        File rejected = File.createTempFile("di-il-rejected-fixture-", ".dll");
         try {
             writeFixture(source);
             DotNetIlReader.Result original = DotNetIlReader.read(source);
@@ -38,10 +40,22 @@ public final class DotNetIlReaderSelfTest {
             require(after.methods.size() == 1, "renamed MethodDef indexed");
             require("MethodB".equals(after.methods.get(0).name), "metadata rename survives re-open");
             require("MethodA".equals(DotNetIlReader.read(source).methods.get(0).name), "source assembly remains unchanged");
+
+            DotNetIlReader.replaceMethodBody(source, 1, "19 19 59 2A", ilEdited);
+            DotNetIlReader.Result edited = DotNetIlReader.read(ilEdited);
+            require("1919592A".equals(edited.methods.get(0).codeHex), "edited IL bytes survive reopen");
+            require(edited.methods.get(0).body.contains("ldc.i4.3") && edited.methods.get(0).body.contains("sub"),
+                    "edited IL disassembles after reopen");
+            require("1819582A".equals(DotNetIlReader.read(source).methods.get(0).codeHex),
+                    "source IL remains unchanged");
+            reject(() -> DotNetIlReader.replaceMethodBody(source, 1, "1919", rejected), "IL body size change");
+            reject(() -> DotNetIlReader.replaceMethodBody(source, 1, "20000000", rejected), "operand-bearing IL edit");
             System.out.println("DotNetIlReaderSelfTest: PASS");
         } finally {
             source.delete();
             renamed.delete();
+            ilEdited.delete();
+            rejected.delete();
         }
     }
 
