@@ -18,7 +18,7 @@ import com.reandroid.arsc.chunk.PackageBlock;
 import com.reandroid.arsc.chunk.TableBlock;
 import com.reandroid.arsc.chunk.xml.AndroidManifestBlock;
 import com.reandroid.arsc.model.ResourceEntry;
-import com.reandroid.arsc.value.DataType;
+import com.reandroid.arsc.value.ValueType;
 import com.reandroid.arsc.value.Entry;
 import com.reandroid.xml.base.XmlSerializable;
 
@@ -151,7 +151,7 @@ public final class ApkResourceActivity extends Activity {
                         if (resource == null || !"string".equals(resource.getType()) || resource.getName() == null) continue;
                         Entry valueEntry = resource.get();
                         if (valueEntry == null || !valueEntry.isDefault() || valueEntry.getResValue() == null
-                                || valueEntry.getResValue().getDataType() != DataType.STRING) continue;
+                                || valueEntry.getResValue().getValueType() != ValueType.STRING) continue;
                         foundStrings.add(resource);
                         foundLabels.add(resource.getName() + "  •  0x"
                                 + String.format(Locale.ROOT, "%08X", resource.getResourceId()));
@@ -204,12 +204,12 @@ public final class ApkResourceActivity extends Activity {
         selectedResource = stringResources.get(position);
         Entry entry = selectedResource.get();
         if (entry == null || entry.getResValue() == null
-                || entry.getResValue().getDataType() != DataType.STRING) {
+                || entry.getResValue().getValueType() != ValueType.STRING) {
             status.setText("Selected resource is not an editable default string.");
             resourceStringValue.setText("");
             return;
         }
-        resourceStringValue.setText(entry.getDataAsString());
+        resourceStringValue.setText(entry.getValueAsString());
         status.setText("Selected string resource: " + selectedResource.getName()
                 + " (only its default configuration will be changed)");
     }
@@ -274,10 +274,10 @@ public final class ApkResourceActivity extends Activity {
                     editedResourceId = resourceToEdit.getResourceId();
                     Entry valueEntry = resourceToEdit.get();
                     if (valueEntry == null || valueEntry.getResValue() == null
-                            || valueEntry.getResValue().getDataType() != DataType.STRING) {
+                            || valueEntry.getResValue().getValueType() != ValueType.STRING) {
                         throw new IllegalStateException("Selected string resource changed state; edit refused.");
                     }
-                    valueEntry.setDataAsString(newResourceValue);
+                    valueEntry.setValueAsString(newResourceValue);
                 }
 
                 // Remove v1 signature files and the parsed APK Signing Block;
@@ -319,8 +319,8 @@ public final class ApkResourceActivity extends Activity {
                         ResourceEntry checkedResource = checkedTable == null ? null : checkedTable.getResource(editedResourceId);
                         Entry checkedEntry = checkedResource == null ? null : checkedResource.get();
                         if (checkedEntry == null || checkedEntry.getResValue() == null
-                                || checkedEntry.getResValue().getDataType() != DataType.STRING
-                                || !newResourceValue.equals(checkedEntry.getDataAsString())) {
+                                || checkedEntry.getResValue().getValueType() != ValueType.STRING
+                                || !newResourceValue.equals(checkedEntry.getValueAsString())) {
                             throw new IllegalStateException("Re-open validation did not match the edited string resource value.");
                         }
                     }
