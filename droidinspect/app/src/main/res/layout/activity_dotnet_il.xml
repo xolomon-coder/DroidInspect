@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="#101318">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text=".NET IL Browser"
+        android:textColor="#FFFFFF"
+        android:textSize="22sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/dotnetIlReport"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="Reading assembly…"
+        android:textColor="#DCE4ED"
+        android:textSize="12sp"
+        android:fontFamily="monospace" />
+
+    <EditText
+        android:id="@+id/dotnetIlSearch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:hint="Search type or method"
+        android:singleLine="true"
+        android:inputType="text"
+        android:textColor="#FFFFFF"
+        android:textColorHint="#9AA6B2" />
+
+    <ProgressBar
+        android:id="@+id/dotnetIlProgress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:indeterminate="true"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/dotnetIlStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
+        android:text="Ready"
+        android:textColor="#80CBC4"
+        android:textSize="12sp" />
+
+    <ListView
+        android:id="@+id/dotnetIlList"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:divider="#303944"
+        android:dividerHeight="1dp"
+        android:background="#191F27" />
+</LinearLayout>

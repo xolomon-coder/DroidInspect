@@ -23,9 +23,11 @@ public class MainActivity extends Activity {
     private Button diagnosticsButton;
     private Button browseDexButton;
     private Button browseResourcesButton;
+    private Button browseDotNetButton;
     private Uri selectedUri;
     private boolean canBrowseDex;
     private boolean canBrowseApk;
+    private boolean canBrowseDotNet;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -38,8 +40,10 @@ public class MainActivity extends Activity {
         diagnosticsButton = findViewById(R.id.diagnosticsButton);
         browseDexButton = findViewById(R.id.browseDexButton);
         browseResourcesButton = findViewById(R.id.browseResourcesButton);
+        browseDotNetButton = findViewById(R.id.browseDotNetButton);
         browseDexButton.setEnabled(false);
         browseResourcesButton.setEnabled(false);
+        browseDotNetButton.setEnabled(false);
 
         openButton.setOnClickListener(v -> openDocument());
         diagnosticsButton.setOnClickListener(v -> runDiagnostics());
@@ -53,6 +57,12 @@ public class MainActivity extends Activity {
             if (selectedUri == null || !canBrowseApk) return;
             Intent intent = new Intent(this, ApkResourceActivity.class);
             intent.putExtra("apk_uri", selectedUri.toString());
+            startActivity(intent);
+        });
+        browseDotNetButton.setOnClickListener(v -> {
+            if (selectedUri == null || !canBrowseDotNet) return;
+            Intent intent = new Intent(this, DotNetIlActivity.class);
+            intent.putExtra("assembly_uri", selectedUri.toString());
             startActivity(intent);
         });
         reportView.setText("Choose an APK, DLL, or EXE file to begin.\n\n"
@@ -81,8 +91,10 @@ public class MainActivity extends Activity {
             selectedUri = uri;
             canBrowseDex = false;
             canBrowseApk = false;
+            canBrowseDotNet = false;
             browseDexButton.setEnabled(false);
             browseResourcesButton.setEnabled(false);
+            browseDotNetButton.setEnabled(false);
             try {
                 getContentResolver().takePersistableUriPermission(uri,
                         data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION));
@@ -99,16 +111,19 @@ public class MainActivity extends Activity {
             try {
                 String report = FileInspectionEngine.inspect(getApplicationContext(), uri);
                 boolean isApk = report.startsWith("DROIDINSPECT — APK INSPECTION");
+                boolean isManaged = report.startsWith("DROIDINSPECT — PE / .NET INSPECTION") && report.contains(".NET CLI header: PRESENT");
                 runOnUiThread(() -> {
                     reportView.setText(report);
                     canBrowseDex = isApk;
                     canBrowseApk = isApk;
+                    canBrowseDotNet = isManaged;
                     setBusy(false, "Inspection finished.");
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
                     canBrowseDex = false;
                     canBrowseApk = false;
+                    canBrowseDotNet = false;
                     reportView.setText("INSPECTION FAILED\n\n" + e.getClass().getSimpleName()
                             + ": " + (e.getMessage() == null ? "No additional details." : e.getMessage())
                             + "\n\nThe original selected file was not modified.");
@@ -159,6 +174,7 @@ public class MainActivity extends Activity {
         diagnosticsButton.setEnabled(!busy);
         browseDexButton.setEnabled(!busy && canBrowseDex);
         browseResourcesButton.setEnabled(!busy && canBrowseApk);
+        browseDotNetButton.setEnabled(!busy && canBrowseDotNet);
         statusView.setText(status);
     }
 

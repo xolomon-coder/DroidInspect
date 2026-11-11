@@ -49,6 +49,13 @@
         android:text="APK Manifest and Resource Editor"
         android:enabled="false" />
 
+    <Button
+        android:id="@+id/browseDotNetButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Browse .NET IL and Rename Method"
+        android:enabled="false" />
+
     <ProgressBar
         android:id="@+id/progressBar"
         style="?android:attr/progressBarStyleHorizontal"
