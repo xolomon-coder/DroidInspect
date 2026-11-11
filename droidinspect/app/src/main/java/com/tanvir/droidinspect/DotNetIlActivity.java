@@ -120,8 +120,64 @@ public final class DotNetIlActivity extends Activity {
                 .setTitle(method.owner + " :: " + method.name)
                 .setMessage(method.body)
                 .setNegativeButton("Close", null)
+                .setNeutralButton("Edit IL / Export", (dialog, which) -> promptIlEdit(method))
                 .setPositiveButton("Rename / Export", (dialog, which) -> promptRename(method))
                 .show();
+    }
+
+    private void promptIlEdit(DotNetIlReader.MethodInfo method) {
+        if (method.codeHex == null || method.codeHex.isEmpty()) {
+            Toast.makeText(this, "This method has no available IL body.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        EditText input = new EditText(this);
+        input.setMinLines(3);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        input.setText(method.codeHex);
+        new AlertDialog.Builder(this)
+                .setTitle("Edit method IL bytes")
+                .setMessage("Enter hexadecimal bytes. This limited editor accepts only same-length sequences of single-byte, operand-free opcodes. Branches, operands, metadata tokens, exception-handler sections, signed assemblies, and unsupported instructions are refused. The original file is never changed.")
+                .setView(input)
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Validate and export copy",
+                        (dialog, which) -> editMethodBody(method, input.getText().toString()))
+                .show();
+    }
+
+    private void editMethodBody(DotNetIlReader.MethodInfo method, String replacementHex) {
+        setBusy(true, "Validating a same-size IL edit and a new assembly copy…");
+        worker.execute(() -> {
+            File output = null;
+            String failure = null;
+            try {
+                output = File.createTempFile("droidinspect-il-edited-", ".dll", getCacheDir());
+                DotNetIlReader.replaceMethodBody(sourceCopy, method.row, replacementHex, output);
+            } catch (Exception e) {
+                failure = e.getClass().getSimpleName() + ": " + safe(e.getMessage());
+                if (output != null) output.delete();
+                output = null;
+            }
+            final File ready = output;
+            final String error = failure;
+            runOnUiThread(() -> {
+                setBusy(false, error == null
+                        ? "Edited assembly reopened and verified. Choose an export location."
+                        : "IL edit refused or failed.");
+                if (error != null || ready == null) {
+                    new AlertDialog.Builder(this).setTitle("IL edit not applied")
+                            .setMessage(safe(error))
+                            .setPositiveButton("OK", null).show();
+                    return;
+                }
+                pendingOutput = ready;
+                Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("application/octet-stream");
+                intent.putExtra(Intent.EXTRA_TITLE, "DroidInspect-edited-assembly.dll");
+                startActivityForResult(intent, REQUEST_SAVE_ASSEMBLY);
+            });
+        });
     }
 
     private void promptRename(DotNetIlReader.MethodInfo method) {
@@ -165,7 +221,7 @@ public final class DotNetIlActivity extends Activity {
                 Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
                 intent.addCategory(Intent.CATEGORY_OPENABLE);
                 intent.setType("application/octet-stream");
-                intent.putExtra(Intent.EXTRA_TITLE, "DroidInspect-renamed-assembly.dll");
+                intent.putExtra(Intent.EXTRA_TITLE, "DroidInspect-modified-assembly.dll");
                 startActivityForResult(intent, REQUEST_SAVE_ASSEMBLY);
             });
         });
@@ -196,7 +252,7 @@ public final class DotNetIlActivity extends Activity {
             final String error = failure;
             runOnUiThread(() -> {
                 setBusy(false, error == null
-                        ? "Export complete. Reopen the output to inspect the new method name."
+                        ? "Export complete. Reopen the output to inspect the modified method."
                         : "Export failed: " + error);
                 deletePendingOutput();
                 if (error != null) Toast.makeText(this, error, Toast.LENGTH_LONG).show();
