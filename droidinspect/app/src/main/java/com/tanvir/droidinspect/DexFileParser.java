@@ -302,7 +302,7 @@ public final class DexFileParser {
         throw new IOException("Invalid ULEB128 value.");
     }
     private static int readByte(RandomAccessFile r, long p) throws Exception { r.seek(p); return r.readUnsignedByte(); }
-    private static int u16(RandomAccessFile r, long p) throws Exception { r.seek(p); return r.readUnsignedShort() & 0xffff; }
+    private static int u16(RandomAccessFile r, long p) throws Exception { r.seek(p); return r.readUnsignedByte() | (r.readUnsignedByte() << 8); }
     private static long u32(RandomAccessFile r, long p) throws Exception {
         r.seek(p);
         return ((long)r.readUnsignedByte()) | ((long)r.readUnsignedByte() << 8)
