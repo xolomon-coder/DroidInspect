@@ -76,9 +76,12 @@ final class DotNetIlReader {
     static final class MethodInfo {
         final int row, flags;
         final String owner, name, body;
-        final long rva, nameIndex;
-        MethodInfo(int row,int flags,String owner,String name,long rva,long nameIndex,String body){
-            this.row=row;this.flags=flags;this.owner=owner;this.name=name;this.rva=rva;this.nameIndex=nameIndex;this.body=body;
+        final long rva, nameIndex, codeOffset;
+        final int codeSize;
+        final String codeHex;
+        MethodInfo(int row,int flags,String owner,String name,long rva,long nameIndex,long codeOffset,int codeSize,String codeHex,String body){
+            this.row=row;this.flags=flags;this.owner=owner;this.name=name;this.rva=rva;this.nameIndex=nameIndex;
+            this.codeOffset=codeOffset;this.codeSize=codeSize;this.codeHex=codeHex;this.body=body;
         }
         String label(){return owner+" :: "+name+"  (RVA 0x"+DotNetIlReader.h8(rva)+")";}
     }
@@ -157,11 +160,16 @@ final class DotNetIlReader {
             long p=pe.base[6]+i*ms,rva=u32(pe.f,p);int flags=u16(pe.f,p+6);
             long nameIndex=pe.index(p+8,pe.sw());String name=pe.str(nameIndex);
             String owner=owners.get(i+1);if(owner==null)owner="(module)";
-            String body;
+            String body,codeHex="";long codeOffset=0;int codeSize=0;
             if(rva==0)body="No method body (abstract, runtime, native, or external declaration).";
-            else try{long off=rvaToOffset(pe.f,rva,pe.sectionTable,pe.sections,pe.len);if(off<0)throw new IOException("RVA does not map to file bytes.");body=methodBody(pe.f,off,pe.len);bodies++;}
-            catch(Exception e){body="IL body unavailable: "+safe(e.getMessage());}
-            result.methods.add(new MethodInfo(i+1,flags,owner,name,rva,nameIndex,body));
+            else try{
+                long off=rvaToOffset(pe.f,rva,pe.sectionTable,pe.sections,pe.len);
+                if(off<0)throw new IOException("RVA does not map to file bytes.");
+                long[] layout=bodyLayout(pe.f,off,pe.len);codeOffset=layout[0];codeSize=(int)layout[1];
+                byte[] code=readBytes(pe.f,codeOffset,codeSize);codeHex=toHex(code);
+                body=methodBody(pe.f,off,pe.len);bodies++;
+            } catch(Exception e){body="IL body unavailable: "+safe(e.getMessage());codeOffset=0;codeSize=0;codeHex="";}
+            result.methods.add(new MethodInfo(i+1,flags,owner,name,rva,nameIndex,codeOffset,codeSize,codeHex,body));
         }
         result.report="ASSEMBLY: "+result.assembly+"\nMethodDef rows: "+count+"\nMethods indexed: "+limit+(count>limit?" (safety cap reached)":"")+"\nBodies decoded: "+bodies+"\nView: raw ECMA-335 IL; metadata tokens are numeric.\nC# source reconstruction is not implemented.";
         return result;
@@ -189,6 +197,37 @@ final class DotNetIlReader {
         Result check=read(output);MethodInfo changed=null;
         for(MethodInfo m:check.methods)if(m.row==row){changed=m;break;}
         if(changed==null||!replacement.equals(changed.name)){output.delete();throw new IOException("Post-write verification failed; output discarded.");}
+        } finally { pe.close(); }
+    }
+
+    /** Replaces only fixed-size, operand-free IL opcode sequences in an unsigned PE copy. */
+    static void replaceMethodBody(File source,int row,String replacementHex,File output)throws Exception{
+        if(row<1||source==null||output==null||source.getCanonicalFile().equals(output.getCanonicalFile()))
+            throw new IOException("Invalid IL edit request.");
+        Pe pe=parse(source);
+        try {
+            if((pe.cliFlags&8L)!=0)throw new IOException("Strong-name signed assemblies cannot be edited by this writer.");
+            if(pe.certSize!=0)throw new IOException("Authenticode-signed PE files cannot be edited by this writer.");
+            Result result=read(source);MethodInfo target=null;
+            for(MethodInfo m:result.methods)if(m.row==row){target=m;break;}
+            if(target==null||target.codeOffset<=0||target.codeSize<=0)throw new IOException("The selected method has no editable IL body.");
+            long methodOff=rvaToOffset(pe.f,target.rva,pe.sectionTable,pe.sections,pe.len);
+            long[] layout=bodyLayout(pe.f,methodOff,pe.len);
+            if((layout[2]&8L)!=0)throw new IOException("Methods with extra data sections (for example exception handlers) are not editable.");
+            byte[] original=readBytes(pe.f,target.codeOffset,target.codeSize);
+            validateSimpleCode(original,"The existing method body");
+            byte[] replacement=parseHex(replacementHex);
+            if(replacement.length!=original.length)throw new IOException("IL replacement must contain exactly "+original.length+" bytes; method body size cannot change.");
+            validateSimpleCode(replacement,"The replacement method body");
+            copy(source,output);
+            try(RandomAccessFile out=new RandomAccessFile(output,"rw")){
+                out.seek(target.codeOffset);out.write(replacement);out.seek(pe.checksum);out.writeInt(0);
+            }
+            Result checked=read(output);MethodInfo verified=null;
+            for(MethodInfo m:checked.methods)if(m.row==row){verified=m;break;}
+            if(verified==null||!toHex(replacement).equals(verified.codeHex)){
+                output.delete();throw new IOException("Post-write IL verification failed; output discarded.");
+            }
         } finally { pe.close(); }
     }
 
@@ -264,14 +303,39 @@ final class DotNetIlReader {
         return refs;
     }
 
-    private static String methodBody(RandomAccessFile f,long off,long len)throws Exception{
-        int first=byteAt(f,off),format=first&3;long start,size;
+    private static long[] bodyLayout(RandomAccessFile f,long off,long len)throws Exception{
+        if(off<0||!bounds(off,1,len))throw new IOException("Method header is out of bounds.");
+        int first=byteAt(f,off),format=first&3;long start,size,flags=0;
         if(format==2){size=first>>>2;start=off+1;}
-        else if(format==3){int flags=u16(f,off),words=(flags>>>12)&15;if(words<3||words>15)throw new IOException("Invalid fat header.");long hb=words*4L;if(!bounds(off,hb,len))throw new IOException("Truncated fat header.");size=u32(f,off+4);start=off+hb;}
+        else if(format==3){flags=u16(f,off);int words=(int)((flags>>>12)&15);if(words<3||words>15)throw new IOException("Invalid fat header.");long hb=words*4L;if(!bounds(off,hb,len))throw new IOException("Truncated fat header.");size=u32(f,off+4);start=off+hb;}
         else throw new IOException("Unknown method header format.");
         if(size>MAX_BODY||!bounds(start,size,len))throw new IOException("Method body exceeds 256 KB or is out of bounds.");
-        byte[] code=new byte[(int)size];f.seek(start);f.readFully(code);
-        return "Header: "+(format==2?"tiny":"fat")+"; IL bytes: "+size+"\n"+disassemble(code);
+        return new long[]{start,size,flags,format};
+    }
+    private static String methodBody(RandomAccessFile f,long off,long len)throws Exception{
+        long[] layout=bodyLayout(f,off,len);byte[] code=readBytes(f,layout[0],(int)layout[1]);
+        return "Header: "+(layout[3]==2?"tiny":"fat")+"; IL bytes: "+layout[1]+"\\n"+disassemble(code);
+    }
+    private static byte[] readBytes(RandomAccessFile f,long offset,int size)throws Exception{
+        if(size<0||size>MAX_BODY)throw new IOException("Invalid method body size.");
+        byte[] data=new byte[size];f.seek(offset);f.readFully(data);return data;
+    }
+    private static String toHex(byte[] data){StringBuilder b=new StringBuilder(data.length*2);for(byte v:data)b.append(h2(v&255));return b.toString();}
+    private static byte[] parseHex(String value)throws IOException{
+        if(value==null)throw new IOException("Enter replacement IL bytes as hexadecimal.");
+        String compact=value.replaceAll("[\\\\s,:-]","");
+        if(compact.isEmpty()||(compact.length()&1)!=0||compact.length()>MAX_BODY*2)throw new IOException("Hex input must contain an even number of bytes and be no larger than 256 KB.");
+        byte[] data=new byte[compact.length()/2];
+        for(int i=0;i<data.length;i++){int hi=Character.digit(compact.charAt(i*2),16),lo=Character.digit(compact.charAt(i*2+1),16);if(hi<0||lo<0)throw new IOException("Invalid hexadecimal character.");data[i]=(byte)((hi<<4)|lo);}
+        return data;
+    }
+    private static void validateSimpleCode(byte[] code,String label)throws IOException{
+        if(code==null||code.length==0)throw new IOException(label+" is empty.");
+        for(int i=0;i<code.length;i++){
+            int op=code[i]&255;
+            if(op==0xfe||OPS[op]==null||ARGS[op]!=N)
+                throw new IOException(label+" contains an unsupported opcode, operand, branch, or token at byte "+i+". Only single-byte operand-free instructions are editable in this milestone.");
+        }
     }
 
     private static String disassemble(byte[] c)throws Exception{
