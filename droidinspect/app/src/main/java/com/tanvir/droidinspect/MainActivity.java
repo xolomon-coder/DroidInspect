@@ -20,7 +20,9 @@ public class MainActivity extends Activity {
     private TextView statusView;
     private ProgressBar progressBar;
     private Button openButton;
-    private Button diagnosticsButton;\n    private Button browseDexButton;\n    private Uri selectedUri;
+    private Button diagnosticsButton;
+    private Button browseDexButton;
+    private Uri selectedUri;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -30,12 +32,24 @@ public class MainActivity extends Activity {
         statusView = findViewById(R.id.statusView);
         progressBar = findViewById(R.id.progressBar);
         openButton = findViewById(R.id.openButton);
-        diagnosticsButton = findViewById(R.id.diagnosticsButton);\n        browseDexButton = findViewById(R.id.browseDexButton);\n        browseDexButton.setEnabled(false);
+        diagnosticsButton = findViewById(R.id.diagnosticsButton);
+        browseDexButton = findViewById(R.id.browseDexButton);
+        browseDexButton.setEnabled(false);
 
         openButton.setOnClickListener(v -> openDocument());
-        diagnosticsButton.setOnClickListener(v -> runDiagnostics());\n        browseDexButton.setOnClickListener(v -> {\n            if (selectedUri == null) return;\n            Intent intent = new Intent(this, DexAnalysisActivity.class);\n            intent.putExtra("apk_uri", selectedUri.toString());\n            startActivity(intent);\n        });
-        reportView.setText("Choose an APK, DLL, or EXE file to begin.\n\n"
-                + "APK: archive listing, DEX detection, package metadata and declared permissions.\n\n"
+        diagnosticsButton.setOnClickListener(v -> runDiagnostics());
+        browseDexButton.setOnClickListener(v -> {
+            if (selectedUri == null) return;
+            Intent intent = new Intent(this, DexAnalysisActivity.class);
+            intent.putExtra("apk_uri", selectedUri.toString());
+            startActivity(intent);
+        });
+        reportView.setText("Choose an APK, DLL, or EXE file to begin.
+
+"
+                + "APK: archive listing, DEX detection, package metadata and declared permissions.
+
+"
                 + ".NET DLL/EXE: PE structure, CLI header, runtime version, metadata streams and table counts.");
     }
 
@@ -56,7 +70,9 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_OPEN_FILE && resultCode == RESULT_OK && data != null && data.getData() != null) {
-            Uri uri = data.getData();\n            selectedUri = uri;\n            browseDexButton.setEnabled(false);
+            Uri uri = data.getData();
+            selectedUri = uri;
+            browseDexButton.setEnabled(false);
             try {
                 getContentResolver().takePersistableUriPermission(uri,
                         data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION));
@@ -78,9 +94,13 @@ public class MainActivity extends Activity {
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
-                    reportView.setText("INSPECTION FAILED\n\n" + e.getClass().getSimpleName()
+                    reportView.setText("INSPECTION FAILED
+
+" + e.getClass().getSimpleName()
                             + ": " + (e.getMessage() == null ? "No additional details." : e.getMessage())
-                            + "\n\nThe original selected file was not modified.");
+                            + "
+
+The original selected file was not modified.");
                     setBusy(false, "Inspection failed.");
                 });
             }
@@ -91,31 +111,47 @@ public class MainActivity extends Activity {
         setBusy(true, "Running Phase 1 diagnostics…");
         worker.execute(() -> {
             StringBuilder report = new StringBuilder();
-            report.append("DROIDINSPECT — PHASE 1 DIAGNOSTICS\n\n");
-            report.append("Android API: ").append(android.os.Build.VERSION.SDK_INT).append('\n');
-            report.append("Android release: ").append(android.os.Build.VERSION.RELEASE).append('\n');
-            report.append("App package: ").append(getPackageName()).append('\n');
+            report.append("DROIDINSPECT — PHASE 1 DIAGNOSTICS
+
+");
+            report.append("Android API: ").append(android.os.Build.VERSION.SDK_INT).append('
+');
+            report.append("Android release: ").append(android.os.Build.VERSION.RELEASE).append('
+');
+            report.append("App package: ").append(getPackageName()).append('
+');
             report.append("Cache writable: ");
             File probe = null;
             try {
                 probe = File.createTempFile("di-test-", ".tmp", getCacheDir());
-                report.append("PASS\n");
+                report.append("PASS
+");
             } catch (Exception e) {
-                report.append("FAIL — ").append(e.getMessage()).append('\n');
+                report.append("FAIL — ").append(e.getMessage()).append('
+');
             } finally {
                 if (probe != null) {
                     //noinspection ResultOfMethodCallIgnored
                     probe.delete();
                 }
             }
-            report.append("Document picker: available through Android ACTION_OPEN_DOCUMENT\n");
-            report.append("External storage permission: not requested (SAF is used)\n");
-            report.append("APK ZIP reader: Java ZipFile API available\n");
-            report.append("PE/CLI parser: built-in Java binary reader available\n");
-            report.append("Network required for inspection: NO\n");
-            report.append("\nLIMITS\n");
-            report.append("Current per-file inspection copy limit: 512 MB\n");
-            report.append("APK archive display limit: first 5000 entries\n");
+            report.append("Document picker: available through Android ACTION_OPEN_DOCUMENT
+");
+            report.append("External storage permission: not requested (SAF is used)
+");
+            report.append("APK ZIP reader: Java ZipFile API available
+");
+            report.append("PE/CLI parser: built-in Java binary reader available
+");
+            report.append("Network required for inspection: NO
+");
+            report.append("
+LIMITS
+");
+            report.append("Current per-file inspection copy limit: 512 MB
+");
+            report.append("APK archive display limit: first 5000 entries
+");
             report.append("This diagnostic checks app/runtime prerequisites; it does not prove every APK or .NET assembly parses correctly.");
             String result = report.toString();
             runOnUiThread(() -> {
@@ -128,7 +164,8 @@ public class MainActivity extends Activity {
     private void setBusy(boolean busy, String status) {
         progressBar.setVisibility(busy ? View.VISIBLE : View.GONE);
         openButton.setEnabled(!busy);
-        diagnosticsButton.setEnabled(!busy);\n        browseDexButton.setEnabled(!busy && selectedUri != null);
+        diagnosticsButton.setEnabled(!busy);
+        browseDexButton.setEnabled(!busy && selectedUri != null);
         statusView.setText(status);
     }
 
