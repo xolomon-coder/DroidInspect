@@ -492,7 +492,7 @@ No milestone is complete solely because code was written or committed. When deli
 
 ## 6. Current Project Status (2026-11-12)
 
-**Current phase: Phase 2 — Code and resource analysis. Active milestone: M4 — APK DEX analysis and code browsing.** The M4 structural browser implementation is committed and GitHub Actions CI passed. The remaining immediate gate is installation and functional verification on the Android 11 test phone.
+**Current phase: Phase 2 — Code and resource analysis.** M4 DEX structural browsing, M5 bounded .NET IL browsing, and M6 selected APK manifest/resource editing are implemented in `main`; M7 constrained .NET IL editing has now been added. The M4 device test and representative on-device tests for M5–M7 remain pending. Cloud verification for the latest M7 change must be confirmed from the latest GitHub Actions run before delivery. No milestone is declared device-complete based on CI alone.
 
 Phase 1 implementation has passed cloud CI and initial Android 11 device smoke checks. The user chose to proceed without the optional native-PE fixture test. Native/non-managed PE rejection therefore remains an explicit unverified limitation; do not claim full M3 classification coverage. M2 has one successful real APK test, and M3 has one successful CLI-bearing mixed-mode .NET DLL test. Phase 2 may begin while this gap remains documented for later regression coverage.
 
@@ -619,7 +619,7 @@ The automated tests found and corrected real issues:
 | M3 pure-managed .NET fixture | NOT TESTED |
 | M3 native/non-managed PE rejection | NOT TESTED — user chose to skip this fixture |
 | Phase 1 overall | ACCEPTED TO PROCEED WITH A DOCUMENTED M3 VERIFICATION GAP |
-| Phase 2 / M4 | IMPLEMENTED; CI PASS — Android 11 device verification pending |
+| Phase 2 / M4–M7 | M4–M6 implementation present; M7 constrained IL editor added; latest CI/device verification pending |
 
 ### M4 — APK DEX analysis and code browsing (implementation + CI PASS; device verification pending)
 
@@ -684,9 +684,49 @@ The automated tests found and corrected real issues:
 - Large and obfuscated real-world APKs still require device performance testing.
 - Java-like decompilation remains deferred; do not describe this milestone build as a Java decompiler.
 
+### M5 — .NET code browsing and IL inspection (implemented; device verification pending)
+
+**Implemented on `main`:**
+- Added a bounded ECMA-335 method-body reader and raw IL disassembler.
+- Indexes up to 10,000 MethodDef rows and displays method owner, name, RVA, and decoded method body where available.
+- Reads method bodies up to 256 KB and limits display to 250 instructions per method.
+- Supports text search across the indexed method/type labels.
+- Metadata method rename is deliberately constrained: ASCII identifier, identical UTF-8 byte length, no special-name methods, no shared metadata string, and no strong-name or Authenticode-signed input. The original file is preserved and the exported copy is reopened for verification.
+- The current implementation is **not a C# decompiler**. It displays a bounded subset of raw IL; metadata tokens remain numeric and unsupported opcodes are reported/omitted.
+
+**Host verification already present:** `tools/il-reader-test/DotNetIlReaderSelfTest.java` builds a synthetic managed PE/CLI fixture, checks method ownership and IL decoding, verifies a metadata rename round trip, and confirms the source fixture remains unchanged. The newer IL-body editing assertions are described under M7 below. Representative real managed assembly browsing and editing still require Android device tests.
+
+### M6 — APK manifest and resource analysis/editing (implemented; device verification pending)
+
+**Dependency:** `io.github.reandroid:ARSCLib:1.4.0` (Apache-2.0), declared in `droidinspect/app/build.gradle.kts`.
+
+**Implemented on `main`:**
+- Decodes binary `AndroidManifest.xml` and displays its XML representation plus package/version information.
+- Reads the resource table and lists named default string resources within explicit scan/display caps.
+- Allows controlled edits to package name, version name, version code, and one selected named default string resource.
+- Writes a new APK, removes invalidated source signing material/signing block, reopens the output, and verifies the changed manifest/resource values.
+- Exports an **unsigned** APK. It must be signed before installation; the original APK is never overwritten.
+- Other resource types and configuration-qualified string variants remain read-only.
+
+**Verification gap:** this feature has been compiled in cloud CI in the preceding development batch, but it has not yet been functionally verified on the Android 11 phone with a real APK. The output-signing/install cycle is also still a user-device test.
+
+### M7 — .NET assembly editing (bounded implementation added; cloud/device verification pending)
+
+**Implemented in the current continuation batch:**
+- Added a limited IL-byte editor to the existing .NET method browser.
+- It accepts only a replacement byte sequence with exactly the original method-body length.
+- Both the original and replacement bodies must consist entirely of supported, single-byte, operand-free IL instructions. Branches, operands, metadata tokens, unsupported opcodes, and methods with extra data sections such as exception-handler tables are rejected.
+- Strong-name-signed and Authenticode-signed PE files are rejected.
+- The writer creates a separate copy, updates the PE checksum field, reopens the output with the existing reader, and verifies that the exact replacement IL bytes are present. The source file remains unchanged.
+- The UI exposes **Edit IL / Export** alongside the existing constrained method metadata rename/export action.
+
+**Host regression additions:** the synthetic managed PE fixture changes `1819582A` to `1919592A`, verifies the reopened IL disassembly, verifies that the source still contains the original bytes, and rejects a changed body length and an operand-bearing replacement.
+
+**Important limit:** this is a deliberately narrow byte-level editor, not a general IL assembler or verifier. A structurally reopened file is not proof that the modified method is semantically valid or will execute correctly. Runtime behavior must be tested with a suitable managed assembly/runtime outside the Android app's current scope.
+
 ### Dependencies and compatibility
 
-- No new Android runtime dependencies have been added.
+- Android runtime dependency: ARSCLib 1.4.0 (Apache-2.0) for APK binary manifest/resource handling; no .NET runtime bridge or decompiler engine is packaged.
 - Existing build configuration: Android Gradle Plugin 8.13.0, Gradle 8.13, compileSdk 36, minSdk 26, targetSdk 36, Java 8 source/target compatibility.
 - CI uses Java 17 to run Gradle and host-side tests.
 - User development environment for this session: CodeAssist 3.36.1; test device Android 11.
@@ -697,11 +737,17 @@ The automated tests found and corrected real issues:
 - `droidinspect/app/src/main/java/com/tanvir/droidinspect/MainActivity.java` — dashboard, SAF picker, background execution, diagnostics.
 - `droidinspect/app/src/main/java/com/tanvir/droidinspect/FileInspectionEngine.java` — safe temporary copy, APK archive/PackageManager inspection, file-signature detection, PE/CLI inspection.
 - `droidinspect/app/src/main/java/com/tanvir/droidinspect/DotNetMetadataReader.java` — bounded ECMA-335 metadata reader for module, assembly, references, types, fields, and methods.\n- `droidinspect/app/src/main/java/com/tanvir/droidinspect/DexFileParser.java` — bounded DEX structural parser for multidex, classes, fields, and methods.\n- `droidinspect/app/src/main/java/com/tanvir/droidinspect/DexAnalysisActivity.java` — DEX browser UI/controller and background analysis.
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/DotNetIlReader.java` — bounded PE/CLI method-body reader, raw IL disassembler, constrained metadata rename, and same-size IL opcode editing.
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/DotNetIlActivity.java` — .NET method/IL browser, search, and constrained edit/export UI.
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/ApkResourceActivity.java` — binary manifest/resource browser and controlled APK edit/export workflow.
+- `droidinspect/app/src/main/res/layout/activity_dotnet_il.xml` — .NET IL browser layout.
+- `droidinspect/app/src/main/res/layout/activity_apk_resources.xml` — APK manifest/resource editor layout.
 - `droidinspect/app/src/main/res/layout/activity_main.xml` — dashboard and report layout.\n- `droidinspect/app/src/main/res/layout/activity_dex_analysis.xml` — DEX class/member browser layout.
 - `droidinspect/app/src/main/AndroidManifest.xml` — launcher activity and permissions.
 - `droidinspect/app/build.gradle.kts` — existing Android build configuration.
 - `.github/workflows/phase1-android.yml` — CI build, host parser test, and debug APK artifact.
 - `tools/metadata-reader-test/DotNetMetadataReaderSelfTest.java` — synthetic metadata fixture and host-JVM decoder test.\n- `tools/dex-parser-test/DexFileParserSelfTest.java` — synthetic multidex ZIP and malformed DEX host-JVM regression test covering class, field, and method metadata.
+- `tools/il-reader-test/DotNetIlReaderSelfTest.java` — synthetic PE/CLI IL decode, metadata rename, and bounded IL edit round-trip tests.
 
 ### Exact Phase 1 implementation batch files
 
@@ -741,59 +787,54 @@ No new Android runtime dependency or broad storage permission was introduced.
 
 ## 8. New-Chat Continuation Instructions
 
-**Exact stopping point — 2026-11-12**
+**Current continuation state — 2026-11-12**
 
 - Repository: https://github.com/xolomon-coder/DroidInspect
-- Branch: `main`.
-- Main HEAD immediately before this README handoff refresh: `346b1cb63a2e90fb29b09d122ab173b1024a6e02`. The README refresh creates a newer commit; inspect latest `main` before any changes.
-- Latest M4 source fix before the documentation refresh: `6f67cad16e4dab99cc2e13b7a49dbcd8d058eaa9`.
-- Android package: `com.tanvir.droidinspect`.
-- Android module: `droidinspect/app`.
-- User IDE: CodeAssist 3.36.1.
-- Test device: Android 11 / API 30.
-- Language/UI: Java + native Android XML.
-- M4 CI: GitHub Actions run #64, ID `43092921972`, PASS.
-- CI artifact (verification record only; not the normal user delivery): `DroidInspect-Phase2-M4-debug`, ID `13888828737`, expires 2026-11-25 20:04:22 UTC.
-- CI artifact SHA-256: `5cfbc700f9242ca014483ab62e537b61010a0c8c6dfc1a2d6692163ddd3bb0f3`.
-- Workflow page: https://github.com/xolomon-coder/DroidInspect/actions/runs/43092921972
-- Artifact ZIP was downloaded and checked; the generated debug APK was also extracted and checked for ZIP integrity. The user has not yet reported installing or functionally testing this M4 build.
+- Branch policy: `main` only. All new source, CI, and documentation commits must target `main` directly. Do not create another branch.
+- Latest code/CI workflow update before this README refresh: `3f31daf7f8e590f3bae427ae6d892e7bc4dee4dd`; this changed the Phase 2 artifact label. The README refresh itself will become the next `main` commit; always inspect actual latest HEAD before continuing.
+- Android package: `com.tanvir.droidinspect`; module: `droidinspect/app`.
+- Environment recorded for the current project: Android 11/API 30; CodeAssist 3.36.1; Java + native XML.
+- Existing build settings: AGP 8.13.0, Gradle 8.13, compileSdk 36, minSdk 26, targetSdk 36, Java 8 source/target.
+- Added Android dependency: ARSCLib 1.4.0 (Apache-2.0).
+- Current CI workflow: `.github/workflows/phase1-android.yml`; it runs the .NET metadata test, .NET IL test, DEX parser test, Android debug compilation, APK existence check, and publishes `DroidInspect-Phase2-debug`.
+- The latest M7 source commits add bounded IL-body editing and its host test. Do not claim the latest CI run passed until the latest `main` push's Actions jobs and artifact have been inspected.
+- Normal user delivery remains the latest `main` ZIP: https://github.com/xolomon-coder/DroidInspect/archive/refs/heads/main.zip. CI APK artifacts are verification records, not the default installation route.
 
-**What is complete**
-- Phase 1 M1–M3 accepted for progression, with native/non-managed PE rejection and pure-managed .NET fixture still explicitly unverified.
-- M4 bounded DEX structural parser and native XML browser implemented.
-- Multidex discovery, package/class/member browsing, search, malformed-entry reporting, background processing, and safety caps implemented.
-- No new Android runtime dependencies or broad storage permissions.
-- GitHub host tests, Android compilation, APK output verification, and artifact upload all passed in run #64.
+**Milestone state**
 
-**What is not complete**
-- M4 has NOT passed Android 11 device verification.
-- The current browser is a structural DEX/member browser, not a Java decompiler. It does not decode instruction bodies or reconstruct Java source.
-- Real-world large/obfuscated APK performance and unusual Modified UTF-8 identifier handling remain to be evaluated.
-- Do not start M5 until the M4 device test is complete or the user explicitly chooses to defer it.
+- **M1:** implementation and initial Android 11 smoke checks accepted; error-path/cache-cleanup edge cases remain.
+- **M2:** one real APK inspection passed on-device (`Git MANAGER_1.0.apk`, 51 ZIP entries, 9 DEX files). Broad APK compatibility and full binary manifest decoding were not covered by that test.
+- **M3:** one CLI-bearing mixed-mode DLL inspected on-device. Pure-managed fixture and native/non-managed PE rejection remain untested; preserve this documented gap.
+- **M4:** bounded DEX structural parser/browser implemented and previous CI run #64 passed. Android 11 browser/device test remains pending. This is not a Java decompiler.
+- **M5:** bounded .NET raw IL browsing, method search, and constrained metadata method rename implemented. No C# source decompilation; representative real assembly device verification remains pending.
+- **M6:** ARSCLib-based binary manifest/resource inspection and selected edits implemented. Real APK edit/export/reopen/sign/install test remains pending.
+- **M7:** constrained same-size, operand-free IL byte editing added, with synthetic round-trip and rejection-path host tests. Latest cloud verification is pending confirmation; real assembly/runtime behavior is unverified.
+- **M8–M10:** not yet implemented.
 
-**Immediate next action — continue, do not restart**
-1. Inspect the latest `main` HEAD and README; inspect `DexFileParser.java`, `DexAnalysisActivity.java`, `MainActivity.java`, their XML layouts, manifest, Gradle config, and CI workflow before making any change.
-2. Give the user the latest `main` branch ZIP (https://github.com/xolomon-coder/DroidInspect/archive/refs/heads/main.zip), confirm the commit, and provide exact CodeAssist import/update and build instructions. Do not send the CI APK artifact as the default route. Do not recreate the project or ask the user to repeat Phase 1 tests.
-3. The user installs the APK built locally in CodeAssist and uses `Git MANAGER_1.0.apk` as the first fixture (previously inspected in M2; it contains 9 DEX files). Confirm:
-   - Existing APK inspection still works.
-   - DEX browser opens for the selected APK.
-   - All 9 root-level DEX files are discovered.
-   - Package selector and class list populate.
-   - A class detail view shows fields and methods.
-   - Search finds known class/member names.
-   - Malformed DEX entries are reported without crashing the whole analysis.
-   - A larger APK does not freeze the UI or cause an out-of-memory crash.
-4. Ask the user to provide the observed result/report and any crash or build error. Diagnose from the actual evidence; do not infer success from CI.
-5. Fix any defects on the existing `main` source, rerun host tests and GitHub Actions, publish a new debug artifact, and update README with device results.
-6. Mark M4 complete only after the agreed on-device checks pass. Then proceed to M5 — .NET C# decompilation and IL browsing — by first proving a practical Android-compatible execution/decompiler route.
+**Exact next work**
+
+1. Verify the latest `main` HEAD and inspect the new M7 reader, activity, and host test.
+2. Confirm the GitHub Actions run triggered by the latest `main` push. Inspect every job, logs for failures, the final APK artifact, and artifact ZIP integrity. If any check fails, fix it directly on `main`, push again, and repeat. The GitHub Actions connector available in this session may not expose a list-workflow-runs operation; if run/job inspection is unavailable, report that limitation honestly rather than claiming a pass.
+3. If CI passes, provide the latest `main` ZIP, exact commit, and precise CodeAssist instructions. The user builds and installs locally.
+4. Device test batch for M4–M7:
+   - M4: use `Git MANAGER_1.0.apk`; verify all 9 DEX entries, package/class listing, class details, search, malformed-entry handling, and large-APK responsiveness.
+   - M5: select a representative managed DLL/EXE; verify assembly/method indexing, IL body display, search, and constrained method rename/export/reopen. Do not expect C# source.
+   - M6: select a disposable APK; inspect manifest/resource values, edit one safe default string and version metadata, export unsigned APK, reopen it, and verify the edits. Sign only a copy for install testing.
+   - M7: use a disposable unsigned managed test assembly with a simple method made only of operand-free opcodes; change a same-length byte sequence, export, reopen, and compare behavior in a compatible .NET runtime if available. Confirm signed files, operand-bearing IL, branches, and unsupported bodies are rejected.
+5. Analyze the user's actual CodeAssist build and device reports. Fix any failure on `main`, rerun all available CI checks, and update this README with evidence.
+6. After Phase 2 is accepted, proceed to Phase 3 (M8–M10), preserving the ten-milestone roadmap.
+
+**Branch cleanup note**
+
+Five old non-main branches were visible during inspection: `ci/m4-final-build-check`, `ci/phase2-m4-ci-final`, `ci/phase2-m4-validation`, `ci/phase2-m4-validation-final`, and `phase1-ci-validation`. They are stale/diverged from the newer `main` and contain a few branch-only README/test/workflow edits. No branch was deleted or force-merged during this continuation. Future work must remain on `main`; inspect any branch-only changes before the user deletes those old branches.
 
 **Do not**
-- Recreate the Android project.
-- Reimplement Phase 1.
-- Ask the user to repeat Phase 1 tests.
-- Change the original ten-milestone roadmap.
-- Claim Java decompilation works.
-- Add JADX, dexlib2, or another large engine without a demonstrated Android 11 / CodeAssist-compatible prototype, resource measurements, and license review.
-- Mark M4 complete solely because GitHub Actions passed.
+- Recreate the project or repeat completed Phase 1 implementation.
+- Create or switch to another development branch.
+- Claim C# or Java source decompilation.
+- Describe the narrow IL byte editor as a general-purpose IL assembler/verifier.
+- Mark M4–M7 device-complete from cloud compilation alone.
+- Claim the latest CI passed without checking the actual run, jobs, artifact, and ZIP integrity.
+- Modify or overwrite original APK/DLL/EXE inputs.
 
-Preserve the user's phone-only workflow, Java + XML preference, GitHub as source of truth, and complete-file delivery preference when manual code changes are needed.
+Preserve the phone-only CodeAssist workflow, Java + XML architecture, GitHub as source of truth, complete-file preference, and main-only branch policy.
