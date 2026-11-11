@@ -1,0 +1,221 @@
+package com.tanvir.droidinspect;
+
+import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
+/** Bounded ECMA-335 metadata reader for identity, references, TypeDef, Field and MethodDef rows. */
+final class DotNetMetadataReader {
+    private static final int[] CODED_BITS = {2,2,2,5,3,2,3,1,2,3,1,2,1,2};
+    private static final int[][] CODED_TABLES = {
+        {2,1,27}, {4,8,23}, {6,10}, {4,6}, {2,1,27},
+        {2,1,26,35}, {20,23}, {6,10}, {4,8}, {2,6},
+        {0,1,2,3,4,6,8,9,10,11,_event(), _event2(), 14,15,16,17,18,19,20,21,22,23},
+        {0,1,26,35}, {6,10}, {0,1,26,35}, {6,10}
+    };
+    private static int _event(){ return 20; }
+    private static int _event2(){ return 23; }
+
+    private final RandomAccessFile r;
+    private final long fileLength, root, rootSize;
+    private long stringsBase, stringsSize, tablesBase, tablesSize, blobBase, blobSize;
+    private long[] rows = new long[64], tableBase = new long[64];
+    private int heapSizes;
+
+    private DotNetMetadataReader(RandomAccessFile r,long root,long rootSize,long fileLength) {
+        this.r=r; this.root=root; this.rootSize=rootSize; this.fileLength=fileLength;
+    }
+
+    static String inspect(RandomAccessFile r,long root,long rootSize,long fileLength) {
+        try { return new DotNetMetadataReader(r,root,rootSize,fileLength).read(); }
+        catch(Exception e) { return "\nDECODED .NET METADATA\nMetadata decoding: INCOMPLETE — "
+                + e.getClass().getSimpleName() + ": " + safe(e.getMessage()); }
+    }
+
+    private String read() throws Exception {
+        if (!bounds(root,20,rootSize)) throw new Exception("Metadata root is outside the declared metadata range.");
+        if (u32(root)!=0x424A5342L) throw new Exception("BSJB metadata signature is missing.");
+        long versionLen=u32(root+12);
+        if(versionLen>1024 || !bounds(16,versionLen+4,rootSize)) throw new Exception("Invalid metadata version length.");
+        long p=align4(root+16+versionLen);
+        if(!bounds(p-root,4,rootSize)) throw new Exception("Truncated stream header.");
+        int streamCount=u16(p+2); p+=4;
+        if(streamCount>32) throw new Exception("Unreasonable metadata stream count.");
+        for(int i=0;i<streamCount;i++) {
+            if(!bounds(p-root,9,rootSize)) throw new Exception("Truncated metadata stream descriptor.");
+            long off=u32(p), size=u32(p+4); long q=p+8; StringBuilder n=new StringBuilder();
+            for(int j=0;j<32 && q<root+rootSize;j++) { int c=b(q++); if(c==0) break; n.append((char)c); }
+            p=align4(q);
+            if(off>rootSize || size>rootSize-off) continue;
+            if("#Strings".contentEquals(n)){stringsBase=root+off;stringsSize=size;}
+            else if("#Blob".contentEquals(n)){blobBase=root+off;blobSize=size;}
+            else if("#~".contentEquals(n)||"#-".contentEquals(n)){tablesBase=root+off;tablesSize=size;}
+        }
+        if(tablesBase==0) throw new Exception("No #~ or #- metadata tables stream was found.");
+        if(!bounds(tablesBase-root,tablesSize,rootSize) || tablesSize<24) throw new Exception("Invalid metadata tables stream.");
+        heapSizes=b(tablesBase+6);
+        long valid=u64(tablesBase+8), q=tablesBase+24;
+        for(int i=0;i<64;i++) if((valid&(1L<<i))!=0){ if(!fileBounds(q,4))throw new Exception("Truncated metadata row counts."); rows[i]=u32(q); q+=4; }
+        long cursor=q;
+        for(int i=0;i<64;i++) if(rows[i]>0) {
+            tableBase[i]=cursor;
+            long size=rowSize(i);
+            if(size<=0 || rows[i]>(tablesBase+tablesSize-cursor)/size) throw new Exception("Invalid or unsupported metadata table "+i+" bounds.");
+            cursor+=rows[i]*size;
+        }
+        StringBuilder out=new StringBuilder("\nDECODED .NET ASSEMBLY METADATA\n");
+        out.append("Metadata tables stream: ").append("#~ / #-").append('\n');
+        out.append("String heap: ").append(stringsSize).append(" bytes; Blob heap: ").append(blobSize).append(" bytes\n");
+        decodeAssembly(out);
+        decodeReferences(out);
+        decodeTypes(out);
+        out.append("\nDecode status: ").append(stringsBase!=0 ? "core identity/type/member tables decoded where present" : "string heap unavailable").append('\n');
+        out.append("Note: This is metadata inspection, not C# decompilation or IL editing.\n");
+        return out.toString();
+    }
+
+    private void decodeAssembly(StringBuilder o) throws Exception {
+        o.append("\nASSEMBLY IDENTITY\n");
+        if(rows[32]==0){o.append("Assembly table: absent (netmodule or non-assembly module).\n");return;}
+        long p=tableBase[32];
+        int hash=(int)u32(p), major=u16(p+4), minor=u16(p+6), build=u16(p+8), revision=u16(p+10);
+        long flags=u32(p+12); int blob=indexBlob(p+16), name=indexString(p+16+blobWidth());
+        int culture=indexString(p+16+blobWidth()+stringWidth());
+        o.append("Name: ").append(str(name)).append('\n');
+        o.append("Version: ").append(major).append('.').append(minor).append('.').append(build).append('.').append(revision).append('\n');
+        o.append("Culture: ").append(empty(str(culture))).append('\n');
+        o.append("Flags: 0x").append(hex(flags)).append('\n');
+        o.append("Public key blob: ").append(blob).append(" bytes/index\n");
+    }
+
+    private void decodeReferences(StringBuilder o) throws Exception {
+        o.append("\nASSEMBLY REFERENCES (").append(rows[35]).append(")\n");
+        int limit=(int)Math.min(rows[35],200);
+        for(int i=0;i<limit;i++){
+            long p=tableBase[35]+i*rowSize(35);
+            int ma=u16(p),mi=u16(p+2),bu=u16(p+4),re=u16(p+6);
+            int name=indexString(p+12+blobWidth()), culture=indexString(p+12+blobWidth()+stringWidth());
+            o.append(i+1).append(". ").append(str(name)).append(", Version=").append(ma).append('.').append(mi).append('.').append(bu).append('.').append(re);
+            String c=str(culture); if(!c.isEmpty())o.append(", Culture=").append(c); o.append('\n');
+        }
+        if(rows[35]>limit)o.append("… ").append(rows[35]-limit).append(" more references not displayed.\n");
+    }
+
+    private void decodeTypes(StringBuilder o) throws Exception {
+        o.append("\nTYPES AND MEMBERS\n");
+        o.append("TypeDef rows: ").append(rows[2]).append("; Field rows: ").append(rows[4]).append("; MethodDef rows: ").append(rows[6]).append('\n');
+        int limit=(int)Math.min(rows[2],300);
+        long typeSize=rowSize(2), fieldSize=rowSize(4), methodSize=rowSize(6);
+        for(int i=0;i<limit;i++){
+            long p=tableBase[2]+i*typeSize;
+            long flags=u32(p); int name=indexString(p+4), ns=indexString(p+4+stringWidth());
+            long listPos=p+4+2L*stringWidth()+codedWidth(0)+tableWidth(4);
+            long firstField=tableIndex(listPos,4), firstMethod=tableIndex(listPos+tableWidth(4),6);
+            long nextField=rows[4]+1, nextMethod=rows[6]+1;
+            if(i+1<rows[2]){
+                long np=p+typeSize;
+                nextField=tableIndex(np+4+2L*stringWidth()+codedWidth(0),4);
+                nextMethod=tableIndex(np+4+2L*stringWidth()+codedWidth(0)+tableWidth(4),6);
+            }
+            String typeName=str(name), namespace=str(ns);
+            o.append("\n").append(i+1).append(". ").append(namespace.isEmpty()?typeName:namespace+"."+typeName);
+            if((flags&0x20)!=0)o.append(" [interface]");
+            o.append('\n');
+            appendMembers(o,"Field",firstField,nextField,4,fieldSize,200);
+            appendMembers(o,"Method",firstMethod,nextMethod,6,methodSize,200);
+        }
+        if(rows[2]>limit)o.append("\n… ").append(rows[2]-limit).append(" more types not displayed.\n");
+    }
+
+    private void appendMembers(StringBuilder o,String label,long first,long next,int table,long size,int cap)throws Exception{
+        if(first<1||next<first||first>rows[table]+1)return;
+        int count=(int)Math.min(Math.min(next-first,cap),rows[table]+1-first);
+        for(int j=0;j<count;j++){
+            long p=tableBase[table]+(first-1+j)*size;
+            int name= table==4 ? indexString(p+2) : indexString(p+8);
+            o.append("   ").append(label).append(": ").append(str(name)).append('\n');
+        }
+        if(next-first>count)o.append("   … additional ").append(label.toLowerCase(Locale.ROOT)).append(" entries omitted\n");
+    }
+
+    private long rowSize(int t) {
+        switch(t){
+            case 0:return 2+stringWidth()+3L*guidWidth();
+            case 1:return codedWidth(0)+2L*stringWidth();
+            case 2:return 4+2L*stringWidth()+codedWidth(4)+tableWidth(4)+tableWidth(6);
+            case 3:return tableWidth(4);
+            case 4:return 2+stringWidth()+blobWidth();
+            case 5:return tableWidth(6);
+            case 6:return 8+stringWidth()+blobWidth()+tableWidth(8);
+            case 7:return tableWidth(8);
+            case 8:return 4+stringWidth();
+            case 9:return tableWidth(2)+codedWidth(4);
+            case 10:return codedWidth(5)+stringWidth()+blobWidth();
+            case 11:return 2+codedWidth(1)+blobWidth();
+            case 12:return codedWidth(10)+codedWidth(2)+blobWidth();
+            case 13:return codedWidth(8)+blobWidth();
+            case 14:return 2+codedWidth(9)+blobWidth();
+            case 15:return 6+tableWidth(2);
+            case 16:return 4+tableWidth(4);
+            case 17:return blobWidth();
+            case 18:return tableWidth(2)+tableWidth(20);
+            case 19:return tableWidth(20);
+            case 20:return 2+stringWidth()+codedWidth(4);
+            case 21:return tableWidth(2)+tableWidth(23);
+            case 22:return tableWidth(23);
+            case 23:return 2+stringWidth()+blobWidth();
+            case 24:return 2+tableWidth(6)+codedWidth(6);
+            case 25:return tableWidth(2)+2L* codedWidth(7);
+            case 26:return stringWidth();
+            case 27:return blobWidth();
+            case 28:return 2+codedWidth(3)+stringWidth()+tableWidth(26);
+            case 29:return 4+tableWidth(4);
+            case 30:return 8;
+            case 31:return 4;
+            case 32:return 16+blobWidth()+2L*stringWidth();
+            case 33:return 4;
+            case 34:return 12;
+            case 35:return 12+2L*blobWidth()+2L*stringWidth();
+            case 36:return 4+tableWidth(35);
+            case 37:return 12+tableWidth(35);
+            case 38:return 4+stringWidth()+blobWidth();
+            case 39:return 8+2L*stringWidth()+codedWidth(11);
+            case 40:return 8+stringWidth()+codedWidth(11);
+            case 41:return 2L*tableWidth(2);
+            case 42:return 4+codedWidth(12)+stringWidth();
+            case 43:return codedWidth(7)+blobWidth();
+            case 44:return tableWidth(42)+codedWidth(4);
+            default:return -1;
+        }
+    }
+
+    private int stringWidth(){return (heapSizes&1)!=0?4:2;}
+    private int guidWidth(){return (heapSizes&2)!=0?4:2;}
+    private int blobWidth(){return (heapSizes&4)!=0?4:2;}
+    private int tableWidth(int t){return rows[t]>=65536?4:2;}
+    private int codedWidth(int c){
+        int max=0; for(int t:CODED_TABLES[c]) if(t>=0&&t<rows.length)max=Math.max(max,(int)Math.min(rows[t],Integer.MAX_VALUE));
+        return max < (1 << (16-CODED_BITS[c])) ? 2 : 4;
+    }
+    private long tableIndex(long p,int t)throws Exception{return tableWidth(t)==2?u16(p):u32(p);}
+    private int indexString(long p)throws Exception{return stringWidth()==2?u16(p):(int)u32(p);}
+    private int indexBlob(long p)throws Exception{return blobWidth()==2?u16(p):(int)u32(p);}
+    private String str(int index)throws Exception{
+        if(index==0||stringsBase==0||index>=stringsSize)return "";
+        long p=stringsBase+index; StringBuilder s=new StringBuilder();
+        while(p<stringsBase+stringsSize){int c=b(p++);if(c==0)break;s.append((char)c);}
+        return s.toString();
+    }
+    private static String empty(String s){return s.isEmpty()?"(neutral)":s;}
+    private static String hex(long v){return String.format(Locale.ROOT,"%08X",v);}
+    private static String safe(String s){return s==null?"unknown":s;}
+    private int b(long p)throws Exception{r.seek(p);return r.readUnsignedByte();}
+    private int u16(long p)throws Exception{r.seek(p);return r.readUnsignedByte()|(r.readUnsignedByte()<<8);}
+    private long u32(long p)throws Exception{return u16(p)|(long)u16(p+2)<<16;}
+    private long u64(long p)throws Exception{return u32(p)|(u32(p+4)<<32);}
+    private long align4(long v){return (v+3)&~3L;}
+    private boolean fileBounds(long p,long n){return p>=0&&n>=0&&p<=fileLength&&n<=fileLength-p;}
+    private boolean bounds(long p,long n,long limit){return p>=0&&n>=0&&p<=limit&&n<=limit-p;}
+}
