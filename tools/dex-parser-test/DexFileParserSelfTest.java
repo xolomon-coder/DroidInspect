@@ -49,7 +49,7 @@ public final class DexFileParserSelfTest {
         byte[] header = new byte[212];
         header[0] = 'd'; header[1] = 'e'; header[2] = 'x'; header[3] = '\n';
         header[4] = '0'; header[5] = '3'; header[6] = '5'; header[7] = 0;
-        put32(header, 32, header.length);
+        put32(header, 32, 266);
         put32(header, 36, 112);
         put32(header, 40, 0x12345678);
         put32(header, 56, 6); put32(header, 60, 112);
@@ -81,7 +81,7 @@ public final class DexFileParserSelfTest {
             out.write(0);
         }
         byte[] result = out.toByteArray();
-        check(result.length == header.length, "synthetic DEX fixture size");
+        check(result.length == 266, "synthetic DEX fixture size");
         return result;
     }
 
