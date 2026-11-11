@@ -263,8 +263,9 @@ final class FileInspectionEngine {
             out.append("TypeDef table rows: ").append(findTableRows(raf, metadataOffset, metadataSize, file.length(), 0x02)).append('\n');
             out.append("MethodDef table rows: ").append(findTableRows(raf, metadataOffset, metadataSize, file.length(), 0x06)).append('\n');
             out.append("AssemblyRef table rows: ").append(findTableRows(raf, metadataOffset, metadataSize, file.length(), 0x23)).append('\n');
+            out.append(DotNetMetadataReader.inspect(raf, metadataOffset, metadataSize, file.length()));
             out.append("\nPHASE 1 SCOPE\n");
-            out.append("This prototype confirms PE/CLI structure and reports metadata table counts. Assembly names, individual type/member names, decompilation, and editing require the next metadata-reader layer.");
+            out.append("This build performs bounded assembly identity, reference, type, field, and method metadata decoding. C# decompilation, IL editing, and assembly rewriting are not implemented.");
         }
         return out.toString();
     }
