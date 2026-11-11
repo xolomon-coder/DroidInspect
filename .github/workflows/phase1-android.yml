@@ -25,6 +25,14 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Test ECMA-335 metadata decoder on host JVM
+        run: |
+          mkdir -p /tmp/droidinspect-metadata-test
+          javac -d /tmp/droidinspect-metadata-test \
+            droidinspect/app/src/main/java/com/tanvir/droidinspect/DotNetMetadataReader.java \
+            tools/metadata-reader-test/DotNetMetadataReaderSelfTest.java
+          java -cp /tmp/droidinspect-metadata-test com.tanvir.droidinspect.DotNetMetadataReaderSelfTest
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
