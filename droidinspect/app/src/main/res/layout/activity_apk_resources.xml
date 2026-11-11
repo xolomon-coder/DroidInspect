@@ -65,7 +65,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="Apply edits & export unsigned APK"
+            android:text="Apply edits &amp; export unsigned APK"
             android:enabled="false" />
 
         <ProgressBar
