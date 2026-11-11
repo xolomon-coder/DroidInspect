@@ -31,8 +31,8 @@ final class FileInspectionEngine {
         try {
             String name = queryName(context, uri);
             String lower = name.toLowerCase(Locale.ROOT);
-            if (lower.endsWith(".apk")) return inspectApk(context, file, name);
-            if (lower.endsWith(".dll") || lower.endsWith(".exe")) return inspectPe(file, name);
+            if (lower.endsWith(".apk") || hasApkManifest(file)) return inspectApk(context, file, name);
+            if (lower.endsWith(".dll") || lower.endsWith(".exe") || hasMzSignature(file)) return inspectPe(file, name);
             return inspectUnknown(file, name);
         } finally {
             // The temporary copy is no longer needed after inspection.
@@ -78,6 +78,23 @@ final class FileInspectionEngine {
             if (cursor != null) cursor.close();
         }
         return name == null ? "Selected file" : name;
+    }
+
+    private static boolean hasApkManifest(File file) {
+        try (ZipFile zip = new ZipFile(file)) {
+            return zip.getEntry("AndroidManifest.xml") != null;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private static boolean hasMzSignature(File file) {
+        if (file.length() < 2) return false;
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+            return readU16(raf, 0) == 0x5A4D;
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     private static String inspectUnknown(File file, String name) throws Exception {
