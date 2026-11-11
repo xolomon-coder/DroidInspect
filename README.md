@@ -619,8 +619,8 @@ The automated tests found and corrected real issues:
 - Validate DEX magic/version (035–040), header size, file size, endian tag, table bounds, indices, and ULEB128 class-data values.
 - Decode class descriptors, package names, superclass, class access flags, field names/types/access flags, method names/prototypes/access flags.
 - Show per-DEX PASS / REJECTED / SKIPPED results and class counts.
-- Add a native XML DEX browser with package/class listing, search across package/class/field/method names, and a class detail dialog.
-- Keep parsing off the UI thread. APK intake is capped at 512 MB; each extracted DEX is capped at 128 MB; the result is capped at 20,000 classes and 200 displayed fields/methods per class. Each DEX is extracted to a temporary cache file and deleted after parsing.
+- Add a native XML DEX browser with package selector, class listing, search across package/class/field/method names, and a class detail dialog.
+- Keep parsing off the UI thread. APK intake is capped at 512 MB; each extracted DEX is capped at 128 MB; the result is capped at 10,000 classes, 100 displayed fields/methods per class, and 100,000 total indexed members. Each DEX is extracted to a temporary cache file and deleted after parsing.
 - A malformed DEX entry is reported separately; successfully parsed earlier DEX entries can still be browsed.
 - Original APK is never modified. No broad storage permission or network access is required.
 - Structural browsing only: method bodies are not decompiled; Java source reconstruction is NOT implemented.
@@ -645,7 +645,7 @@ The automated tests found and corrected real issues:
 - Modified UTF-8 strings are decoded using UTF-8; this is sufficient for ordinary ASCII identifiers but may not faithfully represent every unusual encoded string.
 - DEX checksum/signature verification and instruction decoding are not implemented.
 - Search is in-memory over the capped parsed class/member names.
-- The 128 MB per-DEX / 20,000 class / 200 member display caps are deliberate safety limits, not universal DEX format limits.
+- The 128 MB per-DEX / 10,000 class / 100 members per class / 100,000 total member caps are deliberate safety limits, not universal DEX format limits.
 - Large and obfuscated real-world APKs still require device performance testing.
 - Java-like decompilation remains deferred; do not describe this milestone build as a Java decompiler.
 
@@ -666,7 +666,7 @@ The automated tests found and corrected real issues:
 - `droidinspect/app/src/main/AndroidManifest.xml` — launcher activity and permissions.
 - `droidinspect/app/build.gradle.kts` — existing Android build configuration.
 - `.github/workflows/phase1-android.yml` — CI build, host parser test, and debug APK artifact.
-- `tools/metadata-reader-test/DotNetMetadataReaderSelfTest.java` — synthetic metadata fixture and host-JVM decoder test.\n- `tools/dex-parser-test/DexFileParserSelfTest.java` — synthetic multidex ZIP and malformed DEX host-JVM regression test.
+- `tools/metadata-reader-test/DotNetMetadataReaderSelfTest.java` — synthetic metadata fixture and host-JVM decoder test.\n- `tools/dex-parser-test/DexFileParserSelfTest.java` — synthetic multidex ZIP and malformed DEX host-JVM regression test covering class, field, and method metadata.
 
 ### Exact Phase 1 implementation batch files
 
