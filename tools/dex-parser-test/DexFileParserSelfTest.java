@@ -7,6 +7,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 /** Host-JVM regression test for multidex, class, field, method, and malformed-entry handling. */
+// The DEX header is 212 bytes; the complete synthetic DEX including data is 266 bytes.
 public final class DexFileParserSelfTest {
     public static void main(String[] args) throws Exception {
         File apk = File.createTempFile("droidinspect-dex-test-", ".apk");
