@@ -34,6 +34,7 @@ public final class DexFileParser {
         public final String descriptor;
         public final String access;
         public final String superClass;
+        public boolean membersTruncated;
         public final List<String> fields = new ArrayList<>();
         public final List<String> methods = new ArrayList<>();
 
@@ -216,6 +217,8 @@ public final class DexFileParser {
                 String fieldType = javaName(string(raf, typeStrings[type], stringOffsets, strings, length));
                 info.fields.add(accessFlags(flags) + fieldType + " " + fieldName);
                 result.totalMembers++;
+            } else {
+                info.membersTruncated = true;
             }
         }
         int methodIndex = 0;
@@ -233,6 +236,8 @@ public final class DexFileParser {
                 String signature = protoSignature(raf, protoOff, proto, typeStrings, stringOffsets, strings, length);
                 info.methods.add(accessFlags(flags) + signature + " " + methodName);
                 result.totalMembers++;
+            } else {
+                info.membersTruncated = true;
             }
         }
     }
@@ -339,7 +344,7 @@ public final class DexFileParser {
                 case 'D': name = "double"; break; default: name = base;
             }
         } else if (base.startsWith("L") && base.endsWith(";")) {
-            name = base.substring(1, base.length() - 1).replace('/', '.').replace('$', '.');
+            name = base.substring(1, base.length() - 1).replace('/', '.');
         } else name = base;
         StringBuilder out = new StringBuilder(name);
         for (int i = 0; i < arrays; i++) out.append("[]");
