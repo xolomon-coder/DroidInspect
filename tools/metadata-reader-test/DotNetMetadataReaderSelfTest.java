@@ -82,7 +82,7 @@ public final class DotNetMetadataReaderSelfTest {
         le32(t, 0); le16(t, 0); le16(t, assembly); le16(t, 0);
         // AssemblyRef: version, flags, key/token, name, culture, hash.
         le16(t, 4); le16(t, 0); le16(t, 0); le16(t, 0); le32(t, 0);
-        le16(t, reference); le16(t, 0); le16(t, 0); le16(t, 0);
+        le16(t, 0); le16(t, reference); le16(t, 0); le16(t, 0);
 
         byte[] tables = tableBytes.toByteArray();
         int headerSize = 24 + streamDescriptorSize("#~") + streamDescriptorSize("#Strings")
