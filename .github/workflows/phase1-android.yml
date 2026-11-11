@@ -1,4 +1,4 @@
-name: DroidInspect Phase 1 Android CI
+name: DroidInspect Android CI
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   build-debug-apk:
-    name: Compile Android app and publish APK
+    name: Host parser tests, Android compile, and debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -25,13 +25,21 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Test ECMA-335 metadata decoder on host JVM
+      - name: Test ECMA-335 metadata decoder
         run: |
           mkdir -p /tmp/droidinspect-metadata-test
           javac -d /tmp/droidinspect-metadata-test \
             droidinspect/app/src/main/java/com/tanvir/droidinspect/DotNetMetadataReader.java \
             tools/metadata-reader-test/DotNetMetadataReaderSelfTest.java
           java -cp /tmp/droidinspect-metadata-test com.tanvir.droidinspect.DotNetMetadataReaderSelfTest
+
+      - name: Test DEX parser on host JVM
+        run: |
+          mkdir -p /tmp/droidinspect-dex-test
+          javac -d /tmp/droidinspect-dex-test \
+            droidinspect/app/src/main/java/com/tanvir/droidinspect/DexFileParser.java \
+            tools/dex-parser-test/DexFileParserSelfTest.java
+          java -cp /tmp/droidinspect-dex-test com.tanvir.droidinspect.DexFileParserSelfTest
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -58,7 +66,7 @@ jobs:
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: DroidInspect-Phase1-debug
+          name: DroidInspect-Phase2-M4-debug
           path: droidinspect/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
