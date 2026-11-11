@@ -100,6 +100,7 @@ public final class DexFileParser {
                         }
                     }
                     int before = result.classes.size();
+                    int membersBefore = result.totalMembers;
                     try {
                         parseDex(temp, entry.getName(), result);
                         result.dexReports.add(entry.getName() + ": PASS — " + (result.classes.size() - before) + " classes.");
