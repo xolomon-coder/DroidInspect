@@ -1,5 +1,6 @@
 package com.tanvir.droidinspect;
 
+import java.io.ByteArrayOutputStream;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -243,9 +244,9 @@ final class DotNetMetadataReader {
     }
     private String str(int index)throws Exception{
         if(index==0||stringsBase==0||index>=stringsSize)return "";
-        long p=stringsBase+index; StringBuilder s=new StringBuilder();
-        while(p<stringsBase+stringsSize){int c=b(p++);if(c==0)break;s.append((char)c);}
-        return s.toString();
+        long p=stringsBase+index; ByteArrayOutputStream bytes=new ByteArrayOutputStream();
+        while(p<stringsBase+stringsSize){int value=b(p++);if(value==0)break;bytes.write(value);}
+        return new String(bytes.toByteArray(),StandardCharsets.UTF_8);
     }
     private static String empty(String s){return s.isEmpty()?"(neutral)":s;}
     private static String hex(long v){return String.format(Locale.ROOT,"%08X",v);}
