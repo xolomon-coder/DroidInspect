@@ -159,7 +159,9 @@ public class DexAnalysisActivity extends Activity {
         StringBuilder text = new StringBuilder();
         text.append(info.access).append(info.className).append('\n');
         text.append("DEX: ").append(info.dexName).append('\n');
-        text.append("Superclass: ").append(info.superClass).append("\n\n");
+        text.append("Superclass: ").append(info.superClass).append("\n");
+        if (info.membersTruncated) text.append("NOTE: Member display limit reached for this class or APK.\n");
+        text.append("\n");
         text.append("FIELDS (").append(info.fields.size()).append(")\n");
         if (info.fields.isEmpty()) text.append("(none)\n");
         for (String field : info.fields) text.append("• ").append(field).append('\n');
