@@ -478,66 +478,148 @@ No milestone is complete solely because code was written or committed.
 
 **Current phase: Phase 1 — Foundation and file understanding (M1–M3).**
 
-Implementation has started in the existing Java/XML project. The first Phase 1 batch is committed to `main`; it is not yet considered device-verified.
+The project remains the existing Java + native XML Android application. The original ten-milestone roadmap and project goal are unchanged. Development is being performed against `main`; the latest implementation commit before this documentation update was `8a8b61258b4d8cc531b05b79b0d4b4f129b21c13`.
 
-### Implemented in source (awaiting CodeAssist build and phone tests)
+### M1 — Foundation and file identification
 
-- Replaced the Hello World screen with a DroidInspect inspection dashboard.
-- Added Android Storage Access Framework file selection; no broad storage permission is requested.
-- Added background file copying/inspection so archive parsing does not run on the UI thread.
-- Added a one-tap Phase 1 diagnostics report.
-- Added APK ZIP archive listing, DEX filename detection, and PackageManager extraction of package name, version, target SDK, declared permissions, and component counts when Android can parse the APK.
-- Added PE signature and machine/optional-header inspection for DLL/EXE inputs.
-- Added .NET CLI header detection, runtime version, metadata root/version, metadata stream listing, and row counts for key metadata tables (Module, TypeDef, MethodDef, Assembly, AssemblyRef).
-- Original input files are not modified. Inspection works on a temporary cache copy.
+**Implemented in source:**
+- Native Android dashboard and SAF document picker.
+- Background inspection using a single worker executor.
+- Temporary cache copy; original selected file is not modified.
+- 512 MB per-file copy limit and cleanup of temporary copies.
+- APK identification by `.apk` extension or ZIP archive containing `AndroidManifest.xml`.
+- PE candidate identification by `.dll` / `.exe` extension or MZ signature.
+- One-tap runtime/cache diagnostics report.
+- No broad external-storage permission.
 
-### Important implementation limits
+**Still requires device verification:** build, installation, startup, SAF selection, diagnostics, APK/PE classification, cancellation/error behavior, and cache cleanup.
 
-- Current per-file temporary copy limit: 512 MB.
-- APK archive listing is capped at 5,000 displayed entries.
-- Android PackageManager metadata extraction may be unavailable for malformed, unsupported, or unusual APKs.
-- M3 currently detects managed PE/CLI structure and summarizes metadata tables; it does **not yet** decode assembly identity strings, individual type/member names, or references. Those require the next metadata-table decoding layer before M3 can pass its full exit criteria.
-- No DEX decompilation, binary Android manifest decoding, resource editing, .NET decompilation, assembly editing, or rebuilding is implemented in this phase.
-- The one-tap diagnostics button checks Android/runtime prerequisites; it is not a substitute for testing representative APK and .NET fixture files.
+### M2 — APK inspection
+
+**Implemented in source:**
+- ZIP archive validation and entry listing (maximum 5,000 displayed entries).
+- DEX filename detection, including multidex names.
+- Android PackageManager extraction when it can parse the APK: package name, version name/code, application label, target SDK, declared permissions, and component counts.
+- Clear distinction between archive validity and PackageManager metadata availability.
+
+**Known limits:**
+- Minimum SDK is not yet decoded.
+- Full binary AndroidManifest.xml decoding is not implemented.
+- Resource decoding/editing and DEX decompilation are not implemented.
+- PackageManager may not parse malformed, split-only, or unusual APK variants.
+- Representative APK results have not yet been tested on Android 11.
+
+### M3 — .NET assembly inspection
+
+**Implemented in source:**
+- PE signature, machine architecture, PE32/PE32+, section count, and CLI directory detection.
+- CLI header, runtime version, metadata RVA/size, flags, and entry-point token/RVA.
+- Metadata root signature/version and stream listing.
+- Metadata table row counts for key tables.
+- New bounded ECMA-335 metadata reader:
+  - Module name and MVID.
+  - Assembly name, version, culture, flags, and public-key blob length.
+  - Assembly reference names, versions, and cultures.
+  - TypeDef namespace/type names.
+  - Field and MethodDef names associated with types.
+- Inputs are read from temporary working copies; original files are preserved.
+
+**Known limits:**
+- This is metadata inspection, not C# decompilation, IL editing, or assembly rewriting.
+- The reader caps displayed references at 200, types at 300, and members per type at 200.
+- Unsupported or malformed metadata tables are reported as incomplete rather than trusted.
+- Native PE files should be classified as not containing a managed CLI header.
+- The synthetic host-JVM metadata-reader test has been added but its GitHub Actions result is not yet confirmed.
+- Real managed DLL/EXE and native PE fixtures still require device verification.
+
+### GitHub Actions build and artifact workflow
+
+Added `.github/workflows/phase1-android.yml`.
+
+Triggers:
+- Push to `main`.
+- Pull requests targeting `main`.
+- Manual `workflow_dispatch`.
+
+Workflow steps:
+1. Set up Java 17.
+2. Compile and run a host-JVM synthetic ECMA-335 metadata-reader test.
+3. Install Android SDK platform 36 and Build Tools 36.0.0.
+4. Set up Gradle 8.13.
+5. Run `:app:assembleDebug` from the `droidinspect/` project directory.
+6. Verify that the debug APK exists.
+7. Upload `DroidInspect-Phase1-debug` as a 14-day GitHub Actions artifact.
+
+**CI status: NOT YET CONFIRMED.** The workflow file is committed and configured to run on pushes to `main`, but no successful run or artifact download has been verified in this development session. Do not describe the APK as build-verified until the workflow result is inspected.
 
 ### Verification state
 
-- Existing starter project: user previously reported CodeAssist build success.
-- New Phase 1 source: committed, but has **not yet been built in CodeAssist**.
-- Install/startup of the new build: pending.
-- SAF picker and report screen: pending device test.
-- APK inspection: pending test with a known-good APK.
-- .NET inspection: pending test with a known managed DLL/EXE and a native PE file.
-- GitHub/CI build: no successful CI result recorded for this implementation.
+| Check | Status |
+|---|---|
+| Original starter project build | User previously reported PASS |
+| Phase 1 Java/XML source committed | PASS |
+| .NET metadata decoder source added | PASS — source only |
+| Synthetic .NET metadata test added | PASS — test source only; execution pending |
+| GitHub Actions workflow added | PASS — run pending confirmation |
+| GitHub Actions Android compilation | NOT VERIFIED |
+| GitHub Actions APK artifact | NOT VERIFIED |
+| CodeAssist build of latest source | NOT TESTED |
+| Installation and startup on Android 11 | NOT TESTED |
+| M1 device verification | NOT VERIFIED |
+| M2 APK device verification | NOT VERIFIED |
+| M3 managed/native PE device verification | NOT VERIFIED |
+| Phase 1 completion | NOT VERIFIED |
 
-### Current source files
+### Dependencies and compatibility
 
-- `droidinspect/app/src/main/java/com/tanvir/droidinspect/MainActivity.java` — dashboard, document picker, background work, and diagnostics.
-- `droidinspect/app/src/main/java/com/tanvir/droidinspect/FileInspectionEngine.java` — cache-copy handling, APK ZIP/PackageManager inspection, and PE/CLI metadata-header inspection.
-- `droidinspect/app/src/main/res/layout/activity_main.xml` — phone-friendly dashboard and scrollable report.
-- `droidinspect/app/src/main/AndroidManifest.xml` — launcher activity; no broad storage permission.
-- `droidinspect/app/build.gradle.kts` — existing build configuration retained; no new dependencies added.
+- No new Android runtime dependencies have been added.
+- Existing build configuration: Android Gradle Plugin 8.13.0, Gradle 8.13, compileSdk 36, minSdk 26, targetSdk 36, Java 8 source/target compatibility.
+- CI uses Java 17 to run Gradle and host-side tests.
+- User development environment for this session: CodeAssist 3.36.1; test device Android 11.
+- SAF is used instead of broad storage permissions.
 
-**Exact next action:** open the latest `main` branch in CodeAssist 3.36.1, build and install the app on Android 11, run the Phase 1 diagnostics button, then test one known-good APK and one known managed .NET DLL/EXE. Share the complete reports and any build errors. After fixing any issues, complete .NET metadata name decoding and verify native PE rejection before marking M1–M3 complete.
+### Important source files
+
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/MainActivity.java` — dashboard, SAF picker, background execution, diagnostics.
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/FileInspectionEngine.java` — safe temporary copy, APK archive/PackageManager inspection, file-signature detection, PE/CLI inspection.
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/DotNetMetadataReader.java` — bounded ECMA-335 metadata stream/table reader for module, assembly, references, types, fields, and methods.
+- `droidinspect/app/src/main/res/layout/activity_main.xml` — dashboard and report layout.
+- `droidinspect/app/src/main/AndroidManifest.xml` — launcher activity and permissions.
+- `droidinspect/app/build.gradle.kts` — existing Android build configuration.
+- `.github/workflows/phase1-android.yml` — CI build, host parser test, and debug APK artifact.
+- `tools/metadata-reader-test/DotNetMetadataReaderSelfTest.java` — synthetic metadata fixture and host-JVM decoder smoke test.
+
+### Exact files changed in this Phase 1 batch
+
+- Added `droidinspect/app/src/main/java/com/tanvir/droidinspect/DotNetMetadataReader.java`.
+- Updated `droidinspect/app/src/main/java/com/tanvir/droidinspect/FileInspectionEngine.java`.
+- Added `tools/metadata-reader-test/DotNetMetadataReaderSelfTest.java`.
+- Added `.github/workflows/phase1-android.yml`.
+- Updated this `README.md`.
+
+No new Android runtime dependency or broad storage permission was introduced.
 
 ## 7. Chronological Development History
 
-- 2026-11-12: User confirmed Android 11 and CodeAssist 3.36.1 for this development session.
-- 2026-11-12: Inspected the latest `main` branch, README, Java activity, XML layout, manifest, Gradle configuration, and project resource structure.
-- 2026-11-12: Added the initial Phase 1 Java/XML inspection dashboard and SAF file picker.
-- 2026-11-12: Added a one-tap Phase 1 runtime/cache diagnostics report.
-- 2026-11-12: Added APK ZIP listing, DEX entry detection, and Android PackageManager metadata extraction.
-- 2026-11-12: Added PE/CLI header and metadata-root inspection with selected metadata table row counts. Full assembly/type/member-name decoding remains pending.
-- 2026-11-12: Updated the project status to distinguish source implementation from build and real-device verification.
+- 2026-11-12: Confirmed the existing latest `main` commit and inspected README, Java activity, inspection engine, XML layout, manifest, Gradle configuration, and resources.
+- 2026-11-12: Confirmed the previous Phase 1 dashboard and initial APK/PE inspection implementation were not yet built or device-tested.
+- 2026-11-12: Added a bounded ECMA-335 metadata reader for module identity, MVID, assembly identity, references, TypeDef names, field names, and method names.
+- 2026-11-12: Corrected ECMA-335 coded-index mappings and metadata table row layouts.
+- 2026-11-12: Integrated decoded metadata into the .NET inspection report.
+- 2026-11-12: Improved file identification to inspect APK ZIP structure and PE MZ signatures even when the filename extension is misleading.
+- 2026-11-12: Added a synthetic host-JVM metadata-reader test covering module, assembly, reference, type, field, and method decoding.
+- 2026-11-12: Added GitHub Actions workflow for host parser testing, Android debug compilation, and APK artifact upload.
+- 2026-11-12: Updated project status and verification documentation. CI execution and device testing remain pending confirmation.
 
 ## 8. New-Chat Continuation Instructions
 
-When continuing DroidInspect in a new ChatGPT chat:
-
-- Read this README completely before proposing work.
-- Inspect the latest repository branch and commit and compare it with this documented state.
-- Continue from **M1**, not from project creation.
-- Do not recreate the project or replace the existing architecture without a demonstrated reason and discussion.
-- Ask for a build/install result only if it is not already recorded here or in the current chat.
-- The next task is to build and install the current Phase 1 implementation, run its diagnostics, then test it with known-good APK and managed .NET DLL/EXE fixtures. Continue M3 metadata-name decoding after the first build is confirmed.
-- Preserve the total roadmap of ten milestones unless a verified technical blocker requires a documented revision.
+When continuing DroidInspect:
+- Read this README and inspect the latest `main` commit before modifying anything.
+- Continue the existing project; do not recreate it or discard working features.
+- First inspect the GitHub Actions run for `DroidInspect Phase 1 Android CI`.
+- If the host metadata test or Android build fails, inspect the full logs, fix the actual cause, and wait for a successful rerun.
+- Once CI succeeds, obtain the `DroidInspect-Phase1-debug` artifact and provide it to the user.
+- Then ask the user to install/test the build in CodeAssist 3.36.1 on Android 11.
+- Test a known-good APK, a known managed .NET DLL/EXE, and a native PE file. Review complete reports.
+- Do not mark M1, M2, M3, or Phase 1 complete until the corresponding actual device exit criteria pass.
+- Preserve the original ten-milestone roadmap and do not begin Phase 2 before Phase 1 verification is complete.
