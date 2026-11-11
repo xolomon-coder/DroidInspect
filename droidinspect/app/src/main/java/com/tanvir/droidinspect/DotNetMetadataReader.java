@@ -144,7 +144,7 @@ final class DotNetMetadataReader {
         for(int i=0;i<limit;i++){
             long p=tableBase[2]+i*typeSize;
             long flags=u32(p); int name=indexString(p+4), ns=indexString(p+4+stringWidth());
-            long listPos=p+4+2L*stringWidth()+codedWidth(1)+tableWidth(4);
+            long listPos=p+4+2L*stringWidth()+codedWidth(1);
             long firstField=tableIndex(listPos,4), firstMethod=tableIndex(listPos+tableWidth(4),6);
             long nextField=rows[4]+1, nextMethod=rows[6]+1;
             if(i+1<rows[2]){
