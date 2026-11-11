@@ -71,7 +71,9 @@ final class DotNetMetadataReader {
         for(int i=0;i<64;i++) if(rows[i]>0) {
             tableBase[i]=cursor;
             long size=rowSize(i);
-            if(size<=0 || rows[i]>(tablesBase+tablesSize-cursor)/size) throw new Exception("Invalid or unsupported metadata table "+i+" bounds.");
+            long remaining=tablesBase+tablesSize-cursor;
+            if(size<=0 || remaining<0 || rows[i]>remaining/size)
+                throw new Exception("Invalid or unsupported metadata table "+i+" bounds (rows="+rows[i]+", rowSize="+size+", remaining="+remaining+").");
             cursor+=rows[i]*size;
         }
         StringBuilder out=new StringBuilder("\nDECODED .NET ASSEMBLY METADATA\n");
