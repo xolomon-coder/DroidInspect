@@ -603,7 +603,7 @@ The automated tests found and corrected real issues:
 | M3 pure-managed .NET fixture | NOT TESTED |
 | M3 native/non-managed PE rejection | NOT TESTED — user chose to skip this fixture |
 | Phase 1 overall | ACCEPTED TO PROCEED WITH A DOCUMENTED M3 VERIFICATION GAP |
-| Phase 2 / M4 | IMPLEMENTATION IN PROGRESS — host tests, cloud build, and Android 11 verification pending |
+| Phase 2 / M4 | IMPLEMENTED; CI PASS — Android 11 device verification pending |
 
 ### M4 — APK DEX analysis and code browsing (implementation in progress)
 
@@ -637,7 +637,26 @@ The automated tests found and corrected real issues:
 
 **Dependencies:** no new Android runtime dependencies. Existing AGP 8.13.0 / Gradle 8.13 / compileSdk 36 / minSdk 26 / targetSdk 36 / Java 8 remain unchanged.
 
-**Verification state:** source changes are committed, but the M4 host test and Android cloud build have not yet been confirmed in GitHub Actions at the time of this documentation update. No Android 11 device test has been performed for the new browser. Do not mark M4 complete until CI passes and the user verifies the browser on-device.
+**Verification state (2026-11-12):** GitHub Actions run #64 (`43092921972`) PASS. Existing ECMA-335 host test PASS; DEX parser host test PASS; Android 36 resource processing and Java compilation PASS; debug APK output verification PASS; artifact upload PASS. Artifact: `DroidInspect-Phase2-M4-debug`, ID `13888828737`, size 44,218 bytes, SHA-256 `5cfbc700f9242ca014483ab62e537b61010a0c8c6dfc1a2d6692163ddd3bb0f3`, expires 2026-11-25 20:04:22 UTC. This proves host fixture behavior and cloud packaging, not runtime behavior on Android 11. No Android 11 device test has yet been performed for the new browser. M4 remains IN PROGRESS until the user installs and tests the artifact on the phone.
+
+**M4 GitHub Actions result (2026-11-12):**
+- Workflow run: #64; run ID `43092921972`; result PASS.
+- ECMA-335 metadata-reader host test: PASS.
+- DEX parser host test: PASS.
+- Android resource processing / Java compilation: PASS.
+- Debug APK existence check: PASS.
+- Artifact upload: PASS.
+- Artifact name: `DroidInspect-Phase2-M4-debug`.
+- Artifact ID: `13888828737`; size: 44,218 bytes.
+- Artifact SHA-256: `5cfbc700f9242ca014483ab62e537b61010a0c8c6dfc1a2d6692163ddd3bb0f3`.
+- Artifact expires: 2026-11-25 20:04:22 UTC.
+- Workflow run page: https://github.com/xolomon-coder/DroidInspect/actions/runs/43092921972
+
+**CI corrections made before PASS:**
+- First DEX test run caught an incorrectly sized synthetic DEX fixture; header/data sizing and file_size were corrected.
+- First Android build caught literal escaped newline sequences in the dashboard XML; corrected.
+- Next Android compile caught malformed Java string/character literals in MainActivity; replaced the complete activity with correctly escaped Java literals and made the DEX browser button APK-only.
+- The final run #64 passed all configured tests, compilation, output verification, and artifact upload.
 
 **Known technical limits to review during verification:**
 - The custom reader is a bounded structural parser, not a full DEX verifier or bytecode disassembler.
