@@ -46,7 +46,7 @@ public final class DexFileParserSelfTest {
     private static byte[] minimalDex() throws Exception {
         String[] strings = {"Lx/A;", "Ljava/lang/Object;", "value", "run", "I", "V"};
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        byte[] header = new byte[266];
+        byte[] header = new byte[212];
         header[0] = 'd'; header[1] = 'e'; header[2] = 'x'; header[3] = '\n';
         header[4] = '0'; header[5] = '3'; header[6] = '5'; header[7] = 0;
         put32(header, 32, header.length);
