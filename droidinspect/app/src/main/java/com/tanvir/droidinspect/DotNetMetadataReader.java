@@ -83,6 +83,7 @@ final class DotNetMetadataReader {
         decodeAssembly(out);
         decodeReferences(out);
         decodeTypes(out);
+        decodeProperties(out);
         out.append("\nDecode status: ").append(stringsBase!=0 ? "core identity/type/member tables decoded where present" : "string heap unavailable").append('\n');
         out.append("Note: This is metadata inspection, not C# decompilation or IL editing.\n");
         return out.toString();
@@ -150,7 +151,7 @@ final class DotNetMetadataReader {
             if(i+1<rows[2]){
                 long np=p+typeSize;
                 nextField=tableIndex(np+4+2L*stringWidth()+codedWidth(1),4);
-                nextMethod=tableIndex(np+4+2L*stringWidth()+codedWidth(0)+tableWidth(4),6);
+                nextMethod=tableIndex(np+4+2L*stringWidth()+codedWidth(1)+tableWidth(4),6);
             }
             String typeName=str(name), namespace=str(ns);
             o.append("\n").append(i+1).append(". ").append(namespace.isEmpty()?typeName:namespace+"."+typeName);
@@ -160,6 +161,46 @@ final class DotNetMetadataReader {
             appendMembers(o,"Method",firstMethod,nextMethod,6,methodSize,200);
         }
         if(rows[2]>limit)o.append("\n… ").append(rows[2]-limit).append(" more types not displayed.\n");
+    }
+
+    private void decodeProperties(StringBuilder o) throws Exception {
+        o.append("\nPROPERTIES\n");
+        o.append("PropertyMap rows: ").append(rows[21]).append("; Property rows: ").append(rows[23]).append('\n');
+        if (rows[21] == 0 || rows[23] == 0) {
+            o.append("No property metadata rows were found.\n");
+            return;
+        }
+        int mapLimit = (int) Math.min(rows[21], 300);
+        long mapSize = rowSize(21);
+        long propertySize = rowSize(23);
+        for (int i = 0; i < mapLimit; i++) {
+            long p = tableBase[21] + i * mapSize;
+            long parentType = tableIndex(p, 2);
+            long first = tableIndex(p + tableWidth(2), 23);
+            long next = i + 1 < rows[21]
+                    ? tableIndex(p + mapSize + tableWidth(2), 23)
+                    : rows[23] + 1;
+            if (parentType < 1 || parentType > rows[2] || first < 1
+                    || next < first || first > rows[23] + 1) {
+                o.append("PropertyMap ").append(i + 1).append(": invalid parent/list indices; omitted.\n");
+                continue;
+            }
+            long typeRow = tableBase[2] + (parentType - 1) * rowSize(2);
+            String typeName = str(indexString(typeRow + 4));
+            String namespace = str(indexString(typeRow + 4 + stringWidth()));
+            o.append("\n").append(namespace.isEmpty() ? typeName : namespace + "." + typeName).append('\n');
+            int shown = (int) Math.min(Math.min(next - first, 200), rows[23] + 1 - first);
+            for (int j = 0; j < shown; j++) {
+                long propertyRow = tableBase[23] + (first - 1 + j) * propertySize;
+                o.append("   Property: ").append(str(indexString(propertyRow + 2))).append('\n');
+            }
+            if (next - first > shown) {
+                o.append("   … additional properties omitted by display cap.\n");
+            }
+        }
+        if (rows[21] > mapLimit) {
+            o.append("… ").append(rows[21] - mapLimit).append(" additional PropertyMap rows omitted.\n");
+        }
     }
 
     private void appendMembers(StringBuilder o,String label,long first,long next,int table,long size,int cap)throws Exception{
