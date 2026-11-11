@@ -17,6 +17,7 @@ final class DotNetIlReader {
     private static final int MAX_FILE = 512 * 1024 * 1024;
     private static final int MAX_METHODS = 10000;
     private static final int MAX_BODY = 256 * 1024;
+    private static final int MAX_EDITABLE_IL = 4096;
     private static final int MAX_INSTRUCTIONS = 250;
     private static final int N=0, SI=1, I4=2, I8=3, R4=4, R8=5, SV=6, V=7, SB=8, B=9, SW=10, T=11;
     private static final String[] OPS = new String[256];
@@ -166,7 +167,7 @@ final class DotNetIlReader {
                 long off=rvaToOffset(pe.f,rva,pe.sectionTable,pe.sections,pe.len);
                 if(off<0)throw new IOException("RVA does not map to file bytes.");
                 long[] layout=bodyLayout(pe.f,off,pe.len);codeOffset=layout[0];codeSize=(int)layout[1];
-                byte[] code=readBytes(pe.f,codeOffset,codeSize);codeHex=toHex(code);
+                if(codeSize<=MAX_EDITABLE_IL)codeHex=toHex(readBytes(pe.f,codeOffset,codeSize));
                 body=methodBody(pe.f,off,pe.len);bodies++;
             } catch(Exception e){body="IL body unavailable: "+safe(e.getMessage());codeOffset=0;codeSize=0;codeHex="";}
             result.methods.add(new MethodInfo(i+1,flags,owner,name,rva,nameIndex,codeOffset,codeSize,codeHex,body));
@@ -211,6 +212,7 @@ final class DotNetIlReader {
             Result result=read(source);MethodInfo target=null;
             for(MethodInfo m:result.methods)if(m.row==row){target=m;break;}
             if(target==null||target.codeOffset<=0||target.codeSize<=0)throw new IOException("The selected method has no editable IL body.");
+            if(target.codeSize>MAX_EDITABLE_IL)throw new IOException("IL editing is limited to method bodies of 4 KB or less for phone memory safety.");
             long methodOff=rvaToOffset(pe.f,target.rva,pe.sectionTable,pe.sections,pe.len);
             long[] layout=bodyLayout(pe.f,methodOff,pe.len);
             if((layout[2]&8L)!=0)throw new IOException("Methods with extra data sections (for example exception handlers) are not editable.");
