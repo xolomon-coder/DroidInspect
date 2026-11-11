@@ -11,6 +11,8 @@ import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.ProgressBar;
+import android.widget.Spinner;
+import android.widget.AdapterView;
 import android.widget.TextView;
 
 import java.io.File;
@@ -18,6 +20,7 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.zip.ZipFile;
 
@@ -32,6 +35,8 @@ public class DexAnalysisActivity extends Activity {
     private ProgressBar progress;
     private EditText search;
     private ListView list;
+    private Spinner packageSpinner;
+    private String selectedPackage = "All packages";
     private File apkCopy;
 
     @Override protected void onCreate(Bundle state) {
@@ -42,6 +47,15 @@ public class DexAnalysisActivity extends Activity {
         progress = findViewById(R.id.dexProgress);
         search = findViewById(R.id.dexSearch);
         list = findViewById(R.id.dexClassList);
+        packageSpinner = findViewById(R.id.dexPackageSpinner);
+        packageSpinner.setEnabled(false);
+        packageSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                selectedPackage = parent.getItemAtPosition(position).toString();
+                filter(search.getText().toString());
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent) { }
+        });
         adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, rows);
         list.setAdapter(adapter);
         list.setOnItemClickListener((parent, view, position, id) -> showClass(shownClasses.get(position)));
@@ -91,11 +105,20 @@ public class DexAnalysisActivity extends Activity {
                 }
                 allClasses.clear();
                 allClasses.addAll(parsed.classes);
+                LinkedHashSet<String> packages = new LinkedHashSet<>();
+                packages.add("All packages");
+                for (DexFileParser.ClassInfo info : allClasses) packages.add(info.packageName);
+                ArrayAdapter<String> packageAdapter = new ArrayAdapter<>(this,
+                        android.R.layout.simple_spinner_item, new ArrayList<>(packages));
+                packageAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                packageSpinner.setAdapter(packageAdapter);
+                packageSpinner.setEnabled(true);
                 StringBuilder report = new StringBuilder();
                 report.append("DEX files found: ").append(parsed.dexCount).append('\n');
                 report.append("Classes parsed: ").append(parsed.totalClasses).append('\n');
                 report.append("Members indexed: ").append(parsed.totalMembers).append('\n');
-                report.append("Class limit: ").append(parsed.classLimitReached ? "REACHED" : "not reached").append("\n\n");
+                report.append("Class limit: ").append(parsed.classLimitReached ? "REACHED" : "not reached").append('\n');
+                report.append("Member limit: ").append(parsed.memberLimitReached ? "REACHED" : "not reached").append("\n\n");
                 report.append("DEX FILE RESULTS\n");
                 for (String line : parsed.dexReports) report.append("• ").append(line).append('\n');
                 if (!parsed.warning.isEmpty()) report.append("\nNOTE: ").append(parsed.warning);
@@ -112,9 +135,11 @@ public class DexAnalysisActivity extends Activity {
         shownClasses.clear();
         rows.clear();
         for (DexFileParser.ClassInfo info : allClasses) {
-            boolean match = q.isEmpty() || info.className.toLowerCase(Locale.ROOT).contains(q)
+            boolean packageMatch = "All packages".equals(selectedPackage) || selectedPackage.equals(info.packageName);
+            boolean textMatch = q.isEmpty() || info.className.toLowerCase(Locale.ROOT).contains(q)
                     || info.packageName.toLowerCase(Locale.ROOT).contains(q)
                     || contains(info.fields, q) || contains(info.methods, q);
+            boolean match = packageMatch && textMatch;
             if (match) {
                 shownClasses.add(info);
                 rows.add(info.className + "\n" + info.packageName + "  •  " + info.dexName
@@ -149,6 +174,7 @@ public class DexAnalysisActivity extends Activity {
     private void setBusy(boolean busy, String message) {
         progress.setVisibility(busy ? View.VISIBLE : View.GONE);
         search.setEnabled(!busy);
+        packageSpinner.setEnabled(!busy && !allClasses.isEmpty());
         status.setText(message);
     }
 
