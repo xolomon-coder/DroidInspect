@@ -327,7 +327,8 @@ final class FileInspectionEngine {
         return offset >= 0 && size >= 0 && offset <= length && size <= length - offset;
     }
     private static long align4(long value) { return (value + 3L) & ~3L; }
-    private static int readByteAt(RandomAccessFile r, long p) throws Exception { r.seek(p); return r.readUnsignedByte(); }\n    private static int readU16(RandomAccessFile r, long p) throws Exception {
+    private static int readByteAt(RandomAccessFile r, long p) throws Exception { r.seek(p); return r.readUnsignedByte(); }
+    private static int readU16(RandomAccessFile r, long p) throws Exception {
         r.seek(p); return r.readUnsignedByte() | (r.readUnsignedByte() << 8);
     }
     private static long readU32(RandomAccessFile r, long p) throws Exception {
