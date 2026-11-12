@@ -1,0 +1,105 @@
+name: M11 ILSpy Native AOT Android Proof
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'tools/m11-poc/**'
+      - '.github/workflows/m11-nativeaot-poc.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-and-verify:
+    name: Fixture, ILSpy host test, Native AOT, JNI and APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '11.0.100'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
+      - name: Install Android SDK, NDK and CMake
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;30.0.16248370" "cmake;3.31.6"
+          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/30.0.16248370" >> "$GITHUB_ENV"
+          echo "$ANDROID_HOME/ndk/30.0.16248370/toolchains/llvm/prebuilt/linux-x86_64/bin" >> "$GITHUB_PATH"
+      - name: Build managed fixture
+        run: dotnet build tools/m11-poc/fixture/DecompilerFixture.csproj -c Release
+      - name: Run managed ILSpy C# output test
+        run: |
+          REF="$HOME/.nuget/packages/microsoft.netcore.app.ref/11.0.0/ref/net11.0"
+          test -f "$REF/System.Runtime.dll"
+          dotnet run --project tools/m11-poc/host-tests/HostTests.csproj -c Release -- "$GITHUB_WORKSPACE/tools/m11-poc/fixture/bin/Release/net11.0/DecompilerFixture.dll" "$REF"
+      - name: Publish Native AOT Bionic ARM64 engine
+        env:
+          CC: clang
+          CXX: clang++
+          AR: llvm-ar
+          LD: ld.lld
+        run: |
+          dotnet publish tools/m11-poc/engine/DroidInspect.M11.Engine.csproj -c Release -r linux-bionic-arm64 -p:DisableUnsupportedError=true -p:PublishAotUsingRuntimePack=true -p:StripSymbols=false
+      - name: Verify ARM64 ELF and native exports
+        run: |
+          set -euo pipefail
+          LIB="$(find tools/m11-poc/engine/bin/Release/net11.0/linux-bionic-arm64/publish -maxdepth 1 -name '*.so' -print -quit)"
+          test -n "$LIB" && test -s "$LIB"
+          file "$LIB"
+          readelf -h "$LIB" | tee /tmp/m11-elf-header.txt
+          grep -q AArch64 /tmp/m11-elf-header.txt
+          llvm-nm -D --defined-only "$LIB" | tee /tmp/m11-exports.txt
+          grep -q DroidInspect_DecompileFile /tmp/m11-exports.txt
+          grep -q DroidInspect_FreeResult /tmp/m11-exports.txt
+          mkdir -p artifacts
+          cp "$LIB" artifacts/libdroidinspect_engine.so
+      - name: Prepare ARM64 engine and offline .NET reference assemblies
+        run: |
+          set -euo pipefail
+          MAIN="tools/m11-poc/android-host/app/src/main"
+          mkdir -p "$MAIN/jniLibs/arm64-v8a" "$MAIN/assets/reference-assemblies/net11.0"
+          cp artifacts/libdroidinspect_engine.so "$MAIN/jniLibs/arm64-v8a/"
+          REF="$HOME/.nuget/packages/microsoft.netcore.app.ref/11.0.0/ref/net11.0"
+          test -d "$REF"
+          cp -a "$REF/." "$MAIN/assets/reference-assemblies/net11.0/"
+          cp tools/m11-poc/fixture/bin/Release/net11.0/DecompilerFixture.dll artifacts/
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - name: Build isolated Java XML proof APK
+        working-directory: tools/m11-poc/android-host
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
+      - name: Verify APK payload
+        run: |
+          set -euo pipefail
+          APK="tools/m11-poc/android-host/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          unzip -t "$APK"
+          unzip -l "$APK" | tee /tmp/m11-apk-list.txt
+          grep -q 'lib/arm64-v8a/libdroidinspect_engine.so' /tmp/m11-apk-list.txt
+          grep -q 'lib/arm64-v8a/libdroidinspect_jni.so' /tmp/m11-apk-list.txt
+          grep -q 'assets/reference-assemblies/net11.0/System.Runtime.dll' /tmp/m11-apk-list.txt
+          mkdir -p artifacts
+          cp "$APK" artifacts/DroidInspect-M11-Android-Proof.apk
+          sha256sum artifacts/*
+          ls -lh artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DroidInspect-M11-Android-Proof
+          path: |
+            artifacts/DroidInspect-M11-Android-Proof.apk
+            artifacts/libdroidinspect_engine.so
+            artifacts/DecompilerFixture.dll
+            /tmp/m11-elf-header.txt
+            /tmp/m11-exports.txt
+            /tmp/m11-apk-list.txt
+          if-no-files-found: error
+          retention-days: 14
