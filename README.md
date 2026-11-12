@@ -1318,3 +1318,27 @@ ILSpy plus a narrow native/JNI bridge is the leading candidate to prototype. It 
 
 **Next technical experiment:** create a minimal native decompiler library that accepts a path to a managed fixture and returns decompiled C# text through a stable C ABI/JNI call. Build it for the Android ARM64 target using a supported toolchain, package it into a disposable Java Android test app, and execute it on Android 11. Do not touch production DroidInspect dependencies or UI until this experiment succeeds.
 
+### Refined M11 prototype route (2026-11-13)
+
+Newer official .NET documentation clarifies two distinct Android Native AOT paths:
+
+1. **Bionic shared-library route — preferred first prototype.** The .NET Native AOT Android Bionic guide explicitly supports `linux-bionic-arm64` shared libraries and says Java/Kotlin can call them through manually implemented JNI. It documents Android API 24 as the minimum in .NET 11, so the Android 11/API 30 test phone satisfies the documented OS floor. The route is intentionally a native-library integration, not a full .NET Android application runtime. The guide also notes an OpenSSL packaging requirement if the used code path requires OS crypto.
+2. **.NET for Android app/runtime route — fallback candidate.** Current .NET 11 documentation says Android apps use CoreCLR by default and lists `android-arm64` support; Native AOT is experimental. This is a separate project/runtime integration model and may require more architectural changes to embed into the existing Java/Gradle app.
+
+The first experiment should therefore target a small `linux-bionic-arm64` Native AOT shared library containing the ILSpy engine and a narrow C ABI, with a tiny NDK-built JNI shim calling that ABI from a separate Java/XML test APK. Build the .NET library and test APK in GitHub Actions; do not require the user to install the .NET SDK or NDK on the phone. The Android test APK should let the user select a managed DLL through SAF and display the actual decompiled C# text.
+
+**Known technical caveats to test rather than assume:**
+- Native AOT has no dynamic managed assembly loading. ILSpy reads the target PE/CLI file through its metadata/decompiler pipeline rather than requiring the target assembly to execute, but this behavior must be confirmed in the AOT prototype.
+- The decompiler needs reference assemblies for the target framework and referenced libraries. The package documentation explicitly notes that a Native AOT host without an installed .NET runtime must supply a `UniversalAssemblyResolver` with reference directories. The prototype must bundle and configure at least the reference pack for its test fixture; broader framework reference coverage is a later acceptance task.
+- The `ICSharpCode.Decompiler` package is AOT annotated and has a dedicated native-vs-managed output test, but that test is not an Android Bionic/JNI device test.
+- The Bionic shared library and JNI bridge must be built for `arm64-v8a`, packaged under the Android ABI library directory, loaded successfully on Android 11, and tested with a real fixture before production integration.
+
+**Primary references for this refined route:**
+- .NET Native AOT with Android Bionic (RIDs, NDK, JNI, API floor, shared-library use): https://github.com/dotnet/runtime/blob/main/src/coreclr/nativeaot/docs/android-bionic.md
+- .NET for Android runtime scope and supported Android ABIs: https://learn.microsoft.com/en-us/dotnet/android/building-apps/build-properties
+- ILSpy package AOT and reference-resolver notes: https://github.com/icsharpcode/ILSpy/blob/master/ICSharpCode.Decompiler/PackageReadme.md
+- Native AOT library exports: https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/interop
+- JNI shared-library example referenced by the .NET Android Bionic guide: https://github.com/josephmoresena/NativeAOT-AndroidHelloJniLib
+
+**Exact next action:** implement the isolated Native AOT + JNI test APK and its CI build. First prove that the native library compiles and exports its C ABI; then prove the JNI host loads and calls it on Android 11; finally add ILSpy and fixture/reference-pack decompilation. These are explicit sub-gates, not assumptions. Production DroidInspect remains unchanged until all device gates pass.
+
