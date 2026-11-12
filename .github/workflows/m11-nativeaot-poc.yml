@@ -59,6 +59,8 @@ jobs:
           llvm-nm -D --defined-only "$LIB" | tee /tmp/m11-exports.txt
           grep -q DroidInspect_DecompileFile /tmp/m11-exports.txt
           grep -q DroidInspect_FreeResult /tmp/m11-exports.txt
+          readelf -d "$LIB" | tee /tmp/m11-engine-needed.txt
+          grep -Fq 'Library soname: [libdroidinspect_engine.so]' /tmp/m11-engine-needed.txt
           mkdir -p artifacts
           cp "$LIB" artifacts/libdroidinspect_engine.so
       - name: Prepare ARM64 engine and offline .NET reference assemblies
@@ -84,6 +86,10 @@ jobs:
           test -s "$APK"
           unzip -t "$APK"
           unzip -l "$APK" | tee /tmp/m11-apk-list.txt
+          unzip -p "$APK" lib/arm64-v8a/libdroidinspect_jni.so > /tmp/m11-jni.so
+          readelf -d /tmp/m11-jni.so | tee /tmp/m11-jni-needed.txt
+          grep -Fq 'Shared library: [libdroidinspect_engine.so]' /tmp/m11-jni-needed.txt
+          if grep -Eq 'Shared library: \[/' /tmp/m11-jni-needed.txt; then echo 'ERROR: JNI contains an absolute DT_NEEDED path'; exit 1; fi
           grep -q 'lib/arm64-v8a/libdroidinspect_engine.so' /tmp/m11-apk-list.txt
           grep -q 'lib/arm64-v8a/libdroidinspect_jni.so' /tmp/m11-apk-list.txt
           grep -q 'assets/reference-assemblies/net11.0/System.Runtime.dll' /tmp/m11-apk-list.txt
@@ -100,6 +106,8 @@ jobs:
             artifacts/DecompilerFixture.dll
             /tmp/m11-elf-header.txt
             /tmp/m11-exports.txt
+            /tmp/m11-engine-needed.txt
+            /tmp/m11-jni-needed.txt
             /tmp/m11-apk-list.txt
           if-no-files-found: error
           retention-days: 14

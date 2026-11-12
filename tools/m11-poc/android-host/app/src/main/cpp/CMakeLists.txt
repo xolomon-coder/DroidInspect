@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.22.1)
 project(droidinspect_m11_jni LANGUAGES CXX)
 add_library(droidinspect_engine SHARED IMPORTED)
-set_target_properties(droidinspect_engine PROPERTIES IMPORTED_LOCATION "${CMAKE_CURRENT_LIST_DIR}/../jniLibs/arm64-v8a/libdroidinspect_engine.so")
+set_target_properties(droidinspect_engine PROPERTIES IMPORTED_LOCATION "${CMAKE_CURRENT_LIST_DIR}/../jniLibs/arm64-v8a/libdroidinspect_engine.so"
+    IMPORTED_SONAME "libdroidinspect_engine.so")
 add_library(droidinspect_jni SHARED jni_bridge.cpp)
 target_compile_features(droidinspect_jni PRIVATE cxx_std_17)
 target_link_libraries(droidinspect_jni PRIVATE droidinspect_engine log)
