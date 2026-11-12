@@ -76,7 +76,8 @@ jobs:
         run: |
           set -euo pipefail
           UNSIGNED="droidinspect/app/build/outputs/apk/release/app-release-unsigned.apk"
-          SIGNED="/tmp/droidinspect-ci-signed.apk"
+          mkdir -p artifacts
+          SIGNED="artifacts/droidinspect-ci-signed.apk"
           TAMPERED="/tmp/droidinspect-ci-tampered.apk"
           KS="/tmp/droidinspect-ci-test.p12"
           test -s "$UNSIGNED"
@@ -124,6 +125,6 @@ jobs:
           name: DroidInspect-Phase3-builds
           path: |
             droidinspect/app/build/outputs/apk/debug/app-debug.apk
-            /tmp/droidinspect-ci-signed.apk
+            artifacts/droidinspect-ci-signed.apk
           if-no-files-found: error
           retention-days: 14
