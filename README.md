@@ -872,3 +872,20 @@ The user tested the DEX browser against a real APK containing nine root-level DE
 - The downloaded artifact ZIP was independently checked: it contains `app-debug.apk`, and its local SHA-256 matches the GitHub artifact digest.
 
 **Next required action:** user downloads the latest `main` ZIP, builds and installs locally in CodeAssist, then repeats M4 against the same nine-DEX APK. Confirm that all nine DEX entries are reported individually, that valid DEX files pass, and that class/member counts no longer omit valid entries. Capture any remaining per-DEX rejection messages. Do not mark M4 device verification complete until this retest succeeds. M5–M7 device verification also remains pending.
+
+### M4 — Android 11 real-device retest (2026-11-12): DEX parsing PASS
+
+The user rebuilt and tested the corrected main version in CodeAssist against the same APK containing nine root-level DEX files.
+
+**Observed device result:**
+- DEX files found: 9.
+- DEX files passed: 9/9; rejected: 0.
+- Classes parsed: 310.
+- Members indexed: 2,428.
+- Class and member limits: not reached.
+- Per-file counts: classes.dex 76; classes2.dex 56; classes3.dex 34; classes4.dex 31; classes5.dex 24; classes6.dex 58; classes7.dex 15; classes8.dex 9; classes9.dex 7.
+- The browser displayed the complete 310-class listing, package names, source DEX file, and per-class field/method counts.
+
+**Assessment:** the original real-world multidex field/method index regression is fixed for this APK on the Android 11 test phone. All nine DEX entries passed and no configured caps were reached. This is strong device evidence for DEX parsing and class indexing. It does not yet verify class-detail navigation, field/method detail rendering, search behavior, malformed-entry handling, or large-APK responsiveness. M4 remains in progress for those remaining browser interaction checks; this is not Java decompilation.
+
+**Next device check:** open a class such as com.tanvir.gitmanager.AccountActivity, verify its field and method lists/details open correctly, then search for a known class or method name and confirm the result filters/navigates correctly. Report any incorrect counts, blank details, crash, or freeze.
