@@ -807,7 +807,7 @@ No new Android runtime dependency or broad storage permission was introduced.
 - **M3:** one CLI-bearing mixed-mode DLL inspected on-device. Pure-managed fixture and native/non-managed PE rejection remain untested; preserve this documented gap.
 - **M4:** bounded DEX structural parser/browser implemented and previous CI run #64 passed. Android 11 browser/device test remains pending. This is not a Java decompiler.
 - **M5:** bounded .NET raw IL browsing, method search, and constrained metadata method rename implemented. No C# source decompilation; representative real assembly device verification remains pending.
-- **M6: COMPLETE / PASS.** On-device manifest/resource decoding passed on `Git MANAGER_1.0.apk`; user confirmed supported metadata/string editing, unsigned export, and original-APK preservation. Signing/install and unsupported resource variants remain outside M6.
+- **M6: REOPENED — framework attribute-name display fix implemented; device retest pending.** On-device manifest/resource decoding passed on `Git MANAGER_1.0.apk`; user confirmed supported metadata/string editing, unsigned export, and original-APK preservation. Signing/install and unsupported resource variants remain outside M6.
 - **M7:** constrained same-size, operand-free IL byte editing added, with synthetic round-trip and rejection-path host tests. Latest cloud verification is pending confirmation; real assembly/runtime behavior is unverified.
 - **M8–M10:** not yet implemented.
 
@@ -893,7 +893,7 @@ The user rebuilt and tested the corrected main version in CodeAssist against the
 
 ### M6 — APK manifest/resource analysis and editing: DEVICE PASS (2026-11-12)
 
-**M6 is complete for its planned scope.** The user rebuilt and tested the corrected app in CodeAssist on Android 11 against `Git MANAGER_1.0.apk`.
+**M6 previously passed its editing/export device checks; it has been temporarily reopened** after a follow-up review found that XML attribute names were not being resolved to readable Android framework names. The user rebuilt and tested the corrected app in CodeAssist on Android 11 against `Git MANAGER_1.0.apk`.
 
 **Initial failure and correction**
 - Initial device error: `IOException: Can not decode without package`; manifest metadata fields were blank.
@@ -917,12 +917,37 @@ The user rebuilt and tested the corrected main version in CodeAssist against the
 - Export is intentionally unsigned; signing and installation are outside M6 and are deferred to a later milestone.
 - The original selected APK is preserved and is never overwritten.
 
-**Assessment: PASS — M6 closed.** Device testing confirms the corrected analysis pipeline and supported editing/export workflow. This does not claim APK signing, installation, arbitrary resource editing, or complete APK rebuild support.
+**Historical assessment (before the XML-name issue was reported): PASS for the tested editing/export scope.** The later readable-XML requirement is still part of M6 and must pass device retesting before M6 can be closed again.
 
 **Current continuation checkpoint (2026-11-12):**
 - Latest source commit at the time of this note: `1613ff4bcd3058e093104209c10c984c32dbb0ed`.
 - Latest verified CI run: #95 / `43131718723`, all workflow steps successful; artifact listed above.
 - M4 multidex parsing and class indexing are device-verified for the nine-DEX sample (9/9, 310 classes, 2,428 members), but class-detail/member rendering and search interaction checks remain open.
-- M6 is closed after successful Android 11 device verification; details and scope boundaries are recorded in the M6 history section below.
+- M6 editing/export passed earlier device checks, but M6 is currently reopened because readable framework attribute names were missing from the XML display. The correction is committed and CI-verified; Android device retest is pending.
 - M5 and M7 real-device checks remain pending; M8–M10 are not implemented.
-- Next: complete the remaining M4 class-detail/member-rendering and search interaction checks, then complete M5 and M7 device verification. M6 is complete. Keep all subsequent work and documentation commits on `main` only.
+- Next: complete the remaining M4 class-detail/member-rendering and search interaction checks, then complete M5 and M7 device verification. Re-test the M6 readable manifest XML correction before closing M6 again. Keep all subsequent work and documentation commits on `main` only.
+
+
+### M6 — Android framework attribute-name resolution (2026-11-12)
+
+**Issue reported after the earlier M6 editing/export PASS:** the manifest viewer displayed Android framework attributes in the form `android:r0x01010003` rather than readable source names such as `android:name`. The attribute value itself (for example `android.permission.INTERNET`) was decoded, but its framework attribute name was not. This is an M6 manifest XML presentation/decoding defect, not an APK input defect.
+
+**Root cause:** `ApkResourceActivity` loaded the APK resource table but explicitly disabled ARSCLib's default Android framework loading. Without the Android framework resource table, framework attribute IDs could not be resolved to their source names during XML serialization.
+
+**Correction committed directly to main:**
+- Load the APK's `resources.arsc` table first, preserving the earlier fix for the package-context decoding error.
+- Initialize ARSCLib's Android framework resources before obtaining/serializing the manifest, using automatic framework-version selection: `apkModule.initializeAndroidFramework((Integer) null)`.
+- Keep manifest editing, unsigned export, output validation, and original-APK preservation behavior unchanged.
+- Source file: `droidinspect/app/src/main/java/com/tanvir/droidinspect/ApkResourceActivity.java`.
+- Implementation commits: `10309adf9f03eb392626c8044d376c309beb4c72` (framework loading) and `e0dc82647a16042476419008673ed1c4a4a6ccf5` (explicit Integer null cast required to disambiguate the overloaded ARSCLib API).
+
+**CI history and final cloud verification:**
+- Run #98 / `43136039196` initially failed at Java compilation because a bare `null` was ambiguous between ARSCLib overloads accepting `Integer` and `XMLDocument`. The compiler output was inspected and the call was corrected to `(Integer) null`.
+- Run #99 / `43136201279` completed successfully on `main`.
+- Host tests: ECMA-335 metadata decoder PASS; .NET IL reader PASS; DEX parser PASS.
+- Android SDK setup and Android 36 package installation PASS; Gradle 8.13 setup PASS; Android debug APK compilation PASS; APK output verification PASS; artifact upload PASS; all post-job cleanup steps PASS.
+- Artifact: `DroidInspect-Phase2-debug`, ID `13906953389`, size 3,581,274 bytes, SHA-256 `efec526e2ec496370a158f665e47e1364eb3993356311e972d62d41c54f8405c`, expires 2026-11-26.
+- Downloaded artifact ZIP integrity test: PASS; contains `app-debug.apk`; local SHA-256 matches the artifact digest.
+- Final source commit at this checkpoint: `e0dc82647a16042476419008673ed1c4a4a6ccf5`.
+
+**Device verification still required — do not close M6 yet:** rebuild from the latest `main` ZIP in CodeAssist and reopen `Git MANAGER_1.0.apk` in APK Resources. Confirm that attributes display as readable names, including `android:name`, `android:versionCode`, `android:versionName`, `android:minSdkVersion`, and `android:targetSdkVersion`, rather than `android:r0x...`. Also confirm the permission value remains `android.permission.INTERNET` and that the existing metadata/string edit, unsigned export, and original-APK preservation tests still work. Report the displayed XML excerpt and any errors. Until this real-device retest passes, M6 remains reopened despite successful CI compilation.
