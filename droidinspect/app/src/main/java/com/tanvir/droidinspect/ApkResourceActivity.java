@@ -117,7 +117,7 @@ public final class ApkResourceActivity extends Activity {
                 // 0x01010003) can be printed as r0x... instead of android:name.
                 // Passing null asks ARSCLib to auto-detect the framework API level
                 // from the APK metadata, rather than assuming this device's API level.
-                apkModule.initializeAndroidFramework(null);
+                apkModule.initializeAndroidFramework((Integer) null);
                 if (!apkModule.hasAndroidManifest()) {
                     throw new IllegalArgumentException("The APK does not contain AndroidManifest.xml.");
                 }
