@@ -88,6 +88,7 @@ jobs:
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign \
             --ks "$KS" --ks-type PKCS12 --ks-key-alias ci-test \
             --ks-pass pass:ci-only-password --key-pass pass:ci-only-password \
+            --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
             --out "$SIGNED" "$UNSIGNED"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$SIGNED"
           test -s "$SIGNED"
