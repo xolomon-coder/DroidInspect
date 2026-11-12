@@ -24,6 +24,7 @@ public class MainActivity extends Activity {
     private Button browseDexButton;
     private Button browseResourcesButton;
     private Button browseDotNetButton;
+    private Button apkSigningButton;
     private Uri selectedUri;
     private boolean canBrowseDex;
     private boolean canBrowseApk;
@@ -41,6 +42,7 @@ public class MainActivity extends Activity {
         browseDexButton = findViewById(R.id.browseDexButton);
         browseResourcesButton = findViewById(R.id.browseResourcesButton);
         browseDotNetButton = findViewById(R.id.browseDotNetButton);
+        apkSigningButton = findViewById(R.id.apkSigningButton);
         browseDexButton.setEnabled(false);
         browseResourcesButton.setEnabled(false);
         browseDotNetButton.setEnabled(false);
@@ -59,6 +61,7 @@ public class MainActivity extends Activity {
             intent.putExtra("apk_uri", selectedUri.toString());
             startActivity(intent);
         });
+        apkSigningButton.setOnClickListener(v -> startActivity(new Intent(this, ApkSigningActivity.class)));
         browseDotNetButton.setOnClickListener(v -> {
             if (selectedUri == null || !canBrowseDotNet) return;
             Intent intent = new Intent(this, DotNetIlActivity.class);

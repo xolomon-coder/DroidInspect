@@ -50,6 +50,12 @@
         android:enabled="false" />
 
     <Button
+        android:id="@+id/apkSigningButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="APK Signing and Verification" />
+
+    <Button
         android:id="@+id/browseDotNetButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

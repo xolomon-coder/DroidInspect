@@ -29,4 +29,6 @@ android {
 dependencies {
     // Pure-Java Android resource/manifest reader and writer; Apache-2.0.
     implementation("io.github.reandroid:ARSCLib:1.4.0")
+    // Official Android APK signing and verification library; Apache-2.0.
+    implementation("com.android.tools.build:apksig:8.13.0")
 }

@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="#101318">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="APK Signing and Verification"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="Select a rebuilt or other APK. DroidInspect signs a separate copy and verifies it before export. The original is never overwritten."
+            android:textColor="#AEB8C6"
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/pickApkButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="Select APK to sign / verify" />
+
+        <TextView
+            android:id="@+id/signSelectedApk"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="No APK selected"
+            android:textColor="#DCE4ED"
+            android:textSize="12sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="SIGNING KEY"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/signAlias"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Keystore alias / Android Keystore alias"
+            android:singleLine="true"
+            android:inputType="textNoSuggestions"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#9AA6B2" />
+
+        <EditText
+            android:id="@+id/signOwner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Certificate owner name (for new key)"
+            android:singleLine="true"
+            android:inputType="textPersonName"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#9AA6B2" />
+
+        <Button
+            android:id="@+id/generateKeyButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Generate RSA key in Android Keystore" />
+
+        <Button
+            android:id="@+id/importKeyButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Import existing PKCS#12 keystore (.p12 / .pfx)" />
+
+        <TextView
+            android:id="@+id/signSelectedKey"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="No signing key selected"
+            android:textColor="#DCE4ED"
+            android:textSize="12sp" />
+
+        <EditText
+            android:id="@+id/signStorePassword"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Keystore password (imported key only)"
+            android:singleLine="true"
+            android:inputType="textPassword"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#9AA6B2" />
+
+        <EditText
+            android:id="@+id/signKeyPassword"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Private-key password (if different)"
+            android:singleLine="true"
+            android:inputType="textPassword"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#9AA6B2" />
+
+        <Button
+            android:id="@+id/signButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Sign APK and verify signature"
+            android:enabled="false" />
+
+        <Button
+            android:id="@+id/verifyButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Verify selected APK signature"
+            android:enabled="false" />
+
+        <Button
+            android:id="@+id/exportSignedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Export verified signed APK"
+            android:enabled="false" />
+
+        <ProgressBar
+            android:id="@+id/signProgress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:indeterminate="true"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/signStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="Ready"
+            android:textColor="#80CBC4"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/signReport"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:padding="10dp"
+            android:background="#191F27"
+            android:textColor="#E5EAF0"
+            android:textSize="12sp"
+            android:fontFamily="monospace"
+            android:textIsSelectable="true" />
+    </LinearLayout>
+</ScrollView>
