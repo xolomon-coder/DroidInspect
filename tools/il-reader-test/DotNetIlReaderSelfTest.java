@@ -16,6 +16,14 @@ public final class DotNetIlReaderSelfTest {
         require(il.contains("ret"), "ret");
         require(il.contains("58 | add | Pop two values"), "opcode meaning and byte display");
         require(IlOpcodeExplainer.explain("not-a-real-opcode", "").startsWith("No verified explanation"), "unknown opcode explanation");
+        String operand = DotNetIlReader.disassembleForTest(new byte[]{0x0e, 0x02, 0x2a});
+        require(operand.contains("0E 02 | ldarg.s 2"), "operand bytes and operand");
+        String unknown = DotNetIlReader.disassembleForTest(new byte[]{(byte)0xff});
+        require(unknown.contains("FF | FF | No verified explanation"), "unknown opcode bytes");
+        boolean truncatedRejected = false;
+        try { DotNetIlReader.disassembleForTest(new byte[]{0x20, 0x01}); }
+        catch (java.io.IOException expected) { truncatedRejected = true; }
+        require(truncatedRejected, "truncated operand rejection");
 
         String branch = DotNetIlReader.disassembleForTest(new byte[]{0x2b, 0x01, 0x2a});
         require(branch.contains("br.s IL_0003"), "short branch target");

@@ -54,6 +54,7 @@ public final class ApkSigningActivity extends Activity {
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         setContentView(R.layout.activity_apk_signing);
+        cleanupStaleSigningFiles();
         selectedApk = findViewById(R.id.signSelectedApk);
         selectedKey = findViewById(R.id.signSelectedKey);
         status = findViewById(R.id.signStatus);
@@ -363,6 +364,11 @@ public final class ApkSigningActivity extends Activity {
     private void showError(String value) { new AlertDialog.Builder(this).setTitle("APK signing / verification").setMessage(value).setPositiveButton("OK", null).show(); }
     private void setBusy(boolean busy, String value) {
         progress.setVisibility(busy ? View.VISIBLE : View.GONE);
+        findViewById(R.id.pickApkButton).setEnabled(!busy);
+        findViewById(R.id.generateKeyButton).setEnabled(!busy);
+        findViewById(R.id.importKeyButton).setEnabled(!busy);
+        alias.setEnabled(!busy); owner.setEnabled(!busy);
+        storePassword.setEnabled(!busy); keyPassword.setEnabled(!busy);
         status.setText(value); signButton.setEnabled(!busy && apkFile != null);
         verifyButton.setEnabled(!busy && apkFile != null); exportButton.setEnabled(!busy && signedFile != null);
     }
@@ -395,6 +401,18 @@ public final class ApkSigningActivity extends Activity {
             return;
         }
         super.onActivityResult(requestCode, result, data);
+    }
+
+    private void cleanupStaleSigningFiles() {
+        File[] files = getCacheDir().listFiles();
+        if (files == null) return;
+        for (File f : files) {
+            if (f.isFile() && f.getName().startsWith("droidinspect-sign-")) {
+                // This activity owns these private temporary copies; originals are SAF documents.
+                //noinspection ResultOfMethodCallIgnored
+                f.delete();
+            }
+        }
     }
 
     private static final class KeyMaterial {
