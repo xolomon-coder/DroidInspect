@@ -1431,3 +1431,53 @@ After the loader fix, the workflow was run again against commit `2cea5b5c4c9d47c
 - The APK archive integrity test passed again.
 
 The latest production regression run after the README progress update, **DroidInspect Android CI #157** (run ID `43312849428`), also completed successfully. This is cloud build/regression evidence only; Android 11 device acceptance remains pending.
+
+
+---
+
+## 13. M11 Android 11 device acceptance — offline fixture PASS (2026-11-13)
+
+**Status: ISOLATED M11 PROTOTYPE PASSED ITS FIRST REAL ANDROID DEVICE DECOMPILATION TEST OFFLINE. M11 IS NOT COMPLETE; REAL-WORLD ASSEMBLY COVERAGE AND BROADER COMPATIBILITY TESTING REMAIN.**
+
+The user installed the isolated M11 proof APK on the Android 11 / ARM64 test phone and reported the following:
+
+- App startup: PASS.
+- Native engine status displayed exactly: `Native engine loaded. Offline decompilation ready.`
+- Native AOT ARM64 library loading: PASS on the test device.
+- JNI initialization: PASS on the test device.
+- Network state during decompilation: **Wi-Fi and mobile data OFF**.
+- Selected input: `DecompilerFixture.dll`.
+- Decompilation result: ILSpy returned reconstructed C# source text.
+- Original fixture output includes assembly attributes and namespace `DroidInspect.M11.Fixtures`.
+- Reconstructed declarations and language constructs observed:
+  - `Calculator`, property `Value`, and `Add(int left, int right)`.
+  - `SumTo(int limit)` with a `for` loop and conditional.
+  - `Describe(int value)` with `try/catch`, an exception, and string interpolation.
+  - Generic method `Echo<T>(T value)`.
+  - Generic outer class `Container<T>` and nested generic class `Nested<U>`.
+  - `FixtureEntry.Multiply(int a, int b)`.
+- This is genuine C# reconstruction, not the production app's raw ECMA-335 IL browser output.
+
+### M11 verification gates
+
+| Gate | Result |
+|---|---|
+| Isolated APK builds in GitHub Actions | PASS (M11 workflow run #4) |
+| Android app installs and starts | PASS |
+| ARM64 Native AOT engine loads on Android 11 | PASS |
+| JNI bridge initializes on Android 11 | PASS |
+| Fixture decompiles with network disabled | PASS |
+| Fixture C# constructs are reconstructed | PASS |
+| Additional real-world managed DLL/EXE coverage | PENDING |
+| Reference-resolution coverage across real assemblies | PENDING |
+| Large-assembly performance and memory behavior | PENDING |
+| Original-input preservation confirmed by a separate integrity comparison | NOT YET VERIFIED |
+| Production integration and production regression acceptance | NOT STARTED |
+
+### Exact stopping point
+
+The isolated M11 proof APK has now passed the first offline device decompilation test. No production application integration has been performed. The last known main-branch HEAD before recording this device result was `ef26650405c0dba8e98296d67890911ca64afb3f`.
+
+### Next exact action
+
+Continue M11 on the existing `main` branch. Inspect the isolated prototype and test a second, independently obtained real managed DLL or EXE, preferably one with external framework/library references and substantially more types/methods than the small fixture. Verify successful C# reconstruction, document missing-reference behavior, measure practical runtime/memory behavior, and compare the selected original file's hash before and after processing. Fix any isolated-engine issues and repeat the complete M11 CI workflow plus production regression workflow when source changes. Do not integrate the engine into `com.tanvir.droidinspect` or declare M11 complete until the remaining gates are addressed.
