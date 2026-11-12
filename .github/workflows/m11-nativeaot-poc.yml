@@ -37,7 +37,7 @@ jobs:
         run: dotnet build tools/m11-poc/fixture/DecompilerFixture.csproj -c Release
       - name: Run managed ILSpy C# output test
         run: |
-          REF="$HOME/.nuget/packages/microsoft.netcore.app.ref/11.0.0/ref/net11.0"
+          REF="$DOTNET_ROOT/packs/Microsoft.NETCore.App.Ref/11.0.0/ref/net11.0"
           test -f "$REF/System.Runtime.dll"
           dotnet run --project tools/m11-poc/host-tests/HostTests.csproj -c Release -- "$GITHUB_WORKSPACE/tools/m11-poc/fixture/bin/Release/net11.0/DecompilerFixture.dll" "$REF"
       - name: Publish Native AOT Bionic ARM64 engine
@@ -67,7 +67,7 @@ jobs:
           MAIN="tools/m11-poc/android-host/app/src/main"
           mkdir -p "$MAIN/jniLibs/arm64-v8a" "$MAIN/assets/reference-assemblies/net11.0"
           cp artifacts/libdroidinspect_engine.so "$MAIN/jniLibs/arm64-v8a/"
-          REF="$HOME/.nuget/packages/microsoft.netcore.app.ref/11.0.0/ref/net11.0"
+          REF="$DOTNET_ROOT/packs/Microsoft.NETCore.App.Ref/11.0.0/ref/net11.0"
           test -d "$REF"
           cp -a "$REF/." "$MAIN/assets/reference-assemblies/net11.0/"
           cp tools/m11-poc/fixture/bin/Release/net11.0/DecompilerFixture.dll artifacts/
