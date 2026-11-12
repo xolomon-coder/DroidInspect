@@ -492,7 +492,7 @@ No milestone is complete solely because code was written or committed. When deli
 
 ## 6. Current Project Status (2026-11-12)
 
-**Current phase: Phase 2 — Code and resource analysis.** M4 DEX structural browsing, M5 bounded .NET IL browsing, and M6 selected APK manifest/resource editing are implemented in `main`; M7 constrained .NET IL editing has now been added. The M4 device test and representative on-device tests for M5–M7 remain pending. Cloud verification for the latest M7 change must be confirmed from the latest GitHub Actions run before delivery. No milestone is declared device-complete based on CI alone.
+**Current phase: Phase 2 — Code and resource analysis.** M4 DEX structural browsing is implemented and has passed the agreed Android 11 device checks (2026-11-12). M5 bounded .NET IL browsing and M6 selected APK manifest/resource editing are implemented; M6 is device-complete. M7 constrained .NET IL editing is implemented and its cloud CI verification passed in run #101; representative on-device tests for M5 and M7 remain pending. M4 large-APK stress and malformed-DEX device edge cases remain untested. No milestone is declared device-complete based on CI alone.
 
 Phase 1 implementation has passed cloud CI and initial Android 11 device smoke checks. The user chose to proceed without the optional native-PE fixture test. Native/non-managed PE rejection therefore remains an explicit unverified limitation; do not claim full M3 classification coverage. M2 has one successful real APK test, and M3 has one successful CLI-bearing mixed-mode .NET DLL test. Phase 2 may begin while this gap remains documented for later regression coverage.
 
@@ -619,9 +619,12 @@ The automated tests found and corrected real issues:
 | M3 pure-managed .NET fixture | NOT TESTED |
 | M3 native/non-managed PE rejection | NOT TESTED — user chose to skip this fixture |
 | Phase 1 overall | ACCEPTED TO PROCEED WITH A DOCUMENTED M3 VERIFICATION GAP |
-| Phase 2 / M4–M7 | M4–M6 implementation present; M7 constrained IL editor added; latest CI/device verification pending |
+| M4 DEX multidex parsing + class/member detail + class/method search | PASS — Android 11 device (2026-11-12); stress/invalid-input edge cases pending |
+| M5 .NET IL browsing and constrained rename | IMPLEMENTED; representative device verification pending |
+| M6 APK manifest/resource analysis and selected editing | PASS — Android 11 device (2026-11-12) |
+| M7 constrained .NET IL editing | IMPLEMENTED; CI PASS (run #101); representative device verification pending |
 
-### M4 — APK DEX analysis and code browsing (implementation + CI PASS; device verification pending)
+### M4 — APK DEX analysis and code browsing (IMPLEMENTED; ANDROID 11 DEVICE PASS FOR AGREED CHECKS — 2026-11-12)
 
 **Feasibility decision (2026-11-12):**
 - JADX can produce Java-like source, but its maintainers explicitly warn that its library is not suited to Android because of CPU and memory constraints. Its documented Android minimum is API 26, which alone does not prove reliable operation on this API 30 device.
@@ -653,7 +656,7 @@ The automated tests found and corrected real issues:
 
 **Dependencies:** no new Android runtime dependencies. Existing AGP 8.13.0 / Gradle 8.13 / compileSdk 36 / minSdk 26 / targetSdk 36 / Java 8 remain unchanged.
 
-**Verification state (2026-11-12):** GitHub Actions run #64 (`43092921972`) PASS. Existing ECMA-335 host test PASS; DEX parser host test PASS; Android 36 resource processing and Java compilation PASS; debug APK output verification PASS; artifact upload PASS. Artifact: `DroidInspect-Phase2-M4-debug`, ID `13888828737`, size 44,218 bytes, SHA-256 `5cfbc700f9242ca014483ab62e537b61010a0c8c6dfc1a2d6692163ddd3bb0f3`, expires 2026-11-25 20:04:22 UTC. This proves host fixture behavior and cloud packaging, not runtime behavior on Android 11. The CI artifact is retained as a verification record; it is not the normal user delivery method. No Android 11 device test has yet been performed for the new browser. M4 remains OPEN until the user downloads the latest `main` ZIP, builds in CodeAssist, installs that locally built APK, and completes the agreed device checks.
+**Initial M4 implementation verification (2026-11-12):** GitHub Actions run #64 (`43092921972`) PASS. Existing ECMA-335 host test PASS; DEX parser host test PASS; Android 36 resource processing and Java compilation PASS; debug APK output verification PASS; artifact upload PASS. Artifact: `DroidInspect-Phase2-M4-debug`, ID `13888828737`, size 44,218 bytes, SHA-256 `5cfbc700f9242ca014483ab62e537b61010a0c8c6dfc1a2d6692163ddd3bb0f3`, expires 2026-11-25 20:04:22 UTC. This initial CI result was followed by a real Android 11 device test and parser correction documented below.
 
 **M4 GitHub Actions result (2026-11-12):**
 - Workflow run: #64; run ID `43092921972`; result PASS.
@@ -805,10 +808,10 @@ No new Android runtime dependency or broad storage permission was introduced.
 - **M1:** implementation and initial Android 11 smoke checks accepted; error-path/cache-cleanup edge cases remain.
 - **M2:** one real APK inspection passed on-device (`Git MANAGER_1.0.apk`, 51 ZIP entries, 9 DEX files). Broad APK compatibility and full binary manifest decoding were not covered by that test.
 - **M3:** one CLI-bearing mixed-mode DLL inspected on-device. Pure-managed fixture and native/non-managed PE rejection remain untested; preserve this documented gap.
-- **M4:** bounded DEX structural parser/browser implemented and previous CI run #64 passed. Android 11 browser/device test remains pending. This is not a Java decompiler.
+- **M4: DEVICE PASS FOR AGREED TESTS (2026-11-12).** Nine-DEX APK parsed 9/9 (310 classes, 2,428 members); `AccountActivity` class details displayed 7 fields and 27 methods; class-name search returned 9 matches; method-name search for `access$0` returned 11 matches including `AccountActivity`. This is structural DEX browsing, not Java decompilation. Malformed-DEX device handling and large-APK stress remain untested.
 - **M5:** bounded .NET raw IL browsing, method search, and constrained metadata method rename implemented. No C# source decompilation; representative real assembly device verification remains pending.
 - **M6: COMPLETE / DEVICE PASS (2026-11-12).** The user confirmed on Android 11 that framework attribute names now display readably in manifest XML (for example, `android:name` instead of `android:r0x01010003`). Existing metadata/string editing, unsigned export, and original-APK preservation checks also continue to work. Signing/install and unsupported resource variants remain outside M6.
-- **M7:** constrained same-size, operand-free IL byte editing added, with synthetic round-trip and rejection-path host tests. Latest cloud verification is pending confirmation; real assembly/runtime behavior is unverified.
+- **M7:** constrained same-size, operand-free IL byte editing added, with synthetic round-trip and rejection-path host tests. Cloud CI passed in run #101; real assembly/runtime behavior is unverified.
 - **M8–M10:** not yet implemented.
 
 **Exact next work**
@@ -954,3 +957,19 @@ The user rebuilt and tested the corrected main version in CodeAssist against the
 
 
 **Final device-verification result (2026-11-12): PASS.** The user tested the build produced from the corrected `main` source in CodeAssist on Android 11. The manifest XML now displays readable Android framework attribute names rather than `android:r0x...`. The user confirmed that the earlier metadata/string editing, unsigned export, and original APK preservation tests continue to work. This satisfies the outstanding M6 acceptance criteria; M6 is now closed.
+
+### M4 — Final Android 11 device verification: PASS (2026-11-12)
+
+The user completed the remaining DEX browser interaction checks on the same `Git MANAGER_1.0.apk` containing nine root-level DEX files.
+
+**Observed results:**
+- DEX files found: 9; all 9 passed; none rejected.
+- Classes parsed: 310; members indexed: 2,428; class/member limits not reached.
+- `com.tanvir.gitmanager.AccountActivity` opened successfully from `classes5.dex`; superclass displayed as `com.tanvir.gitmanager.BaseActivity`.
+- Class detail dialog displayed 7 fields and 27 methods, including readable access modifiers, types, and signatures.
+- Searching `AccountActivity` filtered the class list to 9 matching classes, including nested classes.
+- Searching `access$0` filtered the list to 11 matching classes, including `com.tanvir.gitmanager.AccountActivity`. This confirms search across method names as well as class/package names.
+
+**Final assessment:** M4 is **DEVICE PASS / COMPLETE FOR THE AGREED TEST SCOPE**. The parser and structural browser have been exercised on a real multidex APK on Android 11, including class details and class/method-name search. The feature is a DEX metadata browser; method-body decompilation and reconstructed Java source are not implemented. Large-APK stress testing and malformed-DEX handling on the physical device remain untested and are recorded as optional edge-case coverage, not as passed tests.
+
+**Next milestone verification:** M5 and M7 real-device tests remain pending. M6 is complete. M8–M10 are not implemented.
