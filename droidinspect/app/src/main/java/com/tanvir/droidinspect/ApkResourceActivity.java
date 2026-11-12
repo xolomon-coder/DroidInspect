@@ -110,10 +110,14 @@ public final class ApkResourceActivity extends Activity {
                 sourceCopy = File.createTempFile("droidinspect-resource-", ".apk", getCacheDir());
                 long copied = copyUri(sourceUri, sourceCopy);
                 apkModule = ApkModule.loadApkFile(sourceCopy);
-                apkModule.setLoadDefaultFramework(false);
-                // Load resources.arsc first. ARSCLib needs the resource PackageBlock
-                // linked before decoding manifest attributes that reference resources.
+                // Load resources.arsc first so the APK's own resource package is linked.
                 TableBlock table = apkModule.getTableBlock();
+                // Load ARSCLib's Android framework table before serializing binary XML.
+                // Without framework resources, Android attribute IDs (for example
+                // 0x01010003) can be printed as r0x... instead of android:name.
+                // Passing null asks ARSCLib to auto-detect the framework API level
+                // from the APK metadata, rather than assuming this device's API level.
+                apkModule.initializeAndroidFramework(null);
                 if (!apkModule.hasAndroidManifest()) {
                     throw new IllegalArgumentException("The APK does not contain AndroidManifest.xml.");
                 }
