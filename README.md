@@ -1566,9 +1566,13 @@ All required steps passed:
 
 ### CI harness correction
 
-M11 run #8 failed because the fixture test command was temporarily pointed at the Newtonsoft-specific assertions while still passing the small fixture DLL. This was a test-harness wiring error, not a decompiler failure.
+The initial test-harness wiring needed correction across three attempts:
 
-The original fixture assertions were restored unchanged. A separate `real-assembly-tests` project and program were added, and the workflow now runs the two test programs independently. M11 run #12 passed both.
+- M11 run #8 passed the small fixture DLL to assertions that expected Newtonsoft.Json symbols, so the test failed with a missing Newtonsoft namespace.
+- M11 runs #10 and #11 used the restored fixture assertions but still passed the Newtonsoft.Json DLL to that fixture test, so they failed with a missing `Calculator` declaration.
+- These were test-command/acceptance-harness mismatches, not ILSpy decompilation defects.
+
+The original fixture assertions were restored unchanged. A separate `real-assembly-tests` project and program were added, and the workflow now runs the two test programs against their correct inputs independently. M11 run #12 passed both.
 
 ### Production regression
 
