@@ -37,7 +37,7 @@ jobs:
           assert len(data) > 512, "DLL is unexpectedly small"
           assert data[:2] == b"MZ", "Missing DOS signature"
           pe = struct.unpack_from("<I", data, 0x3c)[0]
-          assert data[pe:pe+4] == b"PE\\0\\0", "Missing PE signature"
+          assert data[pe:pe+4] == b"PE\0\0", "Missing PE signature"
           coff = pe + 4
           opt_size = struct.unpack_from("<H", data, coff + 16)[0]
           opt = coff + 20
