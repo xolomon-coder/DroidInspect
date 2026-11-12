@@ -696,7 +696,7 @@ The automated tests found and corrected real issues:
 
 **Host verification already present:** `tools/il-reader-test/DotNetIlReaderSelfTest.java` builds a synthetic managed PE/CLI fixture, checks method ownership and IL decoding, verifies a metadata rename round trip, and confirms the source fixture remains unchanged. The newer IL-body editing assertions are described under M7 below. Representative real managed assembly browsing and editing still require Android device tests.
 
-### M6 — APK manifest and resource analysis/editing (implemented; device verification pending)
+### M6 — APK manifest and resource analysis/editing (COMPLETE; device PASS)
 
 **Dependency:** `io.github.reandroid:ARSCLib:1.4.0` (Apache-2.0), declared in `droidinspect/app/build.gradle.kts`.
 
@@ -807,7 +807,7 @@ No new Android runtime dependency or broad storage permission was introduced.
 - **M3:** one CLI-bearing mixed-mode DLL inspected on-device. Pure-managed fixture and native/non-managed PE rejection remain untested; preserve this documented gap.
 - **M4:** bounded DEX structural parser/browser implemented and previous CI run #64 passed. Android 11 browser/device test remains pending. This is not a Java decompiler.
 - **M5:** bounded .NET raw IL browsing, method search, and constrained metadata method rename implemented. No C# source decompilation; representative real assembly device verification remains pending.
-- **M6:** ARSCLib-based binary manifest/resource inspection and selected edits implemented. Real APK edit/export/reopen/sign/install test remains pending.
+- **M6: COMPLETE / PASS.** On-device manifest/resource decoding passed on `Git MANAGER_1.0.apk`; user confirmed supported metadata/string editing, unsigned export, and original-APK preservation. Signing/install and unsupported resource variants remain outside M6.
 - **M7:** constrained same-size, operand-free IL byte editing added, with synthetic round-trip and rejection-path host tests. Latest cloud verification is pending confirmation; real assembly/runtime behavior is unverified.
 - **M8–M10:** not yet implemented.
 
@@ -891,32 +891,38 @@ The user rebuilt and tested the corrected main version in CodeAssist against the
 **Next device check:** open a class such as com.tanvir.gitmanager.AccountActivity, verify its field and method lists/details open correctly, then search for a known class or method name and confirm the result filters/navigates correctly. Report any incorrect counts, blank details, crash, or freeze.
 
 
-### M6 — Manifest decoding failure and resource-table load-order correction (2026-11-12)
+### M6 — APK manifest/resource analysis and editing: DEVICE PASS (2026-11-12)
 
-**Real-device failure reported:** On `Git MANAGER_1.0.apk`, M6 initially failed with `IOException: Can not decode without package`; package name, version name, and version code were blank. The app reported that the original APK was not modified.
+**M6 is complete for its planned scope.** The user rebuilt and tested the corrected app in CodeAssist on Android 11 against `Git MANAGER_1.0.apk`.
 
-**Source correction committed directly to `main`:**
-- Commit: `1613ff4bcd3058e093104209c10c984c32dbb0ed`.
-- File changed: `droidinspect/app/src/main/java/com/tanvir/droidinspect/ApkResourceActivity.java`.
-- The ARSCLib resource table is now loaded before requesting/decoding the Android manifest, so the manifest decoder has the resource package context available. The later duplicate table load was removed.
+**Initial failure and correction**
+- Initial device error: `IOException: Can not decode without package`; manifest metadata fields were blank.
+- Commit `1613ff4bcd3058e093104209c10c984c32dbb0ed` changed `droidinspect/app/src/main/java/com/tanvir/droidinspect/ApkResourceActivity.java` to load the ARSCLib resource table before decoding the Android manifest, providing the required package context.
+- GitHub Actions run #95 for that source commit passed all host tests, Android compilation, APK output verification, and artifact upload.
 
-**Cloud verification: PASS**
-- GitHub Actions run #95, ID `43131718723`, for the exact commit above completed successfully on `main`.
-- ECMA-335 metadata decoder host test: PASS.
-- .NET IL reader host test: PASS.
-- DEX parser host test: PASS.
-- Android SDK setup and Android 36 package installation: PASS.
-- Gradle 8.13 setup and Android debug APK compilation: PASS.
-- APK output verification: PASS.
-- Debug artifact upload: PASS.
-- Artifact: `DroidInspect-Phase2-debug`, ID `13905068528`, size 3,581,216 bytes, SHA-256 `6f350b017c19acf2da75a6de0d321aee8af4967cce374fe99ec3be26c648cfe1`; not expired when checked (expires 2026-11-26).
+**Successful real-device verification**
+- Input copied: 298,716 bytes.
+- Manifest decoded from Android binary XML.
+- Package: `com.tanvir.gitmanager`.
+- Version name: `1.0`.
+- Version code: `1`.
+- Resource table parsed; one resource package identified: `com.tanvir.gitmanager`.
+- Resource entries scanned: 117.
+- Named default string resources discovered: `app_name` (`0x7F070000`) and `hello_world` (`0x7F070001`).
+- User confirmed the supported editing and export tests work, including original APK preservation.
 
-**Device verification is still pending:** the source change and successful cloud build do not prove that the original APK now decodes. The user must rebuild/install the latest `main` source in CodeAssist and retry M6 with the same `Git MANAGER_1.0.apk`. Confirm that package name, version name/code, manifest, and resources populate. If it still fails, capture the complete new error report and investigate further. Do not mark M6 device-verified yet.
+**M6 scope and safety boundary**
+- Supported: binary manifest/resource analysis; package name, version name, version code, and one selected named default string editing; export to a separate unsigned APK.
+- Other resource types and configuration variants remain read-only.
+- Export is intentionally unsigned; signing and installation are outside M6 and are deferred to a later milestone.
+- The original selected APK is preserved and is never overwritten.
+
+**Assessment: PASS — M6 closed.** Device testing confirms the corrected analysis pipeline and supported editing/export workflow. This does not claim APK signing, installation, arbitrary resource editing, or complete APK rebuild support.
 
 **Current continuation checkpoint (2026-11-12):**
 - Latest source commit at the time of this note: `1613ff4bcd3058e093104209c10c984c32dbb0ed`.
 - Latest verified CI run: #95 / `43131718723`, all workflow steps successful; artifact listed above.
 - M4 multidex parsing and class indexing are device-verified for the nine-DEX sample (9/9, 310 classes, 2,428 members), but class-detail/member rendering and search interaction checks remain open.
-- M6 manifest/resource decode fix awaits the user's on-device retest.
+- M6 is closed after successful Android 11 device verification; details and scope boundaries are recorded in the M6 history section below.
 - M5 and M7 real-device checks remain pending; M8–M10 are not implemented.
-- Next: user downloads the latest `main` ZIP, builds/installs in CodeAssist, tests the M6 fix on the same APK, and completes the remaining M4 class-detail/search checks. Keep all subsequent work and documentation commits on `main` only.
+- Next: complete the remaining M4 class-detail/member-rendering and search interaction checks, then complete M5 and M7 device verification. M6 is complete. Keep all subsequent work and documentation commits on `main` only.
