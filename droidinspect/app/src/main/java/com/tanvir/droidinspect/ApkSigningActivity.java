@@ -377,7 +377,18 @@ public final class ApkSigningActivity extends Activity {
         verifyButton.setEnabled(apkFile != null); exportButton.setEnabled(signedFile != null);
     }
 
-        private static final class KeyMaterial {
+        private void cleanupStaleSigningFiles() {
+        File[] files = getCacheDir().listFiles();
+        if (files == null) return;
+        for (File f : files) {
+            if (f.isFile() && f.getName().startsWith("droidinspect-sign-")) {
+                //noinspection ResultOfMethodCallIgnored
+                f.delete();
+            }
+        }
+    }
+
+    private static final class KeyMaterial {
         final PrivateKey key; final List<X509Certificate> chain;
         KeyMaterial(PrivateKey k, X509Certificate c) { key = k; chain = java.util.Collections.singletonList(c); }
         KeyMaterial(PrivateKey k, List<X509Certificate> c) { key = k; chain = c; }
