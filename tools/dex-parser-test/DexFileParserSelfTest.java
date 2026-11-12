@@ -6,15 +6,23 @@ import java.io.FileOutputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-/** Host-JVM regression test for multidex, class, field, method, and malformed-entry handling. */
+/** Host-JVM regression test for multidex and independent DEX encoded member lists. */
 public final class DexFileParserSelfTest {
     public static void main(String[] args) throws Exception {
         File apk = File.createTempFile("droidinspect-dex-test-", ".apk");
         try {
-            byte[] dex = minimalDex();
+            byte[] dex = minimalDexWithSplitMemberLists();
+            byte[] malformedAfterPartialParse = dex.clone();
+            // class_data starts at 236; the direct-method index_diff is byte 8.
+            // Force an invalid method reference after class and field metadata was already read.
+            malformedAfterPartialParse[244] = 5;
+
             try (ZipOutputStream zip = new ZipOutputStream(new FileOutputStream(apk))) {
                 zip.putNextEntry(new ZipEntry("classes.dex"));
                 zip.write(dex);
+                zip.closeEntry();
+                zip.putNextEntry(new ZipEntry("classes2.dex"));
+                zip.write(malformedAfterPartialParse);
                 zip.closeEntry();
                 zip.putNextEntry(new ZipEntry("classes10.dex"));
                 zip.write(new byte[]{1, 2, 3, 4});
@@ -23,19 +31,25 @@ public final class DexFileParserSelfTest {
                 zip.write(dex);
                 zip.closeEntry();
             }
+
             DexFileParser.Result result = DexFileParser.analyzeApk(apk);
-            check(result.dexCount == 2, "multidex discovery must include classes10.dex and exclude nested assets");
-            check(result.classes.size() == 1, "one valid DEX class should be parsed");
+            check(result.dexCount == 3, "multidex discovery must include classes2.dex/classes10.dex and exclude nested assets");
+            check(result.classes.size() == 1, "only the complete valid DEX class should be retained");
             DexFileParser.ClassInfo info = result.classes.get(0);
             check("x.A".equals(info.className), "class descriptor conversion");
             check("x".equals(info.packageName), "package extraction");
             check("java.lang.Object".equals(info.superClass), "superclass decoding");
-            check(info.fields.size() == 1 && info.fields.get(0).contains("int value"), "field name and type decoding");
-            check(info.methods.size() == 1 && info.methods.get(0).contains("void run"), "method name and prototype decoding");
-            check(result.totalMembers == 2, "member index count");
-            check(result.dexReports.size() == 2, "each DEX entry should have a report");
+            check(info.fields.size() == 2, "both encoded field lists should be decoded");
+            check(info.fields.get(0).contains("int other"), "static field index starts from its own list base");
+            check(info.fields.get(1).contains("int value"), "instance field index resets to its own list base");
+            check(info.methods.size() == 2, "both encoded method lists should be decoded");
+            check(info.methods.get(0).contains("void ping"), "direct method index starts from its own list base");
+            check(info.methods.get(1).contains("void run"), "virtual method index resets to its own list base");
+            check(result.totalMembers == 4, "member index count excludes rejected DEX partial data");
+            check(result.dexReports.size() == 3, "each DEX entry should have a report");
             check(result.dexReports.get(0).contains("PASS"), "valid DEX should pass");
-            check(result.dexReports.get(1).contains("REJECTED"), "malformed DEX should be rejected");
+            check(result.dexReports.get(1).contains("REJECTED"), "invalid member index should be rejected");
+            check(result.dexReports.get(2).contains("REJECTED"), "malformed DEX should be rejected");
             System.out.println("DexFileParserSelfTest: PASS");
         } finally {
             //noinspection ResultOfMethodCallIgnored
@@ -43,37 +57,58 @@ public final class DexFileParserSelfTest {
         }
     }
 
-    private static byte[] minimalDex() throws Exception {
-        String[] strings = {"Lx/A;", "Ljava/lang/Object;", "value", "run", "I", "V"};
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        byte[] header = new byte[212];
+    private static byte[] minimalDexWithSplitMemberLists() throws Exception {
+        String[] strings = {
+                "Lx/A;", "Ljava/lang/Object;", "value", "run",
+                "I", "V", "other", "ping"
+        };
+        byte[] classData = new byte[] {
+                1, 1, 1, 1, // static fields, instance fields, direct methods, virtual methods
+                1, 1,       // static field: field_id[1]
+                0, 1,       // instance field: field_id[0], index delta resets
+                1, 1, 0,    // direct method: method_id[1], access, code_off
+                0, 1, 0     // virtual method: method_id[0], index delta resets, access, code_off
+        };
+        int headerSize = 236;
+        int stringsStart = headerSize + classData.length;
+        int[] stringOffsets = new int[strings.length];
+        int cursor = stringsStart;
+        for (int i = 0; i < strings.length; i++) {
+            stringOffsets[i] = cursor;
+            cursor += 1 + strings[i].getBytes("UTF-8").length + 1;
+        }
+
+        byte[] header = new byte[headerSize];
         header[0] = 'd'; header[1] = 'e'; header[2] = 'x'; header[3] = '\n';
         header[4] = '0'; header[5] = '3'; header[6] = '5'; header[7] = 0;
-        put32(header, 32, 266);
+        put32(header, 32, cursor);
         put32(header, 36, 112);
         put32(header, 40, 0x12345678);
-        put32(header, 56, 6); put32(header, 60, 112);
-        put32(header, 64, 4); put32(header, 68, 136);
-        put32(header, 72, 1); put32(header, 76, 152);
-        put32(header, 80, 1); put32(header, 84, 164);
-        put32(header, 88, 1); put32(header, 92, 172);
-        put32(header, 96, 1); put32(header, 100, 180);
-        put32(header, 104, header.length - 212); put32(header, 108, 212);
-        int[] stringOffsets = {221, 228, 248, 255, 260, 263};
+        put32(header, 56, strings.length); put32(header, 60, 112);
+        put32(header, 64, 4); put32(header, 68, 144);
+        put32(header, 72, 1); put32(header, 76, 160);
+        put32(header, 80, 2); put32(header, 84, 172);
+        put32(header, 88, 2); put32(header, 92, 188);
+        put32(header, 96, 1); put32(header, 100, 204);
+        put32(header, 104, headerSize); put32(header, 108, headerSize);
+
         for (int i = 0; i < stringOffsets.length; i++) put32(header, 112 + i * 4, stringOffsets[i]);
-        put32(header, 136, 0); put32(header, 140, 1);
-        put32(header, 144, 4); put32(header, 148, 5);
-        put32(header, 152, 5); put32(header, 156, 3); put32(header, 160, 0);
-        header[164] = 0; header[165] = 0; header[166] = 2; header[167] = 0;
-        put32(header, 168, 2);
-        header[172] = 0; header[173] = 0; header[174] = 0; header[175] = 0;
-        put32(header, 176, 3);
-        put32(header, 180, 0); put32(header, 184, 1); put32(header, 188, 1);
-        put32(header, 192, 0); put32(header, 196, 0xffffffff);
-        put32(header, 200, 0); put32(header, 204, 212); put32(header, 208, 0);
+        put32(header, 144, 0); put32(header, 148, 1); put32(header, 152, 4); put32(header, 156, 5);
+        put32(header, 160, 5); put32(header, 164, 3); put32(header, 168, 0);
+        // Two field_ids: value is index 0, other is index 1.
+        put16(header, 172, 0); put16(header, 174, 2); put32(header, 176, 2);
+        put16(header, 180, 0); put16(header, 182, 2); put32(header, 184, 6);
+        // Two method_ids: run is index 0, ping is index 1.
+        put16(header, 188, 0); put16(header, 190, 0); put32(header, 192, 3);
+        put16(header, 196, 0); put16(header, 198, 0); put32(header, 200, 7);
+        // class_def_item
+        put32(header, 204, 0); put32(header, 208, 1); put32(header, 212, 1);
+        put32(header, 216, 0xffffffff); put32(header, 220, 0); put32(header, 224, 0);
+        put32(header, 228, headerSize); put32(header, 232, 0);
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
         out.write(header);
-        // class_data_item: one static field, one direct method, no other members.
-        out.write(new byte[]{1, 0, 1, 0, 0, 1, 0, 1, 0});
+        out.write(classData);
         for (String value : strings) {
             byte[] bytes = value.getBytes("UTF-8");
             out.write(bytes.length);
@@ -81,8 +116,13 @@ public final class DexFileParserSelfTest {
             out.write(0);
         }
         byte[] result = out.toByteArray();
-        check(result.length == 266, "synthetic DEX fixture size");
+        check(result.length == cursor, "synthetic DEX fixture size");
         return result;
+    }
+
+    private static void put16(byte[] data, int offset, int value) {
+        data[offset] = (byte)value;
+        data[offset + 1] = (byte)(value >>> 8);
     }
 
     private static void put32(byte[] data, int offset, int value) {
