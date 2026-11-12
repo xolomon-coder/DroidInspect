@@ -14,6 +14,8 @@ public final class DotNetIlReaderSelfTest {
         require(il.contains("ldc.i4.3"), "ldc.i4.3");
         require(il.contains("add"), "add");
         require(il.contains("ret"), "ret");
+        require(il.contains("58 | add | Pop two values"), "opcode meaning and byte display");
+        require(IlOpcodeExplainer.explain("not-a-real-opcode", "").startsWith("No verified explanation"), "unknown opcode explanation");
 
         String branch = DotNetIlReader.disassembleForTest(new byte[]{0x2b, 0x01, 0x2a});
         require(branch.contains("br.s IL_0003"), "short branch target");

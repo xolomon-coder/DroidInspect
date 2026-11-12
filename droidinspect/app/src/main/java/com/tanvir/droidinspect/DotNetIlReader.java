@@ -346,7 +346,7 @@ final class DotNetIlReader {
             int start=p,op=c[p++]&255;String name;int arg;
             if(op==0xfe){if(p>=c.length)throw new IOException("Truncated FE opcode.");int x=c[p++]&255;name=FE[x];arg=FEA[x];if(name==null){out.append(at(start)).append(" FE").append(h2(x)).append(" <unsupported>\n");break;}}
             else{name=OPS[op];arg=ARGS[op];if(name==null){out.append(at(start)).append(" ").append(h2(op)).append(" <unsupported opcode; remaining body omitted>\n");break;}}
-            out.append(at(start)).append(" ").append(name);String val="";
+            String val="";
             switch(arg){
                 case N:break;
                 case SI:need(c,p,1);val=String.valueOf((int)c[p]);p++;break;
