@@ -341,7 +341,7 @@ Build progressively, preserve existing work, verify actual functionality, mainta
 
 # DroidInspect — Product Specification and Development Plan
 
-Last project-plan update: 2026-11-12
+Last project-plan update: 2026-11-13
 
 ## 1. App Goal
 
@@ -396,9 +396,9 @@ Important feasibility constraints:
 - If a preferred engine cannot run reliably on Android 11 / CodeAssist, investigate a smaller native implementation or clearly document a reduced feature scope. Do not silently change the Java/XML preference; discuss a major architecture change first.
 - Check and document each dependency's license and redistribution requirements before packaging it.
 
-## 4. Complete Roadmap — 10 Milestones
+## 4. Complete Roadmap — 11 Milestones
 
-The roadmap has **10 milestones**, grouped into three phases. The sequence may be refined only when a verified technical blocker requires it; document the reason and preserve the original goal.
+The roadmap has **11 milestones**, grouped into four phases. M1–M10 retain their existing scope and history; M11 is the newly approved major milestone for real on-device C# source decompilation. The sequence may be refined only when a verified technical blocker requires it; document the reason and preserve the original goal.
 
 ### Phase 1 — Foundation and file understanding
 
@@ -432,12 +432,12 @@ The roadmap has **10 milestones**, grouped into three phases. The sequence may b
 - Measure memory use and handle large APKs without freezing the UI.
 - Exit criteria: representative APKs can be browsed reliably on the test phone; unsupported cases are reported.
 
-**M5 — .NET code decompilation and IL browsing**
-- Prove a practical Android-compatible execution route for a .NET decompiler engine.
+**M5 — .NET metadata and IL browsing**
 - Browse assemblies, namespaces, types, methods, properties, and fields.
-- Display decompiled C# and/or IL for supported assemblies.
-- Add text search and navigation.
-- Exit criteria: representative managed DLL/EXE files decompile on-device with reproducible results. If the runtime bridge is not viable, document the alternative scope before proceeding.
+- Display raw IL for supported methods, with text search and navigation.
+- Preserve the bounded metadata/IL reader and constrained editing capabilities implemented in later milestones.
+- Full C# source reconstruction is deferred to M11; raw IL is not a substitute for C# decompilation.
+- Exit criteria: representative managed DLL/EXE files can be inspected and their supported metadata/IL browsed reproducibly on-device.
 
 **M6 — APK resources and manifest analysis/editing**
 - Decode supported manifest and resource structures.
@@ -478,13 +478,60 @@ The roadmap has **10 milestones**, grouped into three phases. The sequence may b
 - Device-only checks are delivered as one consolidated M8–M10 test batch; CI success is not device-test evidence.
 - Exit criteria: all required CI jobs pass, APK artifacts exist and are integrity-checked, README matches the source, and the remaining device-only limitations are explicit.
 
+
+### Phase 4 — Full .NET C# source decompilation
+
+**M11 — Full C# decompilation engine and Android integration (PLANNED; NOT STARTED)**
+
+**Objective:** Add genuine C# source decompilation for supported managed .NET DLL/EXE assemblies, directly on the Android device, while preserving the existing Java + native XML application and the current metadata/IL/editing features.
+
+**Required work, in order:**
+
+1. **Engine and runtime feasibility**
+   - Evaluate the official ILSpy decompiler engine as the first candidate, plus technically credible alternatives only if needed.
+   - Determine whether the engine can execute on Android 11/API 30 through a supported .NET runtime, Mono embedding route, Native AOT/native bridge, or another maintainable approach.
+   - Verify Android ABI coverage, runtime packaging, native library loading, reference-assembly resolution, dependency closure, licensing, app size, memory/CPU use, and offline operation.
+   - Verify whether the required native/.NET toolchain can be built and maintained in GitHub Actions and whether the resulting Android integration remains practical for the user's CodeAssist workflow.
+   - Do not assume that a .NET NuGet package, desktop ILSpy executable, or Native AOT support automatically means an Android-compatible library.
+
+2. **Isolated proof of concept**
+   - Build a minimal end-to-end prototype before adding a decompiler dependency to the production app.
+   - Input: a user-selected managed DLL/EXE fixture.
+   - Output: actual reconstructed C# source for known methods and types, not IL text, pseudocode, templates, or hand-written opcode translations.
+   - Include at least a simple method, fields/properties, branches/loops, exception handling, and compiler-generated constructs in the fixture set as engine support allows.
+   - Run the prototype on the Android 11 test device; a host-only or GitHub Actions pass is not sufficient.
+   - Measure cold-start time, decompilation time, peak memory, APK/native payload size, and behavior on larger assemblies.
+
+3. **Production integration**
+   - Integrate the proven engine behind a clean Java-facing interface while keeping the Android UI in Java/XML unless a demonstrated technical requirement makes that impossible.
+   - Add a View C# action for supported managed assemblies/methods, with loading/progress, cancellation where feasible, readable errors, and a clear unsupported-assembly result.
+   - Preserve View IL as a separate option; never label raw IL or explanatory pseudocode as C#.
+   - Add source navigation/search and sensible handling of nested types, generics, attributes, properties, events, async/await, lambdas, and references to external assemblies to the extent the selected engine supports them.
+   - Keep all processing offline, bounded, and isolated from original files. Decompilation must remain read-only.
+
+4. **Compatibility, regression and acceptance**
+   - Test pure-managed DLL and EXE fixtures from more than one compiler/runtime generation where practical.
+   - Test malformed, unsupported, mixed-mode/native, obfuscated, and large inputs; report limitations rather than crashing or inventing source.
+   - Verify the existing M3 metadata reader, M5/M7 IL browser and editor, and M8–M10 APK workflows still work.
+   - Run host tests, Android build/packaging checks, native ABI checks, and GitHub Actions; then complete real-device testing on Android 11 using the CodeAssist-compatible project.
+   - Document exact engine/runtime versions, licenses, ABI support, Android/API requirements, build instructions, performance limits, and unsupported assembly categories.
+
+**Hard acceptance criteria:**
+- The app produces semantically reconstructed C# source from real managed assembly metadata and IL using a genuine decompiler engine.
+- The feature is exercised on the Android 11 phone, not merely compiled or tested on a desktop runner.
+- The output is demonstrably C# source, distinct from the raw IL view.
+- The implementation works offline, preserves the original assembly, and does not destabilize existing inspection/editing features.
+- The complete build and native/runtime packaging path is reproducible in CI and remains maintainable for the phone-only CodeAssist workflow.
+
+**Architecture decision gate:** No production dependency, runtime, ABI change, or UI entry is to be added until the isolated Android proof of concept passes. If no viable route satisfies the device, licensing, performance, and CodeAssist/CI constraints, stop at the feasibility report and present the alternatives; do not ship a fake or partial feature under the name full C# decompilation.
+
 ## 5. Development and Creation Process
 
 This is the required process for building DroidInspect:
 
 1. **Repository-first:** inspect the latest `main` branch, commit, README, build files, and source before every implementation task.
 2. **Feasibility before dependency adoption:** create small, isolated on-device prototypes for risky engines. Do not add a major decompiler/rebuilder dependency until its Android compatibility is demonstrated.
-3. **Phase-level delivery:** when the user asks to complete a whole phase, continue through every milestone in that phase in sequence on `main`, using milestone boundaries as internal checkpoints rather than stopping for a routine handoff after each milestone. Do not arbitrarily expand scope beyond the phase. Pause early only when a user decision, missing fixture, safety constraint, or essential device-only validation genuinely blocks further work; explain the blocker and ask whether to defer that check and continue. Keep the ten-milestone roadmap visible.
+3. **Phase-level delivery:** when the user asks to complete a whole phase, continue through every milestone in that phase in sequence on `main`, using milestone boundaries as internal checkpoints rather than stopping for a routine handoff after each milestone. Do not arbitrarily expand scope beyond the phase. Pause early only when a user decision, missing fixture, safety constraint, or essential device-only validation genuinely blocks further work; explain the blocker and ask whether to defer that check and continue. Keep the eleven-milestone roadmap visible.
 4. **Plan exact changes:** list files to add/change, dependencies and exact versions, permissions, compatibility effects, and test cases before coding.
 5. **Implement phone-friendly code:** provide complete replacement files with full paths; avoid partial snippets and desktop-only instructions.
 6. **Cloud verification:** run the configured host tests and GitHub Actions on the latest `main` source; fix failures before handoff. CI artifacts are for verification, not the normal user delivery route.
@@ -497,11 +544,11 @@ No milestone is complete solely because code was written or committed. When deli
 
 ## 6. Current Project Status (2026-11-12)
 
-**Current phase: Phase 3 — implementation and cloud verification completed; consolidated Android 11 device verification pending.** M4–M7 have passed their agreed Android 11 device verification scopes. M8 now includes an on-device APK signing and verification screen; M9 includes raw IL byte/opcode explanations and MethodDef token navigation, while full C# decompilation remains unsupported in the current Java/CodeAssist architecture; M10 regression, signing, tamper, build, and artifact checks pass in GitHub Actions run #131. Phase 3 has not yet received user device-test evidence. M4 large-APK stress and malformed-DEX device edge cases remain untested. Do not confuse CI verification with device verification.
+**Current phase: Phase 3 — implementation and cloud verification completed; consolidated Android 11 device verification pending. Phase 4 / M11 is approved and planned, but not started.** M4–M7 have passed their agreed Android 11 device verification scopes. M8 now includes an on-device APK signing and verification screen; M9 includes raw IL byte/opcode explanations and MethodDef token navigation, while full C# decompilation remains unsupported in the current Java/CodeAssist architecture; M10 regression, signing, tamper, build, and artifact checks pass in GitHub Actions run #131. Phase 3 has not yet received user device-test evidence. M4 large-APK stress and malformed-DEX device edge cases remain untested. Do not confuse CI verification with device verification.
 
 Phase 1 implementation has passed cloud CI and initial Android 11 device smoke checks. The user chose to proceed without the optional native-PE fixture test. Native/non-managed PE rejection therefore remains an explicit unverified limitation; do not claim full M3 classification coverage. M2 has one successful real APK test, and M3 has one successful CLI-bearing mixed-mode .NET DLL test. Phase 2 may begin while this gap remains documented for later regression coverage.
 
-The project remains the existing Java + native XML Android application. The original ten-milestone roadmap and project goal are unchanged. Development branch: `main`. M4 dashboard Java fix: `6f67cad16e4dab99cc2e13b7a49dbcd8d058eaa9`. Main HEAD immediately before this handoff documentation refresh: `346b1cb63a2e90fb29b09d122ab173b1024a6e02`. The documentation refresh itself creates a newer main commit; use the latest repository HEAD when continuing.
+The project remains the existing Java + native XML Android application. The roadmap now contains eleven milestones across four phases; M11 adds the approved full C# decompilation goal without changing the existing app architecture before feasibility is proven. Development branch: `main`. M4 dashboard Java fix: `6f67cad16e4dab99cc2e13b7a49dbcd8d058eaa9`. Main HEAD immediately before this handoff documentation refresh: `346b1cb63a2e90fb29b09d122ab173b1024a6e02`. The documentation refresh itself creates a newer main commit; use the latest repository HEAD when continuing.
 
 ### M1 — Foundation and file identification
 
@@ -1215,3 +1262,23 @@ This section supersedes earlier continuation notes in this README that said M7 d
 - All M8–M10 implementation and automated CI tasks are complete for the documented scope.
 - This README update must be committed directly to `main`; its resulting commit will trigger one final documentation-only CI run.
 - After that run passes, the next exact action is for the user to download the latest `main` ZIP, build/install once in CodeAssist 3.36.1, and complete the consolidated checklist above. Report device evidence for any failure; fix directly on `main`, rerun CI, and issue an updated ZIP only if needed.
+
+---
+
+## 10. M11 approval and continuation update (2026-11-13)
+
+The user approved adding **M11 — Full C# decompilation engine and Android integration** after M10. This is a new major milestone and Phase 4; the roadmap is now **11 milestones across four phases**.
+
+**Current M11 status: PLANNED / NOT STARTED.** No decompiler dependency, .NET runtime, native bridge, ABI, or production UI has been added. The current app continues to provide metadata inspection, raw IL browsing, opcode explanations, token navigation, and constrained IL editing; it does not yet provide C# source decompilation.
+
+**Key technical direction:**
+- Evaluate ILSpy's decompiler engine first, but do not assume its .NET library can be loaded as a normal Java/Android dependency.
+- Prove a minimal end-to-end decompilation prototype on the Android 11 device before changing the production app.
+- Assess runtime/Native AOT/Mono/native-bridge options, ABI support, reference assemblies, licensing, offline behavior, performance, package size, and CodeAssist/GitHub Actions reproducibility.
+- Keep the existing Java + XML UI unless a verified technical requirement makes a change unavoidable.
+- Add a real View C# action only after genuine C# reconstruction is demonstrated on-device. Keep View IL separate and preserve all current features.
+
+**Exact next action:** begin M11 feasibility research and compare supported ways to host a real .NET decompiler engine on Android 11. Then design the smallest isolated prototype and its test fixtures. Do not add speculative dependencies to the app or claim M11 complete until the Android device acceptance criteria above pass.
+
+**Repository workflow:** use only main; inspect its latest HEAD before each change. The README update for this approval is the only planned repository change in this step. No feature branch is to be created.
+
