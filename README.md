@@ -838,3 +838,37 @@ Five old non-main branches were visible during inspection: `ci/m4-final-build-ch
 - Modify or overwrite original APK/DLL/EXE inputs.
 
 Preserve the phone-only CodeAssist workflow, Java + XML architecture, GitHub as source of truth, complete-file preference, and main-only branch policy.
+
+### M4 — Real-device regression and parser correction (2026-11-12)
+
+**First Android 11 device result: FAIL; correction implemented, device retest pending.**
+
+The user tested the DEX browser against a real APK containing nine root-level DEX files. The browser opened and displayed partial metadata (183 classes and 1,314 members), but only `classes8.dex` passed; the other eight entries were rejected with field-index or method-index out-of-bounds errors. The aggregate class/member counts were therefore partial and must not be treated as a successful parse of the APK.
+
+**Root cause confirmed in DEX class_data decoding:**
+- DEX encodes static fields and instance fields as two separate lists. Each list's `field_idx_diff` sequence starts from index zero.
+- Direct methods and virtual methods are also separate lists, and each `method_idx_diff` sequence starts from index zero.
+- The previous parser incorrectly continued the cumulative index across each list boundary, causing valid member references to exceed the corresponding field/method table bounds.
+
+**Correction committed directly to `main`:**
+- Reset the field index when transitioning from static to instance fields.
+- Reset the method index when transitioning from direct to virtual methods.
+- Make each DEX parse transactional: if a DEX entry fails, remove any classes and member counts added by that entry so partial data cannot leak into the browser.
+- Expand the synthetic host regression fixture to include both field lists and both method lists with nonzero first-list indexes, and a malformed second DEX that fails after partial parsing has begun. The test verifies correct index resets, rejection of the malformed DEX, and rollback of its partial results.
+
+**Changed files in the parser-fix batch:**
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/DexFileParser.java`
+- `tools/dex-parser-test/DexFileParserSelfTest.java`
+
+**Cloud verification after correction: PASS**
+- Main commit containing the regression fixture: `4f3d3b42b911c02c8c1ddf0567cdcaad692e7347`.
+- GitHub Actions run #92: `43130442795` — completed successfully on `main`.
+- ECMA-335 metadata host test: PASS.
+- .NET IL reader host test: PASS.
+- DEX parser host regression test: PASS (`DexFileParserSelfTest: PASS`).
+- Android debug APK compilation: PASS (`BUILD SUCCESSFUL`).
+- APK output verification and artifact upload: PASS.
+- Artifact: `DroidInspect-Phase2-debug`, ID `13904852545`; artifact ZIP SHA-256 `f0d735c80b27d7adabe9cc716bbe5f4ac246a6e4550ef5eb26f312514a20a032`; expires 2026-11-26 00:53 UTC.
+- The downloaded artifact ZIP was independently checked: it contains `app-debug.apk`, and its local SHA-256 matches the GitHub artifact digest.
+
+**Next required action:** user downloads the latest `main` ZIP, builds and installs locally in CodeAssist, then repeats M4 against the same nine-DEX APK. Confirm that all nine DEX entries are reported individually, that valid DEX files pass, and that class/member counts no longer omit valid entries. Capture any remaining per-DEX rejection messages. Do not mark M4 device verification complete until this retest succeeds. M5–M7 device verification also remains pending.
