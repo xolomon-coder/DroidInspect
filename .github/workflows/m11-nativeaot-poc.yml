@@ -53,7 +53,7 @@ jobs:
       - name: Run ILSpy real-world assembly reconstruction test
         run: |
           REF="$DOTNET_ROOT/packs/Microsoft.NETCore.App.Ref/11.0.0/ref/net11.0"
-          dotnet run --project tools/m11-poc/host-tests/HostTests.csproj -c Release -- /tmp/m11-newtonsoft/Newtonsoft.Json.dll "$REF"
+          dotnet run --project tools/m11-poc/real-assembly-tests/RealAssemblyTests.csproj -c Release -- /tmp/m11-newtonsoft/Newtonsoft.Json.dll "$REF"
       - name: Publish Native AOT Bionic ARM64 engine
         env:
           CC: clang
