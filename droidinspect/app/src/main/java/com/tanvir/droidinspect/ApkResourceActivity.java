@@ -111,6 +111,9 @@ public final class ApkResourceActivity extends Activity {
                 long copied = copyUri(sourceUri, sourceCopy);
                 apkModule = ApkModule.loadApkFile(sourceCopy);
                 apkModule.setLoadDefaultFramework(false);
+                // Load resources.arsc first. ARSCLib needs the resource PackageBlock
+                // linked before decoding manifest attributes that reference resources.
+                TableBlock table = apkModule.getTableBlock();
                 if (!apkModule.hasAndroidManifest()) {
                     throw new IllegalArgumentException("The APK does not contain AndroidManifest.xml.");
                 }
@@ -130,7 +133,6 @@ public final class ApkResourceActivity extends Activity {
                 b.append("Version name: ").append(verName).append('\n');
                 b.append("Version code: ").append(verCode).append('\n');
 
-                TableBlock table = apkModule.getTableBlock();
                 if (table == null) {
                     b.append("Resource table: not present\n");
                 } else {
