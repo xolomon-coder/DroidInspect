@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-unsigned-fixture:
@@ -37,7 +37,7 @@ jobs:
           assert len(data) > 512, "DLL is unexpectedly small"
           assert data[:2] == b"MZ", "Missing DOS signature"
           pe = struct.unpack_from("<I", data, 0x3c)[0]
-          assert data[pe:pe+4] == b"PE\0\0", "Missing PE signature"
+          assert data[pe:pe+4] == b"PE\\0\\0", "Missing PE signature"
           coff = pe + 4
           opt_size = struct.unpack_from("<H", data, coff + 16)[0]
           opt = coff + 20
@@ -62,27 +62,20 @@ jobs:
           print(f"PASS: {p} ({len(data)} bytes), CLI flags=0x{flags:08X}, no strong-name signature")
           PY
 
-      - name: Add test instructions
+      - name: Publish verified DLL to main
         run: |
-          cat > artifacts/unsigned-fixture/TEST-INSTRUCTIONS.txt <<'EOF'
-          DroidInspect unsigned .NET rename test fixture
-          
-          Assembly: UnsignedRenameFixture
-          Target framework: .NET Standard 2.0
-          Strong-name signing: disabled
-          
-          In DroidInspect:
-          1. Open BROWSE .NET IL AND RENAME METHOD.
-          2. Select UnsignedRenameFixture.dll.
-          3. Search for GetValue.
-          4. Open UnsignedRenameFixture.RenameTarget :: GetValue.
-          5. Tap RENAME / EXPORT.
-          6. Rename GetValue to GetTotal (same 8 ASCII bytes).
-          7. Export as a new file; do not overwrite the input.
-          8. Reopen the exported DLL and verify GetTotal is indexed.
-          
-          This is a test-only fixture. It is not part of the Android app.
-          EOF
+          mkdir -p test-fixtures
+          cp artifacts/unsigned-fixture/UnsignedRenameFixture.dll test-fixtures/UnsignedRenameFixture.dll
+          cp tools/dotnet-rename-test/TEST-INSTRUCTIONS.txt test-fixtures/README.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add test-fixtures/UnsignedRenameFixture.dll test-fixtures/README.txt
+          if ! git diff --cached --quiet; then
+            git commit -m "Add verified unsigned .NET rename test DLL [skip ci]"
+            git push origin HEAD:main
+          else
+            echo "Published fixture is already up to date."
+          fi
 
       - name: Upload unsigned DLL artifact
         uses: actions/upload-artifact@v4
