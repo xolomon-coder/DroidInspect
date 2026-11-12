@@ -377,45 +377,7 @@ public final class ApkSigningActivity extends Activity {
         verifyButton.setEnabled(apkFile != null); exportButton.setEnabled(signedFile != null);
     }
 
-    @Override protected void onActivityResult(int requestCode, int result, Intent data) {
-        if (requestCode == SAVE_APK) {
-            super.onActivityResult(requestCode, result, data);
-            if (result != RESULT_OK || data == null || data.getData() == null) { status.setText("Export cancelled; original APK remains unchanged."); return; }
-            Uri destination = data.getData();
-            setBusy(true, "Exporting verified signed APK…");
-            worker.execute(() -> {
-                String error = null;
-                try (InputStream in = new FileInputStream(signedFile);
-                     OutputStream out = getContentResolver().openOutputStream(destination, "w")) {
-                    if (out == null) throw new IllegalStateException("Document provider did not create an output stream.");
-                    byte[] buffer = new byte[32768]; int n;
-                    while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
-                    out.flush();
-                } catch (Exception e) { error = message(e); }
-                final String failure = error;
-                runOnUiThread(() -> {
-                    setBusy(false, failure == null ? "Signed APK exported." : "Export failed: " + failure);
-                    if (failure != null) showError(failure);
-                });
-            });
-            return;
-        }
-        super.onActivityResult(requestCode, result, data);
-    }
-
-    private void cleanupStaleSigningFiles() {
-        File[] files = getCacheDir().listFiles();
-        if (files == null) return;
-        for (File f : files) {
-            if (f.isFile() && f.getName().startsWith("droidinspect-sign-")) {
-                // This activity owns these private temporary copies; originals are SAF documents.
-                //noinspection ResultOfMethodCallIgnored
-                f.delete();
-            }
-        }
-    }
-
-    private static final class KeyMaterial {
+        private static final class KeyMaterial {
         final PrivateKey key; final List<X509Certificate> chain;
         KeyMaterial(PrivateKey k, X509Certificate c) { key = k; chain = java.util.Collections.singletonList(c); }
         KeyMaterial(PrivateKey k, List<X509Certificate> c) { key = k; chain = c; }
