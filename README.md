@@ -1680,3 +1680,57 @@ This will establish whether the second assembly can be decompiled by the Native 
 After this test, continue with another independently obtained assembly that has third-party library references, then missing-reference behavior, larger assemblies, malformed/unsupported inputs, and additional original-file integrity checks. Production integration remains blocked until these broader gates pass.
 
 The latest M11 source implementation commit is `a10f1e207612845dd41f87b575b35acd695abe4a`. The current README update will be committed separately on `main`.
+
+
+---
+
+## 16. Newtonsoft.Json 13.0.3 — Android device result (2026-11-13)
+
+**Status: ANDROID DEVICE DECOMPILATION RETURNED C# SOURCE; BUNDLED INPUT INTEGRITY CHECK PASSED.**
+
+The user tested the workflow #14 diagnostic APK on the Android 11 device. The app reported:
+
+- Assembly: Newtonsoft.Json 13.0.3 (bundled test).
+- Input size: 705,296 bytes.
+- Android device decompilation time: 19,042 ms.
+- Java heap change: 3,484,336 bytes (native memory excluded).
+- SHA-256 before: `8c1dd5c184b4e2e7ead06971ff3ebcb46783be972292d1deb1061744369b4d80`.
+- SHA-256 after: identical.
+- Bundled working-copy unchanged: **PASS**.
+- UI status: **DECOMPILATION RETURNED SOURCE**.
+- The supplied output excerpt begins with reconstructed C# using directives.
+
+This is the first recorded Android-device timing and Java-heap observation for the larger independent Newtonsoft.Json assembly. It is a device measurement and must not be conflated with the separate GitHub-host timing. Java heap change excludes Native AOT/native memory and is not a total process-memory measurement.
+
+The supplied screenshot transcription does not include the later declarations or confirm all five expected symbols (`JsonConvert`, `SerializeObject`, `JsonSerializer`, `JsonReader`, `JsonWriter`). Those symbol checks remain to be confirmed from the full output. The report transcription also does not independently state whether Wi-Fi and mobile data were disabled during this run; offline status must not be promoted to PASS until confirmed.
+
+### Updated M11 acceptance gates
+
+| Gate | Result |
+|---|---|
+| Original fixture host reconstruction | PASS |
+| Independent Newtonsoft.Json host reconstruction | PASS |
+| Native AOT ARM64 cloud build and APK packaging | PASS |
+| Production regression CI | PASS |
+| First fixture Android decompilation | PASS |
+| Newtonsoft.Json Android source returned | PASS |
+| Newtonsoft.Json bundled working-copy SHA-256 unchanged | PASS |
+| Newtonsoft.Json Android device timing recorded | PASS — 19,042 ms |
+| Newtonsoft.Json Android expected-symbol checks | PENDING full-output confirmation |
+| Explicit offline condition for Newtonsoft.Json device run | PENDING user confirmation |
+| Java heap measurement | RECORDED — 3,484,336 bytes; native memory excluded |
+| Total native/process memory measurement | NOT MEASURED |
+| Additional assembly with third-party references | PENDING |
+| External and missing-reference behavior | PENDING |
+| Large assembly and stability tests | PENDING |
+| Malformed/unsupported assembly handling | PENDING |
+| Original SAF-selected document preservation | PENDING |
+| Production integration | NOT STARTED |
+
+### Exact next action
+
+Confirm that Wi-Fi and mobile data were both disabled during this test, and inspect/search the complete reconstructed output for the five expected symbols listed above. Also report whether the output can be scrolled through and whether the app remained responsive during the approximately 19-second operation.
+
+Then continue with the next independently obtained managed assembly that has third-party library references. Do not integrate M11 into the production package yet.
+
+This device result supersedes the previous statement in section 15 that the Newtonsoft.Json Android test was pending. It does not supersede any uncompleted acceptance gates above.
