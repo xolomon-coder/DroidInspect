@@ -807,7 +807,7 @@ No new Android runtime dependency or broad storage permission was introduced.
 - **M3:** one CLI-bearing mixed-mode DLL inspected on-device. Pure-managed fixture and native/non-managed PE rejection remain untested; preserve this documented gap.
 - **M4:** bounded DEX structural parser/browser implemented and previous CI run #64 passed. Android 11 browser/device test remains pending. This is not a Java decompiler.
 - **M5:** bounded .NET raw IL browsing, method search, and constrained metadata method rename implemented. No C# source decompilation; representative real assembly device verification remains pending.
-- **M6: REOPENED — framework attribute-name display fix implemented; device retest pending.** On-device manifest/resource decoding passed on `Git MANAGER_1.0.apk`; user confirmed supported metadata/string editing, unsigned export, and original-APK preservation. Signing/install and unsupported resource variants remain outside M6.
+- **M6: COMPLETE / DEVICE PASS (2026-11-12).** The user confirmed on Android 11 that framework attribute names now display readably in manifest XML (for example, `android:name` instead of `android:r0x01010003`). Existing metadata/string editing, unsigned export, and original-APK preservation checks also continue to work. Signing/install and unsupported resource variants remain outside M6.
 - **M7:** constrained same-size, operand-free IL byte editing added, with synthetic round-trip and rejection-path host tests. Latest cloud verification is pending confirmation; real assembly/runtime behavior is unverified.
 - **M8–M10:** not yet implemented.
 
@@ -893,7 +893,7 @@ The user rebuilt and tested the corrected main version in CodeAssist against the
 
 ### M6 — APK manifest/resource analysis and editing: DEVICE PASS (2026-11-12)
 
-**M6 previously passed its editing/export device checks; it has been temporarily reopened** after a follow-up review found that XML attribute names were not being resolved to readable Android framework names. The user rebuilt and tested the corrected app in CodeAssist on Android 11 against `Git MANAGER_1.0.apk`.
+**M6 is now complete for its planned scope.** The user rebuilt and tested the framework-name correction in CodeAssist on Android 11 against `Git MANAGER_1.0.apk`; the readable XML attribute names now work.
 
 **Initial failure and correction**
 - Initial device error: `IOException: Can not decode without package`; manifest metadata fields were blank.
@@ -917,15 +917,15 @@ The user rebuilt and tested the corrected main version in CodeAssist against the
 - Export is intentionally unsigned; signing and installation are outside M6 and are deferred to a later milestone.
 - The original selected APK is preserved and is never overwritten.
 
-**Historical assessment (before the XML-name issue was reported): PASS for the tested editing/export scope.** The later readable-XML requirement is still part of M6 and must pass device retesting before M6 can be closed again.
+**Final assessment: PASS — M6 closed.** Device verification confirms readable Android framework attribute names and preserves the previously tested analysis, supported editing/export workflow, and original APK. This does not claim APK signing, installation, arbitrary resource editing, or complete APK rebuild support.
 
 **Current continuation checkpoint (2026-11-12):**
 - Latest source commit at the time of this note: `1613ff4bcd3058e093104209c10c984c32dbb0ed`.
 - Latest verified CI run: #95 / `43131718723`, all workflow steps successful; artifact listed above.
 - M4 multidex parsing and class indexing are device-verified for the nine-DEX sample (9/9, 310 classes, 2,428 members), but class-detail/member rendering and search interaction checks remain open.
-- M6 editing/export passed earlier device checks, but M6 is currently reopened because readable framework attribute names were missing from the XML display. The correction is committed and CI-verified; Android device retest is pending.
+- M6 is complete: the framework attribute-name correction is now confirmed on-device, alongside the earlier editing/export and original-APK preservation checks.
 - M5 and M7 real-device checks remain pending; M8–M10 are not implemented.
-- Next: complete the remaining M4 class-detail/member-rendering and search interaction checks, then complete M5 and M7 device verification. Re-test the M6 readable manifest XML correction before closing M6 again. Keep all subsequent work and documentation commits on `main` only.
+- Next: complete the remaining M4 class-detail/member-rendering and search interaction checks, then complete M5 and M7 device verification. M6 is complete; continue with the remaining M4 class-detail/member-rendering and search checks, then M5 and M7 device verification. Keep all subsequent work and documentation commits on `main` only.
 
 
 ### M6 — Android framework attribute-name resolution (2026-11-12)
@@ -950,4 +950,7 @@ The user rebuilt and tested the corrected main version in CodeAssist against the
 - Downloaded artifact ZIP integrity test: PASS; contains `app-debug.apk`; local SHA-256 matches the artifact digest.
 - Final source commit at this checkpoint: `e0dc82647a16042476419008673ed1c4a4a6ccf5`.
 
-**Device verification still required — do not close M6 yet:** rebuild from the latest `main` ZIP in CodeAssist and reopen `Git MANAGER_1.0.apk` in APK Resources. Confirm that attributes display as readable names, including `android:name`, `android:versionCode`, `android:versionName`, `android:minSdkVersion`, and `android:targetSdkVersion`, rather than `android:r0x...`. Also confirm the permission value remains `android.permission.INTERNET` and that the existing metadata/string edit, unsigned export, and original-APK preservation tests still work. Report the displayed XML excerpt and any errors. Until this real-device retest passes, M6 remains reopened despite successful CI compilation.
+**Final Android 11 device retest: PASS (2026-11-12).** The user confirmed that the updated build displays Android framework attribute names readably rather than as `android:r0x...`. The user also confirmed that the existing supported editing, unsigned export, and original-APK preservation behavior still works. M6 is closed.
+
+
+**Final device-verification result (2026-11-12): PASS.** The user tested the build produced from the corrected `main` source in CodeAssist on Android 11. The manifest XML now displays readable Android framework attribute names rather than `android:r0x...`. The user confirmed that the earlier metadata/string editing, unsigned export, and original APK preservation tests continue to work. This satisfies the outstanding M6 acceptance criteria; M6 is now closed.
