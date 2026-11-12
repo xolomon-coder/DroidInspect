@@ -889,3 +889,34 @@ The user rebuilt and tested the corrected main version in CodeAssist against the
 **Assessment:** the original real-world multidex field/method index regression is fixed for this APK on the Android 11 test phone. All nine DEX entries passed and no configured caps were reached. This is strong device evidence for DEX parsing and class indexing. It does not yet verify class-detail navigation, field/method detail rendering, search behavior, malformed-entry handling, or large-APK responsiveness. M4 remains in progress for those remaining browser interaction checks; this is not Java decompilation.
 
 **Next device check:** open a class such as com.tanvir.gitmanager.AccountActivity, verify its field and method lists/details open correctly, then search for a known class or method name and confirm the result filters/navigates correctly. Report any incorrect counts, blank details, crash, or freeze.
+
+
+### M6 — Manifest decoding failure and resource-table load-order correction (2026-11-12)
+
+**Real-device failure reported:** On `Git MANAGER_1.0.apk`, M6 initially failed with `IOException: Can not decode without package`; package name, version name, and version code were blank. The app reported that the original APK was not modified.
+
+**Source correction committed directly to `main`:**
+- Commit: `1613ff4bcd3058e093104209c10c984c32dbb0ed`.
+- File changed: `droidinspect/app/src/main/java/com/tanvir/droidinspect/ApkResourceActivity.java`.
+- The ARSCLib resource table is now loaded before requesting/decoding the Android manifest, so the manifest decoder has the resource package context available. The later duplicate table load was removed.
+
+**Cloud verification: PASS**
+- GitHub Actions run #95, ID `43131718723`, for the exact commit above completed successfully on `main`.
+- ECMA-335 metadata decoder host test: PASS.
+- .NET IL reader host test: PASS.
+- DEX parser host test: PASS.
+- Android SDK setup and Android 36 package installation: PASS.
+- Gradle 8.13 setup and Android debug APK compilation: PASS.
+- APK output verification: PASS.
+- Debug artifact upload: PASS.
+- Artifact: `DroidInspect-Phase2-debug`, ID `13905068528`, size 3,581,216 bytes, SHA-256 `6f350b017c19acf2da75a6de0d321aee8af4967cce374fe99ec3be26c648cfe1`; not expired when checked (expires 2026-11-26).
+
+**Device verification is still pending:** the source change and successful cloud build do not prove that the original APK now decodes. The user must rebuild/install the latest `main` source in CodeAssist and retry M6 with the same `Git MANAGER_1.0.apk`. Confirm that package name, version name/code, manifest, and resources populate. If it still fails, capture the complete new error report and investigate further. Do not mark M6 device-verified yet.
+
+**Current continuation checkpoint (2026-11-12):**
+- Latest source commit at the time of this note: `1613ff4bcd3058e093104209c10c984c32dbb0ed`.
+- Latest verified CI run: #95 / `43131718723`, all workflow steps successful; artifact listed above.
+- M4 multidex parsing and class indexing are device-verified for the nine-DEX sample (9/9, 310 classes, 2,428 members), but class-detail/member rendering and search interaction checks remain open.
+- M6 manifest/resource decode fix awaits the user's on-device retest.
+- M5 and M7 real-device checks remain pending; M8–M10 are not implemented.
+- Next: user downloads the latest `main` ZIP, builds/installs in CodeAssist, tests the M6 fix on the same APK, and completes the remaining M4 class-detail/search checks. Keep all subsequent work and documentation commits on `main` only.
