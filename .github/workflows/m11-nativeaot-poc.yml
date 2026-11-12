@@ -106,7 +106,8 @@ jobs:
             cp "$dll" "$MAIN/assets/dependency-references/"
           done
           test -s "$MAIN/assets/dependency-references/Serilog.dll"
-          test -s "$MAIN/assets/dependency-references/Microsoft.Extensions.Logging.Abstractions.dll"
+          test -s "$MAIN/assets/dependency-references/Microsoft.Extensions.Logging.dll"
+          test -s "$MAIN/assets/dependency-references/Microsoft.Extensions.DependencyInjection.dll"
           cp tools/m11-poc/fixture/bin/Release/net11.0/DecompilerFixture.dll artifacts/
       - uses: gradle/actions/setup-gradle@v4
         with:

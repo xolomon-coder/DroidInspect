@@ -1782,3 +1782,17 @@ The new `tools/m11-poc/dependency-assembly-tests/` project verifies C# symbols i
 - Implementation committed to `main`; cloud workflow verification and Android device acceptance are pending.
 - No production application code or package integration has been changed.
 - The full dependency test and missing-reference test must both be run offline on the Android device before the corresponding M11 gates can be marked complete.
+
+
+### M11 dependency APK packaging CI correction (2026-11-13)
+
+The first dependency-test workflow run verified:
+- Host C# reconstruction with external dependencies: PASS (27,685 output characters; 3,805 ms cloud-host timing).
+- Expected symbols: `SerilogLoggerProvider`, `SerilogLogger`, `SerilogLoggerFactoryExtensions`, `AddSerilog`, and `ILoggerProvider`: PASS.
+- Missing `Serilog.dll`: ILSpy returned C# source (31,511 characters), rather than throwing. This is an observed outcome, not a failure by itself.
+- ARM64 Native AOT ELF, exported JNI entry points, and SONAME checks: PASS.
+- Production Android regression workflow: PASS.
+
+The M11 workflow then failed in APK asset preparation because its shell validation incorrectly expected `Microsoft.Extensions.Logging.Abstractions.dll`. The actual resolved NuGet output contains `Microsoft.Extensions.Logging.dll`, `Microsoft.Extensions.DependencyInjection.dll`, and `Serilog.dll`; the host log confirms these names. The workflow now validates the actual dependency filenames. This is a packaging assertion correction; the decompiler and host dependency test had already passed.
+
+The corrected M11 workflow must complete before a new APK can be distributed for Android device acceptance.
