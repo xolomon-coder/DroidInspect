@@ -622,7 +622,7 @@ The automated tests found and corrected real issues:
 | M4 DEX multidex parsing + class/member detail + class/method search | PASS — Android 11 device (2026-11-12); stress/invalid-input edge cases pending |
 | M5 .NET IL browsing and constrained rename | IMPLEMENTED; representative device verification pending |
 | M6 APK manifest/resource analysis and selected editing | PASS — Android 11 device (2026-11-12) |
-| M7 constrained .NET IL editing | IMPLEMENTED; CI PASS (run #101); representative device verification pending |
+| M7 constrained .NET IL editing | IMPLEMENTED; host/CI PASS (run #101); Android device verification pending |
 
 ### M4 — APK DEX analysis and code browsing (IMPLEMENTED; ANDROID 11 DEVICE PASS FOR AGREED CHECKS — 2026-11-12)
 
@@ -713,7 +713,7 @@ The automated tests found and corrected real issues:
 
 **Verification gap:** this feature has been compiled in cloud CI in the preceding development batch, but it has not yet been functionally verified on the Android 11 phone with a real APK. The output-signing/install cycle is also still a user-device test.
 
-### M7 — .NET assembly editing (bounded implementation added; cloud/device verification pending)
+### M7 — .NET assembly IL editing (bounded implementation added; host/CI PASS; Android device verification pending)
 
 **Implemented in the current continuation batch:**
 - Added a limited IL-byte editor to the existing .NET method browser.
@@ -726,6 +726,13 @@ The automated tests found and corrected real issues:
 **Host regression additions:** the synthetic managed PE fixture changes `1819582A` to `1919592A`, verifies the reopened IL disassembly, verifies that the source still contains the original bytes, and rejects a changed body length and an operand-bearing replacement.
 
 **Important limit:** this is a deliberately narrow byte-level editor, not a general IL assembler or verifier. A structurally reopened file is not proof that the modified method is semantically valid or will execute correctly. Runtime behavior must be tested with a suitable managed assembly/runtime outside the Android app's current scope.
+
+**Android 11 device test procedure (fixture already published):**
+- Use `test-fixtures/UnsignedRenameFixture.dll` from the latest `main` ZIP (or the same original fixture used for M5). The fixture is unsigned and contains `RenameTarget.AddValues(int left, int right)`.
+- Open the .NET IL browser, select the original fixture, search `AddValues`, open the method, then choose **Edit IL / Export**.
+- In the hex editor, the optimized Release method body is expected to be `03 04 58 2A` (`ldarg.1`, `ldarg.2`, `add`, `ret`). Change only `58` to `59`, yielding `03 04 59 2A` (`sub`). If the bytes differ, do not guess; cancel and report the displayed bytes.
+- Validate and export to a new filename. Reopen the exported DLL in DroidInspect and confirm the method displays `ldarg.1`, `ldarg.2`, `sub`, `ret` / bytes `03 04 59 2A`. Reopen the original and confirm it still contains `add` / `03 04 58 2A`.
+- This verifies byte editing, export, reopen, and source preservation only. It does not prove that the changed method executes correctly. The editor must refuse changed body lengths, operand-bearing or branch instructions, unsupported opcodes, extra method data sections, and signed assemblies.
 
 ### Dependencies and compatibility
 
@@ -1052,3 +1059,14 @@ The user completed the previously pending M5 device checks in DroidInspect on An
 - M7: implemented and cloud CI-verified; real-device IL-edit test remains pending.
 - M8–M10: not implemented.
 - Next action: complete M7 device verification. If it passes, begin Phase 3 planning/implementation for M8 while preserving the original ten-milestone roadmap and main-only branch policy.
+
+
+### M7 — device verification handoff (2026-11-12)
+
+**Current M7 status:** implementation present on `main`; synthetic host round-trip/rejection tests and Android compile passed in Actions run #101 (run ID `43136882549`). The feature is not device-verified yet.
+
+**Exact next action:** download the latest `main` ZIP, build/install in CodeAssist, then follow the M7 instructions in `test-fixtures/README.txt` using the original unsigned `UnsignedRenameFixture.dll`. The expected edit changes only the `AddValues` method body from `03 04 58 2A` (add) to `03 04 59 2A` (sub). Export to a new file, reopen it, verify the new IL, and verify the original still contains the old IL.
+
+**Acceptance criteria:** successful same-size IL edit; verified new export; exported DLL reopens and shows the replacement instruction; original remains unchanged. Report any safety refusal or different original bytes rather than attempting alternative edits.
+
+M4, M5, and M6 remain device-complete for their documented scopes. M7 is the only current Phase 2 device-verification gate. M8–M10 are not implemented. Continue on `main` only.
