@@ -1414,5 +1414,5 @@ Report the exact status/error text or a screenshot if the app fails to load the 
 
 - Main branch remains the only branch.
 - Prototype and CI implementation are committed directly to `main`; no production source was changed.
-- Latest README refresh is being committed after the successful M11 run #3 and production CI #155 evidence.
+- Documentation commit: `7afaa99ae403055528293dad2121dced5c2d62af`. The M11 implementation/CI evidence is from code commit `e10335745a7628dc913fd13ff8c0289e91e5738f`; README is now updated after M11 run #3 and production CI #155 passed.
 - Next exact action: user installs and tests the isolated M11 proof APK and fixture on Android 11. If successful, continue with broader managed-assembly/reference coverage and performance testing before planning production integration. If it fails, diagnose the device logs and fix the isolated prototype first.
