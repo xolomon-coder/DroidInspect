@@ -1607,8 +1607,76 @@ No production application source or package integration was performed. M11 remai
 
 ### Exact next action
 
-Install the updated isolated M11 diagnostic APK from workflow run #12. Open it with Wi-Fi and mobile data disabled, then tap **Test bundled Newtonsoft.Json 13.0.3**. Allow the operation to finish; the output is much larger than the original fixture. Record the complete status report (input size, elapsed time, Java heap change, SHA-256 values, and original-unchanged result) and confirm that reconstructed source contains `JsonConvert`, `SerializeObject`, `JsonSerializer`, `JsonReader`, and `JsonWriter`.
+This run-#12 instruction is superseded by the corrected diagnostic build and next action in section 15 below. Do not use the older APK when performing the next Android device test.
 
 Do not declare M11 complete or integrate it into `com.tanvir.droidinspect` yet.
 
-The latest source implementation commit for this update is `d8bd908d9a5afdb0b621842c29ed07ce6d2a4ecc`. The README progress update itself will receive a later commit on `main`.
+The initial source implementation commit for this update was `d8bd908d9a5afdb0b621842c29ed07ce6d2a4ecc`; the corrected device-test APK and status report are documented in section 15.
+
+
+---
+
+## 15. M11 updated diagnostic APK — integrity-report correction (2026-11-13)
+
+**Status: UPDATED ISOLATED ANDROID PROOF APK BUILDS AND PASSES ALL M11 CI CHECKS. READY FOR THE SECOND OFFLINE ANDROID DEVICE TEST. NEWTONSOFT.JSON DEVICE ACCEPTANCE IS STILL PENDING.**
+
+A small diagnostic-report correction was made before device testing:
+
+- When a user selects an assembly through SAF, the status line is `Original document unchanged`; the hash copied from the original is compared with the reopened original after decompilation.
+- When the bundled Newtonsoft test runs, the status line is `Bundled working-copy unchanged`; this correctly describes the temporary working copy rather than implying that an external original document was selected.
+- SHA-256 before/after values, input size, decompilation time, and Java heap change remain visible. Java heap change does not include native AOT memory.
+
+### Final M11 workflow #14 — PASS
+
+- Workflow: **M11 ILSpy Native AOT Android Proof**.
+- Run: **#14**.
+- Run ID: `43320888768`.
+- Commit: `a10f1e207612845dd41f87b575b35acd695abe4a`.
+- Result: **SUCCESS**.
+- URL: https://github.com/xolomon-coder/DroidInspect/actions/runs/43320888768
+
+All steps passed, including both host-side C# reconstruction tests, Native AOT Bionic ARM64 publish, ELF/export/SONAME verification, JNI linking checks, Android APK compilation, APK payload integrity, and artifact upload.
+
+The real-world host test again reconstructed 1,182,022 characters from Newtonsoft.Json 13.0.3. This run measured 12,960 ms on the GitHub runner; this is not an Android device timing.
+
+### Latest diagnostic artifact
+
+- Artifact: `DroidInspect-M11-Android-Proof`.
+- Artifact ID: `13991320684`.
+- Artifact ZIP size: 27,401,763 bytes.
+- Artifact ZIP SHA-256: `d9cfcf6af29c935bb0b03dd53ccb0e68fd51c76f91718d67964dbdfe3ca01665`.
+- Expiry: 2026-11-26.
+- APK SHA-256: `c38d98792fd5a8b7caae9e60909778d951002795e215e83c2b461339ac68afce`.
+- Bundled Newtonsoft.Json DLL SHA-256: `8c1dd5c184b4e2e7ead06971ff3ebcb46783be972292d1deb1061744369b4d80`.
+- Native engine SHA-256: `b26967415938118f719e19619f0cc1e98e403eced6cc3cb05eff88db00b72543`.
+
+Artifact download page:
+https://github.com/xolomon-coder/DroidInspect/actions/runs/43320888768/artifacts/13991320684
+
+### Production regression
+
+- Workflow: **DroidInspect Android CI**.
+- Run: **#173**.
+- Run ID: `43320888399`.
+- Commit: `a10f1e207612845dd41f87b575b35acd695abe4a`.
+- Result: **SUCCESS**.
+- URL: https://github.com/xolomon-coder/DroidInspect/actions/runs/43320888399
+
+No production application code or package integration was changed.
+
+### Exact next device test
+
+1. Download the `DroidInspect-M11-Android-Proof` artifact from the run #14 link above and extract the ZIP.
+2. Uninstall the older isolated proof app `com.tanvir.m11poc` before installing the new APK. This avoids an update-signature mismatch between separately generated CI debug builds. The production app `com.tanvir.droidinspect` is not involved.
+3. Install `DroidInspect-M11-Android-Proof.apk`.
+4. Turn **Wi-Fi and mobile data OFF**.
+5. Open the proof app and tap **Test bundled Newtonsoft.Json 13.0.3**.
+6. Wait for the operation to finish. The reconstructed C# output is approximately 1.18 million characters on the host baseline, much larger than the original fixture.
+7. Confirm the source includes `JsonConvert`, `SerializeObject`, `JsonSerializer`, `JsonReader`, and `JsonWriter`.
+8. Report the status text: input size, elapsed milliseconds, Java heap change, SHA-256 before/after, and `Bundled working-copy unchanged: PASS` (or the actual failure).
+
+This will establish whether the second assembly can be decompiled by the Native AOT engine on the Android 11 device while offline, and provide the first real-device timing/Java-heap observation for a larger library.
+
+After this test, continue with another independently obtained assembly that has third-party library references, then missing-reference behavior, larger assemblies, malformed/unsupported inputs, and additional original-file integrity checks. Production integration remains blocked until these broader gates pass.
+
+The latest M11 source implementation commit is `a10f1e207612845dd41f87b575b35acd695abe4a`. The current README update will be committed separately on `main`.
