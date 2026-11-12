@@ -453,25 +453,30 @@ The roadmap has **10 milestones**, grouped into three phases. The sequence may b
 
 ### Phase 3 — Output, advanced tools, and release
 
-**M8 — APK rebuild and signing**
-- Rebuild supported APK changes into a new APK.
-- Validate archive integrity, manifest/resources, and DEX payload.
-- Provide signing using an appropriate user-controlled signing key and explain that a rebuilt APK will not retain the original developer's signature.
-- Do not imply that every APK can be rebuilt.
-- Exit criteria: a controlled sample APK can be rebuilt, signed, installed for testing, and its changed behavior/content verified.
+**M8 — APK rebuilding, signing and verification**
+- Existing ARSCLib 1.4.0 rebuild/export remains a separate unsigned-output workflow; the original APK is never overwritten.
+- Add a dedicated signing screen using Google's `com.android.tools.build:apksig:8.13.0` library (Apache-2.0).
+- Generate RSA-2048 signing keys in Android Keystore using the supplied alias and certificate owner; support importing existing PKCS#12/PFX and JKS keystores with alias/password handling.
+- Sign a separate APK copy using v1, v2 and v3 schemes; verify the signed output before enabling export.
+- Show signer certificate subject, issuer, serial, validity and SHA-256 fingerprint. Reject invalid/tampered APKs and report verification failures.
+- The generated Android Keystore private key is non-exportable and tied to the app installation/device. For portable long-term signing, import and securely back up a PKCS#12/JKS key. A different signing key normally cannot update an app installed with the original developer's key.
+- APK Signature Scheme v4 sidecar export is not implemented. Device install/update behavior remains pending the consolidated device test.
+- Exit criteria: key generation/import, sign, verify, certificate inspection, tamper rejection, separate export and Android 11 install/update behavior are tested.
 
-**M9 — .NET export, file tools, and advanced search**
-- Export supported modified assemblies.
-- Add a hex/binary viewer for safe inspection, with editing only after bounds and output validation are implemented.
-- Add cross-file search/usage navigation where supported.
-- Verify exported assemblies can be reopened and inspected.
-- Exit criteria: representative exports are valid and all implemented file tools pass their tests.
+**M9 — Advanced .NET inspection and C# decompilation feasibility**
+- Preserve the bounded raw ECMA-335 IL browser and existing metadata/member search and constrained editing.
+- Show instruction offset, exact raw instruction bytes, mnemonic, operand and human-readable explanation; unknown opcodes receive no invented explanation.
+- Show MethodDef metadata tokens in method labels so tokens can be searched alongside method names and RVAs.
+- Full C# decompilation is not integrated. ILSpy's decompiler engine is a .NET library, not a Java/Android dependency; embedding it would require a separately shipped .NET runtime or a native/AOT bridge and a different Android build toolchain. That is not a safe drop-in addition to this Java + XML CodeAssist project. Raw IL is explicitly not labelled as C#.
+- Exit criteria: instruction/operand/offset fidelity, known-opcode explanations, unsupported-opcode handling, token navigation, and existing M5/M7 regression behavior are verified.
 
-**M10 — Advanced analysis, debugging feasibility, hardening, and release**
-- Investigate whether any useful debugging or runtime-analysis features are possible within Android's security and runtime constraints. Treat full dnSpy-style attach/debug as optional and potentially unsupported.
-- Improve crash handling, large-file behavior, cancellation, recovery, and diagnostics.
-- Complete regression tests, permission review, dependency/license review, documentation, and release packaging.
-- Exit criteria: all committed features have device-test evidence; remaining limitations are explicit; README and handoff documentation match the released state.
+**M10 — Integration, reliability, testing and release preparation**
+- Integrate APK signing into the main navigation and IL explanations/token navigation into the existing .NET browser.
+- Keep SAF-only file access, bounded APK/keystore copies, private temporary storage, stale temporary-file cleanup, separate outputs, and non-exported signing Activity.
+- CI runs the ECMA-335 metadata, IL and DEX host regression suites; builds debug and unsigned release APKs; signs with an ephemeral CI key; verifies v1 JAR, v2 and v3 signatures; rejects a tampered APK; and uploads debug plus signed-release artifacts.
+- Review dependency license, Android 11 compatibility, error paths, file limits, permissions and known limitations.
+- Device-only checks are delivered as one consolidated M8–M10 test batch; CI success is not device-test evidence.
+- Exit criteria: all required CI jobs pass, APK artifacts exist and are integrity-checked, README matches the source, and the remaining device-only limitations are explicit.
 
 ## 5. Development and Creation Process
 
@@ -492,7 +497,7 @@ No milestone is complete solely because code was written or committed. When deli
 
 ## 6. Current Project Status (2026-11-12)
 
-**Current phase: Phase 3 — Output, advanced tools, and release.** M4, M5, M6, and M7 have passed their agreed Android 11 device verification scopes. M7's constrained IL byte-edit test confirmed that the exported copy reopens with `sub` (`59`) while the original fixture still reopens with `add` (`58`). M4 large-APK stress and malformed-DEX device edge cases remain untested. M8–M10 are not implemented. Device completion is based on the user's reported on-device evidence, not CI alone.
+**Current phase: Phase 3 — implementation and cloud verification completed; consolidated Android 11 device verification pending.** M4–M7 have passed their agreed Android 11 device verification scopes. M8 now includes an on-device APK signing and verification screen; M9 includes raw IL byte/opcode explanations and MethodDef token navigation, while full C# decompilation remains unsupported in the current Java/CodeAssist architecture; M10 regression, signing, tamper, build, and artifact checks pass in GitHub Actions run #131. Phase 3 has not yet received user device-test evidence. M4 large-APK stress and malformed-DEX device edge cases remain untested. Do not confuse CI verification with device verification.
 
 Phase 1 implementation has passed cloud CI and initial Android 11 device smoke checks. The user chose to proceed without the optional native-PE fixture test. Native/non-managed PE rejection therefore remains an explicit unverified limitation; do not claim full M3 classification coverage. M2 has one successful real APK test, and M3 has one successful CLI-bearing mixed-mode .NET DLL test. Phase 2 may begin while this gap remains documented for later regression coverage.
 
@@ -1115,3 +1120,98 @@ Both files were recognized as `UnsignedRenameFixture`; the browser indexed 4 met
 **M7 final status: DEVICE PASS / COMPLETE FOR AGREED SCOPE. Phase 2 device verification is now complete for M4–M7.** Remaining M4 stress/malformed-input checks and the separate requested C# decompilation / IL explanation enhancements remain documented as limitations or backlog items, not completed features.
 
 **Next milestone:** begin M8 — APK rebuild and signing. Before implementation, inspect current source/build/CI and evaluate the APK rebuild/signing path against existing ARSCLib integration, original-preservation rules, key handling, and Android 11 device constraints. Keep all changes on `main`; do not start a new branch.
+
+---
+
+## 9. Phase 3 delivery update — authoritative current state (2026-11-12)
+
+This section supersedes earlier continuation notes in this README that said M7 device testing was pending or M8–M10 had not started. Those statements remain in the chronological history as snapshots of the earlier handoff state.
+
+### Current milestone status
+
+- **M1–M3:** complete for documented scope, with the previously recorded native/non-managed PE classification coverage limitation retained.
+- **M4:** Android 11 device PASS for the agreed multidex browsing/search scope. Large-APK stress and malformed-DEX device edge cases remain untested.
+- **M5:** Android 11 device PASS for the agreed assembly/metadata/raw IL browsing and constrained rename scope. C# source decompilation is not implemented.
+- **M6:** Android 11 device PASS for supported manifest/resource inspection, selected edits, separate unsigned export and original preservation.
+- **M7:** Android 11 device PASS for the agreed unsigned-fixture same-size IL edit/export/reopen test. Original and exported DLLs were both reopened; original IL remained unchanged.
+- **M8:** implementation and CI verification complete; Android 11 key, signing, verification, install and update testing pending.
+- **M9:** byte-level IL explanations and MethodDef token display/search implemented; host tests pass. Full C# decompilation is explicitly not implemented. Android 11 presentation/regression testing pending.
+- **M10:** integration and CI/release artifact checks pass. Consolidated Android 11 device testing remains the final release gate.
+
+### M8 implementation and security details
+
+- New source: `droidinspect/app/src/main/java/com/tanvir/droidinspect/ApkSigningActivity.java`.
+- New layout: `droidinspect/app/src/main/res/layout/activity_apk_signing.xml`.
+- Main navigation: `MainActivity.java` and `activity_main.xml`; Activity declared non-exported in `AndroidManifest.xml`.
+- Dependency: `com.android.tools.build:apksig:8.13.0`, Apache License 2.0. No other runtime signing dependency was added.
+- Signing modes: v1, v2 and v3; v4 .idsig sidecar output is not implemented.
+- Key options: generate RSA-2048 in Android Keystore or import PKCS#12/PFX and JKS.
+- Imported keystore copies are stored temporarily in app-private cache and deleted when the Activity exits; stale signing temporary files are cleaned when the screen starts. Password character arrays are cleared after use and password fields are cleared after signing.
+- Generated Android Keystore keys are non-exportable. If the app is uninstalled or its private data is cleared, that generated key may become unavailable. Use a securely backed-up imported keystore for long-term production signing.
+- The original APK and original keystore document are never overwritten. Signed output is a distinct file and is only export-enabled after successful signature verification.
+- CI test passwords and test keys are ephemeral test-only material; no real private signing key is stored in source control or uploaded to CI artifacts.
+
+### M9 implementation and decompilation decision
+
+- New source: `droidinspect/app/src/main/java/com/tanvir/droidinspect/IlOpcodeExplainer.java`.
+- Updated source: `DotNetIlReader.java`; host test: `tools/il-reader-test/DotNetIlReaderSelfTest.java`.
+- IL display retains offsets and operands and now shows exact instruction bytes, mnemonic and explanation. Unknown/unsupported opcodes are explicitly marked without guessed semantics.
+- Method labels expose the MethodDef token (for example, `0x06000001`) alongside the RVA; the existing method filter can search the token text.
+- ILSpy was evaluated conceptually as a .NET decompiler engine, not a Java library. A runtime/AOT/native bridge would add a separate runtime/toolchain and compatibility burden that cannot be validated safely within this Java + XML CodeAssist project. No C# decompiler dependency or misleading “View C#” feature was added. The useful supported alternative is the bounded raw IL browser with explanations and metadata navigation.
+
+### Exact Phase 3 source files changed
+
+- `droidinspect/app/build.gradle.kts`
+- `droidinspect/app/src/main/AndroidManifest.xml`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/MainActivity.java`
+- `droidinspect/app/src/main/res/layout/activity_main.xml`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/ApkSigningActivity.java`
+- `droidinspect/app/src/main/res/layout/activity_apk_signing.xml`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/DotNetIlReader.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/IlOpcodeExplainer.java`
+- `tools/il-reader-test/DotNetIlReaderSelfTest.java`
+- `.github/workflows/phase1-android.yml`
+- `README.md`
+
+### Final cloud CI and artifact evidence before this README update
+
+- Workflow: **DroidInspect Android CI**, run **#131**, run ID `43205700204`.
+- Tested commit: `754491c612b580a256297122f7aa347f1589ab8d`.
+- Result: **success**. All three host test suites passed; Android debug compilation and unsigned release build passed; Android Build Tools signed the release APK; `jarsigner` verified the v1 JAR signature; `apksigner` verified v2 and v3; the modified/tampered APK was rejected; artifact upload passed.
+- CI signer: ephemeral test certificate `CN=DroidInspect CI Test`. Certificate SHA-256: `cb72692fbdd0d2b64cdca55f4ddb4efc4eddb8cf9a3ada766214762c3774f187`.
+- Artifact: `DroidInspect-Phase3-builds`, ID `13937447401`, 7,312,843 bytes, expires 2026-11-26. Artifact SHA-256: `5f3103eb3b197be731500e835662719bf7a1d87940b4fc76f55e8321b3189bd1`.
+- Artifact contains:
+  - Debug APK: 3,825,898 bytes; SHA-256 `088722e8de9aa4f58dc6627480b0d6c67b1470014fc67d3e83c872fb722c250a`.
+  - CI-signed release APK: 3,508,551 bytes; SHA-256 `ea8ee8fe0458efae55a15fbe5c3e5b5145c10898cfc60f4963c69ce9c0c708db`.
+- The downloaded artifact ZIP passed ZIP integrity testing. Both APKs extracted and passed ZIP integrity checks. Artifact metadata points to the same `main` commit used by run #131.
+- The CI release APK uses an ephemeral CI key and is for verification only; it is not the user's production signing key and is not the normal CodeAssist installation route.
+
+### Known limitations and device-only verification
+
+- Full C# decompilation is not implemented.
+- APK Signature Scheme v4 sidecar output is not implemented.
+- AndroidKeyStore-generated private keys are non-exportable; use an imported backed-up keystore for portable long-term signing.
+- CI cannot prove Android 11 PackageManager installation/update behavior or real-device keystore provider compatibility. These must be tested on the user's phone.
+- Existing M4 large-APK and malformed-DEX edge cases remain untested on the physical device.
+- No claim of Phase 3 Android device PASS is made until the user reports the consolidated test results.
+
+### Consolidated Android 11 / CodeAssist 3.36.1 device checklist
+
+1. Download the latest `main` ZIP and import/update the existing project in CodeAssist 3.36.1. Build and install the debug app on Android 11.
+2. Open the new **APK Signing and Verification** screen. Select a disposable unsigned APK exported by the existing APK resource editor; confirm the original file remains untouched.
+3. Generate an RSA-2048 key with a test alias and owner. Sign the selected APK. Confirm the app reports successful verification and displays certificate subject, issuer, serial, validity and SHA-256 fingerprint.
+4. Export the signed APK to a new SAF document. Reopen it in DroidInspect and verify its signature. Keep the original unsigned APK and confirm its size/hash did not change.
+5. Import a disposable PKCS#12/PFX keystore and a JKS keystore if available. Test the correct alias/password, a wrong password and an unknown alias. Confirm clear errors and no original keystore overwrite.
+6. Make a disposable copy of a signed APK and alter its contents using a file tool. Select the altered copy and verify DroidInspect rejects it.
+7. Use a disposable test package to test installation and update behavior: same signing key should preserve update identity; a different signing key should be rejected for an already-installed package. Do not risk overwriting a production app.
+8. Open a managed DLL fixture in the .NET browser. Confirm IL lines show offset, exact bytes, mnemonic, operand and meaning; verify `03`, `04`, `58`, `2A` for the known add fixture. Confirm MethodDef tokens appear and can be searched.
+9. Exercise an operand-bearing instruction and an unsupported/truncated instruction. Confirm raw bytes/offsets remain accurate and unknown opcodes are not assigned invented meanings.
+10. Repeat existing M5/M7 regression checks: assembly/type/method search, raw IL browsing, constrained edit/export/reopen, and original DLL preservation.
+11. Reopen the main dashboard and run diagnostics. Confirm no new broad storage permission is requested and the signing Activity remains internal.
+
+### Exact stopping point and next action
+
+- Latest code and workflow commit before the README refresh: `754491c612b580a256297122f7aa347f1589ab8d`.
+- All M8–M10 implementation and automated CI tasks are complete for the documented scope.
+- This README update must be committed directly to `main`; its resulting commit will trigger one final documentation-only CI run.
+- After that run passes, the next exact action is for the user to download the latest `main` ZIP, build/install once in CodeAssist 3.36.1, and complete the consolidated checklist above. Report device evidence for any failure; fix directly on `main`, rerun CI, and issue an updated ZIP only if needed.
