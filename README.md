@@ -492,7 +492,7 @@ No milestone is complete solely because code was written or committed. When deli
 
 ## 6. Current Project Status (2026-11-12)
 
-**Current phase: Phase 2 — Code and resource analysis.** M4 DEX structural browsing is implemented and has passed the agreed Android 11 device checks (2026-11-12). M5 bounded .NET IL browsing and M6 selected APK manifest/resource editing are implemented; M6 is device-complete. M7 constrained .NET IL editing is implemented and its cloud CI verification passed in run #101; representative on-device tests for M5 and M7 remain pending. M4 large-APK stress and malformed-DEX device edge cases remain untested. No milestone is declared device-complete based on CI alone.
+**Current phase: Phase 2 — Code and resource analysis.** M4 DEX structural browsing, M5 bounded .NET IL browsing/search/constrained method rename, and M6 selected APK manifest/resource editing have passed their agreed Android 11 device checks. M7 constrained .NET IL byte editing is implemented and cloud CI-verified; its real-device test remains pending. M4 large-APK stress and malformed-DEX device edge cases remain untested. M8–M10 are not implemented. No milestone is declared device-complete based on CI alone.
 
 Phase 1 implementation has passed cloud CI and initial Android 11 device smoke checks. The user chose to proceed without the optional native-PE fixture test. Native/non-managed PE rejection therefore remains an explicit unverified limitation; do not claim full M3 classification coverage. M2 has one successful real APK test, and M3 has one successful CLI-bearing mixed-mode .NET DLL test. Phase 2 may begin while this gap remains documented for later regression coverage.
 
@@ -687,7 +687,7 @@ The automated tests found and corrected real issues:
 - Large and obfuscated real-world APKs still require device performance testing.
 - Java-like decompilation remains deferred; do not describe this milestone build as a Java decompiler.
 
-### M5 — .NET code browsing and IL inspection (implemented; device verification pending)
+### M5 — .NET code browsing, raw IL inspection, and constrained method rename (implemented; core device verification PASS)
 
 **Implemented on `main`:**
 - Added a bounded ECMA-335 method-body reader and raw IL disassembler.
@@ -697,7 +697,7 @@ The automated tests found and corrected real issues:
 - Metadata method rename is deliberately constrained: ASCII identifier, identical UTF-8 byte length, no special-name methods, no shared metadata string, and no strong-name or Authenticode-signed input. The original file is preserved and the exported copy is reopened for verification.
 - The current implementation is **not a C# decompiler**. It displays a bounded subset of raw IL; metadata tokens remain numeric and unsupported opcodes are reported/omitted.
 
-**Host verification already present:** `tools/il-reader-test/DotNetIlReaderSelfTest.java` builds a synthetic managed PE/CLI fixture, checks method ownership and IL decoding, verifies a metadata rename round trip, and confirms the source fixture remains unchanged. The newer IL-body editing assertions are described under M7 below. Representative real managed assembly browsing and editing still require Android device tests.
+**Host verification already present:** `tools/il-reader-test/DotNetIlReaderSelfTest.java` builds a synthetic managed PE/CLI fixture, checks method ownership and IL decoding, verifies a metadata rename round trip, and confirms the source fixture remains unchanged. The newer IL-body editing assertions are described under M7 below. Host verification passed. Android 11 device verification is now complete for the agreed core scope; see the dated M5 device-verification record at the end of this README.
 
 ### M6 — APK manifest and resource analysis/editing (COMPLETE; device PASS)
 
@@ -809,17 +809,16 @@ No new Android runtime dependency or broad storage permission was introduced.
 - **M2:** one real APK inspection passed on-device (`Git MANAGER_1.0.apk`, 51 ZIP entries, 9 DEX files). Broad APK compatibility and full binary manifest decoding were not covered by that test.
 - **M3:** one CLI-bearing mixed-mode DLL inspected on-device. Pure-managed fixture and native/non-managed PE rejection remain untested; preserve this documented gap.
 - **M4: DEVICE PASS FOR AGREED TESTS (2026-11-12).** Nine-DEX APK parsed 9/9 (310 classes, 2,428 members); `AccountActivity` class details displayed 7 fields and 27 methods; class-name search returned 9 matches; method-name search for `access$0` returned 11 matches including `AccountActivity`. This is structural DEX browsing, not Java decompilation. Malformed-DEX device handling and large-APK stress remain untested.
-- **M5:** bounded .NET raw IL browsing, method search, and constrained metadata method rename implemented. No C# source decompilation; representative real assembly device verification remains pending.
+- **M5: DEVICE PASS FOR AGREED CORE TESTS (2026-11-12).** Assembly inspection, raw IL browsing, method search, safe refusal on a strong-name-signed assembly, successful same-length method rename on an unsigned fixture, export/reopen verification, and original-file preservation all passed on Android 11. C# source decompilation remains unimplemented; additional compatibility/edge-case coverage remains open.
 - **M6: COMPLETE / DEVICE PASS (2026-11-12).** The user confirmed on Android 11 that framework attribute names now display readably in manifest XML (for example, `android:name` instead of `android:r0x01010003`). Existing metadata/string editing, unsigned export, and original-APK preservation checks also continue to work. Signing/install and unsupported resource variants remain outside M6.
 - **M7:** constrained same-size, operand-free IL byte editing added, with synthetic round-trip and rejection-path host tests. Cloud CI passed in run #101; real assembly/runtime behavior is unverified.
 - **M8–M10:** not yet implemented.
 
 **Exact next work**
 
-1. Complete M5 representative .NET IL browsing/rename device verification.
-2. Complete M7 constrained IL editing device verification with a disposable test assembly; preserve the documented restrictions and rejection behavior.
-3. M4 is complete for the agreed Android 11 test scope. Optional follow-up coverage remains: malformed DEX handling and large-APK responsiveness.
-4. After Phase 2 device verification is accepted, proceed to Phase 3 (M8–M10), preserving the ten-milestone roadmap.
+1. Complete M7 constrained IL editing device verification with a disposable test assembly; preserve the documented restrictions and rejection behavior.
+2. M4 and M5 are complete for their agreed Android 11 test scopes. Optional M4 follow-up coverage remains: malformed DEX handling and large-APK responsiveness.
+3. After M7 device verification is accepted, proceed to Phase 3 (M8–M10), preserving the ten-milestone roadmap.
 
 **Branch cleanup note**
 
@@ -1015,3 +1014,41 @@ This backlog makes the existing M5 C# decompilation goal explicit. The current M
 
 **Added to the backlog:** 2026-11-12, at the user's request.
 
+
+
+### M5 — Android 11 device verification: PASS (2026-11-12)
+
+The user completed the previously pending M5 device checks in DroidInspect on Android 11 / Infinix X689B, using CodeAssist 3.36.1.
+
+**Assembly inspection and raw IL browsing**
+- Test input: `ISymWrapper.dll`, 71,224 bytes, a C++/CLI mixed-mode assembly.
+- PE signature and .NET CLI header detected; x64 / PE32+; runtime metadata and assembly identity decoded.
+- 52 TypeDef rows, 96 fields, 242 MethodDef rows, and 24 properties indexed.
+- 242 methods indexed; 231 method bodies decoded.
+- Opened `System.Diagnostics.SymbolStore.SymDocument::.ctor`; fat method header and 33 IL bytes displayed with decoded offsets/opcodes/tokens.
+- Method search for `get_URL` found and opened `System.Diagnostics.SymbolStore.SymDocument::get_URL`; IL body displayed.
+- These results verify metadata/IL inspection of this mixed-mode assembly. They do not establish C# source decompilation.
+
+**Signed-assembly safety check**
+- Attempted a same-length rename on the signed `ISymWrapper.dll`.
+- The app refused with: `Strong-name signed assemblies cannot be edited by this writer.`
+- This is the expected safe refusal and passed the protection check.
+
+**Unsigned rename/export test**
+- Added a dedicated unsigned fixture at `test-fixtures/UnsignedRenameFixture.dll`, generated by the repository workflow.
+- Fixture workflow run #? is recorded in the Actions history; verified workflow run ID: `43143660891`.
+- The workflow built the fixture, verified the strong-name-signed flag was unset and signature directory was empty, published the DLL to `main`, and uploaded the `DroidInspect-Unsigned-DotNet-Test-DLL` artifact.
+- Fixture SHA-256: `5cff957a3df17f3011e4a459e22fe8f56a5735b4c1c5da09cc6c5fb5bbb55135`.
+- On-device, the user opened the fixture, selected `UnsignedRenameFixture.RenameTarget::GetValue`, renamed `GetValue` to `GetTotal` (same 8 ASCII bytes), and exported to a new file.
+- The user reopened the exported DLL and confirmed `GetTotal` appeared in the method browser.
+- The user explicitly confirmed that the original input DLL remained unchanged.
+
+**Assessment:** M5's agreed core Android 11 device acceptance tests PASS. The rename is a constrained metadata-string operation, not general .NET refactoring; IL references are not rewritten. C# decompilation remains a separately requested, unimplemented backlog feature. Additional assembly compatibility and edge-case tests are not implied by this result.
+
+**Current stopping point (2026-11-12):**
+- M4: device PASS for agreed scope.
+- M5: device PASS for agreed core scope.
+- M6: device PASS / complete for planned scope.
+- M7: implemented and cloud CI-verified; real-device IL-edit test remains pending.
+- M8–M10: not implemented.
+- Next action: complete M7 device verification. If it passes, begin Phase 3 planning/implementation for M8 while preserving the original ten-milestone roadmap and main-only branch policy.
