@@ -1342,3 +1342,77 @@ The first experiment should therefore target a small `linux-bionic-arm64` Native
 
 **Exact next action:** implement the isolated Native AOT + JNI test APK and its CI build. First prove that the native library compiles and exports its C ABI; then prove the JNI host loads and calls it on Android 11; finally add ILSpy and fixture/reference-pack decompilation. These are explicit sub-gates, not assumptions. Production DroidInspect remains unchanged until all device gates pass.
 
+
+
+---
+
+## 12. M11 isolated ILSpy Native AOT proof — implementation and CI verification (2026-11-13)
+
+**Status: ISOLATED PROTOTYPE BUILDS AND PASSES CLOUD VERIFICATION; ANDROID 11 DEVICE ACCEPTANCE IS PENDING.** This is not production integration and does not mark M11 complete.
+
+### Isolated implementation
+
+All M11 prototype code is separate from the production Android application under `tools/m11-poc/`.
+
+- `engine/DroidInspect.M11.Engine.csproj`: .NET 11 Native AOT shared-library project, targeting `linux-bionic-arm64`.
+- `engine/DecompilationService.cs`: calls the real ILSpy `CSharpDecompiler`, supplies `UniversalAssemblyResolver`, and adds the target assembly directory and explicit reference-assembly directory.
+- `engine/NativeExports.cs`: exports `DroidInspect_DecompileFile` and `DroidInspect_FreeResult` through a narrow C ABI. Exceptions are converted to UTF-8 error text and do not cross the native boundary.
+- `fixture/`: managed .NET 11 DLL fixture with methods, properties, loops, conditionals, exception handling, generic methods, nested generic types, and multiple members.
+- `host-tests/`: managed host-side ILSpy test. It verifies actual reconstructed C# constructs and rejects output that looks like raw IL.
+- `android-host/`: separate Java/XML Android application using SAF, a private working copy, JNI, a background worker, and a source-text display.
+- `android-host/app/src/main/cpp/`: NDK-built JNI shim. It converts UTF-8 result bytes into a Java UTF-8 string and releases the native result buffer.
+- `.github/workflows/m11-nativeaot-poc.yml`: independent CI pipeline for fixture compilation, managed decompilation, Bionic ARM64 Native AOT, native-symbol/ELF verification, JNI compilation, APK build, APK inspection, and artifact upload.
+
+The prototype packages the .NET 11 reference assemblies into the test APK and configures ILSpy to search them. The production DroidInspect application, its dependencies, UI, and package remain unchanged.
+
+### Verified CI results
+
+- Corrected M11 workflow: **M11 ILSpy Native AOT Android Proof**, run **#3**, run ID `43312315948`, conclusion **success**.
+- Run commit: `e10335745a7628dc913fd13ff8c0289e91e5738f`.
+- Managed fixture compilation: PASS.
+- Host-side ILSpy C# reconstruction acceptance test: PASS.
+- Native AOT publish for `linux-bionic-arm64`: PASS.
+- ELF architecture: ELF64 / AArch64; Android Bionic API 24 target.
+- Native exports: `DroidInspect_DecompileFile` and `DroidInspect_FreeResult`: PASS.
+- Engine SONAME: `libdroidinspect_engine.so`: PASS.
+- JNI shared library: ARM64; dynamic dependency resolves through the engine SONAME, not an absolute CI-machine path: PASS.
+- Isolated Java/XML Android APK compilation: PASS.
+- APK ZIP integrity and required ARM64 native libraries: PASS.
+- Offline .NET reference assembly payload: 292 assets; `System.Runtime.dll` presence verified.
+- Artifact upload: PASS.
+
+**Artifact evidence**
+
+- Artifact: `DroidInspect-M11-Android-Proof`, ID `13986682069`.
+- Artifact SHA-256: `631b5cbe0c4b533a1e0991cde4c0c4f28c8b90d8ad034a487d713a41fd9a1af4`.
+- APK size: 20,606,994 bytes.
+- APK SHA-256: `e605d498a25e0f0228245ab1f2047aebc2243f2d9b25597aaa80c7d07db7f121`.
+- Native AOT engine size: 45,943,968 bytes; SHA-256 `b26967415938118f719e19619f0cc1e98e403eced6cc3cb05eff88db00b72543`.
+- Fixture DLL size: 5,632 bytes; SHA-256 `f4f6784d3dcde476e27234bf43f049e77dbfb7fd28d64957407a1c4bcebd426d`.
+- Artifact expiry shown by GitHub: 2026-11-26.
+
+### CI corrections recorded chronologically
+
+1. M11 run #1 failed because the workflow looked for the .NET reference pack under the NuGet cache rather than the installed SDK packs directory. The workflow was corrected to use `$DOTNET_ROOT/packs/Microsoft.NETCore.App.Ref/11.0.0/ref/net11.0`.
+2. M11 run #2 passed compilation and packaging, but a post-build ELF audit found that the JNI library recorded an absolute path to the engine in `DT_NEEDED`. That APK was not accepted for device testing.
+3. The engine now declares `libdroidinspect_engine.so` as its SONAME; CMake declares the imported SONAME; CI checks the engine SONAME and rejects absolute JNI dependency paths.
+4. M11 run #3 passed the complete workflow with those loader checks enabled. The resulting artifact is the current diagnostic test build.
+
+### Production regression status
+
+- The existing production workflow **DroidInspect Android CI**, run **#155**, run ID `43312315970`, completed successfully on commit `e10335745a7628dc913fd13ff8c0289e91e5738f`.
+- Production CI runs #136–#155 completed successfully. These verify the existing production host tests and Android build; they do not prove M11 device compatibility.
+- The M11 test APK is a separate diagnostic application with application ID `com.tanvir.m11poc`. It is not the production package `com.tanvir.droidinspect`.
+
+### Android device acceptance — not yet performed
+
+The cloud build cannot prove that Android 11 loads both shared libraries, that JNI calls the Native AOT export correctly, or that ILSpy completes decompilation on the phone. The next action is to install the isolated M11 proof APK on the Android 11 / ARM64 device, turn off internet access, select the supplied `DecompilerFixture.dll` through the document picker, and verify that the displayed output contains genuine C# declarations and method bodies (including `Calculator.Add`, loops, exception handling, `Echo<T>`, and `Nested<U>`). Then test at least one other real managed DLL/EXE and confirm the selected original file remains unchanged.
+
+Report the exact status/error text or a screenshot if the app fails to load the native engine, crashes, cannot resolve framework types, or returns an error. Do not integrate the engine into production until these device tests pass.
+
+### Exact current stopping point and next action
+
+- Main branch remains the only branch.
+- Prototype and CI implementation are committed directly to `main`; no production source was changed.
+- Latest README refresh is being committed after the successful M11 run #3 and production CI #155 evidence.
+- Next exact action: user installs and tests the isolated M11 proof APK and fixture on Android 11. If successful, continue with broader managed-assembly/reference coverage and performance testing before planning production integration. If it fails, diagnose the device logs and fix the isolated prototype first.
