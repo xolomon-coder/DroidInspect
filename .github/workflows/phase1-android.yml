@@ -38,6 +38,7 @@ jobs:
           mkdir -p /tmp/droidinspect-il-test
           javac -d /tmp/droidinspect-il-test \
             droidinspect/app/src/main/java/com/tanvir/droidinspect/DotNetIlReader.java \
+            droidinspect/app/src/main/java/com/tanvir/droidinspect/IlOpcodeExplainer.java \
             tools/il-reader-test/DotNetIlReaderSelfTest.java
           java -cp /tmp/droidinspect-il-test com.tanvir.droidinspect.DotNetIlReaderSelfTest
 
@@ -66,6 +67,52 @@ jobs:
         working-directory: droidinspect
         run: gradle --no-daemon --stacktrace :app:assembleDebug
 
+      - name: Build unsigned release APK for signing tests
+        working-directory: droidinspect
+        run: gradle --no-daemon --stacktrace :app:assembleRelease
+
+      - name: Sign, verify, and tamper-test APK with Android Build Tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNSIGNED="droidinspect/app/build/outputs/apk/release/app-release-unsigned.apk"
+          SIGNED="/tmp/droidinspect-ci-signed.apk"
+          TAMPERED="/tmp/droidinspect-ci-tampered.apk"
+          KS="/tmp/droidinspect-ci-test.p12"
+          test -s "$UNSIGNED"
+          keytool -genkeypair -noprompt -keystore "$KS" -storetype PKCS12 \
+            -storepass "ci-only-password" -keypass "ci-only-password" \
+            -alias ci-test -keyalg RSA -keysize 2048 -validity 3650 \
+            -dname "CN=DroidInspect CI Test"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign \
+            --ks "$KS" --ks-type PKCS12 --ks-key-alias ci-test \
+            --ks-pass pass:ci-only-password --key-pass pass:ci-only-password \
+            --out "$SIGNED" "$UNSIGNED"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$SIGNED"
+          test -s "$SIGNED"
+          python3 - <<'PY'
+          import zipfile
+          source = "/tmp/droidinspect-ci-signed.apk"
+          target = "/tmp/droidinspect-ci-tampered.apk"
+          with zipfile.ZipFile(source, "r") as src, zipfile.ZipFile(target, "w") as dst:
+              changed = False
+              for item in src.infolist():
+                  data = src.read(item.filename)
+                  if item.filename == "AndroidManifest.xml" and data:
+                      data = bytes([data[0] ^ 1]) + data[1:]
+                      changed = True
+                  dst.writestr(item, data)
+              assert changed, "AndroidManifest.xml missing from test APK"
+          PY
+          if "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify "$TAMPERED"; then
+            echo "ERROR: tampered APK unexpectedly verified"
+            exit 1
+          else
+            echo "PASS: modified APK signature rejected"
+          fi
+          sha256sum "$SIGNED"
+          ls -lh "$SIGNED"
+
       - name: Verify APK output exists
         run: |
           test -s droidinspect/app/build/outputs/apk/debug/app-debug.apk
@@ -74,7 +121,9 @@ jobs:
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: DroidInspect-Phase2-debug
-          path: droidinspect/app/build/outputs/apk/debug/app-debug.apk
+          name: DroidInspect-Phase3-builds
+          path: |
+            droidinspect/app/build/outputs/apk/debug/app-debug.apk
+            /tmp/droidinspect-ci-signed.apk
           if-no-files-found: error
           retention-days: 14
