@@ -43,6 +43,7 @@ public final class DotNetIlReaderSelfTest {
             DotNetIlReader.MethodInfo method = original.methods.get(0);
             require("TestNS.MyType".equals(method.owner), "MethodDef owner resolution");
             require("MethodA".equals(method.name), "original method name");
+            require(method.label().contains("MethodDef token 0x06000001"), "metadata token display");
             require(method.body.contains("ldc.i4.2") && method.body.contains("ret"), "method RVA and IL body decode");
 
             DotNetIlReader.renameMethod(source, 1, "MethodB", renamed);

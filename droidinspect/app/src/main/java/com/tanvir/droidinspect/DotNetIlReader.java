@@ -84,7 +84,7 @@ final class DotNetIlReader {
             this.row=row;this.flags=flags;this.owner=owner;this.name=name;this.rva=rva;this.nameIndex=nameIndex;
             this.codeOffset=codeOffset;this.codeSize=codeSize;this.codeHex=codeHex;this.body=body;
         }
-        String label(){return owner+" :: "+name+"  (RVA 0x"+DotNetIlReader.h8(rva)+")";}
+        String label(){return owner+" :: "+name+"  (MethodDef token 0x"+DotNetIlReader.h8(0x06000000L | row)+", RVA 0x"+DotNetIlReader.h8(rva)+")";}
     }
     static final class Result {
         final List<MethodInfo> methods=new ArrayList<>();
