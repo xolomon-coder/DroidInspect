@@ -1753,3 +1753,32 @@ Updated acceptance gates:
 | Output scrolling and UI responsiveness | PENDING |
 
 The supplied output excerpt only shows the opening using directives; do not claim the five named symbols were individually checked on-device until the full output is inspected or the user confirms them.
+
+
+## 17. M11 — third-party dependency-resolution test (prepared 2026-11-13)
+
+**Purpose:** verify ILSpy C# reconstruction for an independent NuGet assembly whose metadata references separate third-party libraries, then observe behavior when one required dependency is intentionally unavailable.
+
+### Test assembly and packages
+
+- Target: `Serilog.Extensions.Logging` **9.0.2**, using its `.NET Standard 2.0` assembly.
+- Package source: official NuGet package.
+- Target package dependencies include `Microsoft.Extensions.Logging` (>= 9.0.0) and `Serilog` (>= 4.2.0). See the NuGet package metadata.
+- The diagnostic host project uses PackageReference so NuGet restores the complete dependency closure. The APK bundles the target DLL separately from its resolved dependency DLLs.
+- License: Serilog.Extensions.Logging is Apache-2.0.
+
+### New isolated proof-app actions
+
+1. **Test dependencies available** — decompile the target with the bundled .NET 11 reference pack and third-party dependency directory.
+2. **Test with Serilog.dll missing** — repeat with the Serilog dependency deliberately omitted while retaining the other dependencies.
+3. The app reports source/error, elapsed time, Java heap change, and SHA-256 integrity for the working copy. Both tests run locally and do not require network access.
+
+### Host verification
+
+The new `tools/m11-poc/dependency-assembly-tests/` project verifies C# symbols including `SerilogLoggerProvider`, `SerilogLogger`, `SerilogLoggerFactoryExtensions`, `AddSerilog`, and `ILoggerProvider` when dependencies are present. It also records the missing-Serilog outcome without assuming in advance whether ILSpy returns partial C# or a clear error.
+
+### Status
+
+- Implementation committed to `main`; cloud workflow verification and Android device acceptance are pending.
+- No production application code or package integration has been changed.
+- The full dependency test and missing-reference test must both be run offline on the Android device before the corresponding M11 gates can be marked complete.

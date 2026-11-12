@@ -14,7 +14,7 @@ import java.util.concurrent.*;
 public final class MainActivity extends Activity {
     private static final int PICK = 41;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
-    private Button select, bundled;
+    private Button select, bundled, dependencyFull, dependencyMissing;
     private TextView status, source;
 
     @Override public void onCreate(Bundle state) {
@@ -22,10 +22,14 @@ public final class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
         select = findViewById(R.id.selectAssembly);
         bundled = findViewById(R.id.runBundledTest);
+        dependencyFull = findViewById(R.id.runDependencyTest);
+        dependencyMissing = findViewById(R.id.runMissingDependencyTest);
         status = findViewById(R.id.status);
         source = findViewById(R.id.source);
         select.setOnClickListener(v -> pick());
         bundled.setOnClickListener(v -> runBundledTest());
+        dependencyFull.setOnClickListener(v -> runDependencyTest(false));
+        dependencyMissing.setOnClickListener(v -> runDependencyTest(true));
         try {
             Class.forName("com.tanvir.m11poc.NativeBridge");
             status.setText("Native engine loaded. Offline decompilation ready.");
@@ -63,6 +67,43 @@ public final class MainActivity extends Activity {
         });
     }
 
+    private void runDependencyTest(boolean omitSerilog) {
+        setActionsEnabled(false);
+        status.setText(omitSerilog
+                ? "Preparing missing-reference test (Serilog.dll intentionally omitted)..."
+                : "Preparing dependency-resolution test...");
+        worker.execute(() -> {
+            File work = new File(getCacheDir(), omitSerilog ? "m11-dependency-missing" : "m11-dependency-full");
+            try {
+                deleteTree(work);
+                if (!work.mkdirs()) throw new IOException("Cannot create dependency test directory");
+                File input = new File(work, "Serilog.Extensions.Logging.dll");
+                try (InputStream in = getAssets().open("test-assemblies/Serilog.Extensions.Logging.dll");
+                     OutputStream out = new FileOutputStream(input)) {
+                    copy(in, out);
+                }
+                File refs = new File(work, "references");
+                if (!refs.mkdirs()) throw new IOException("Cannot create dependency reference directory");
+                copyAssets("dependency-references", refs);
+                if (omitSerilog) {
+                    File omitted = new File(refs, "Serilog.dll");
+                    if (!omitted.delete()) throw new IOException("Could not remove Serilog.dll for missing-reference test");
+                }
+                String frameworkRefs = new File(getFilesDir(), "reference-assemblies/net11.0").getAbsolutePath();
+                String searchPath = frameworkRefs + File.pathSeparator + refs.getAbsolutePath();
+                String label = omitSerilog
+                        ? "Serilog.Extensions.Logging 9.0.2 — Serilog.dll intentionally missing"
+                        : "Serilog.Extensions.Logging 9.0.2 — third-party dependencies available";
+                runDecompilation(input, label, null, searchPath);
+            } catch (Throwable error) {
+                showError(error);
+            } finally {
+                deleteTree(work);
+                runOnUiThread(() -> setActionsEnabled(true));
+            }
+        });
+    }
+
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
         if (request != PICK || result != RESULT_OK || data == null || data.getData() == null) return;
@@ -89,13 +130,16 @@ public final class MainActivity extends Activity {
     }
 
     private void runDecompilation(File input, String label, Uri originalUri) throws Exception {
-        File references = new File(getFilesDir(), "reference-assemblies/net11.0");
-        copyAssets("reference-assemblies/net11.0", references);
+        String references = new File(getFilesDir(), "reference-assemblies/net11.0").getAbsolutePath();
+        runDecompilation(input, label, originalUri, references);
+    }
+
+    private void runDecompilation(File input, String label, Uri originalUri, String referenceSearchPath) throws Exception {
         String inputHashBefore = sha256(input);
         long inputBytes = input.length();
         long heapBefore = usedJavaHeap();
         long started = System.nanoTime();
-        String result = NativeBridge.decompileFile(input.getAbsolutePath(), references.getAbsolutePath());
+        String result = NativeBridge.decompileFile(input.getAbsolutePath(), referenceSearchPath);
         long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
         long heapAfter = usedJavaHeap();
         String inputHashAfter = sha256(input);
@@ -103,7 +147,7 @@ public final class MainActivity extends Activity {
         boolean unchanged = inputHashBefore.equals(inputHashAfter)
                 && inputHashBefore.equals(originalHashAfter);
         String integrityLabel = originalUri == null
-                ? "Bundled working-copy unchanged" : "Original document unchanged";
+                ? "Working-copy unchanged" : "Original document unchanged";
         String report = String.format(Locale.US,
                 "%s\nInput size: %,d bytes\nDecompilation time: %,d ms\nJava heap change: %,d bytes (native memory excluded)\nSHA-256 before: %s\nSHA-256 after:  %s\n%s: %s",
                 label, inputBytes, elapsedMs, heapAfter - heapBefore,
@@ -151,7 +195,7 @@ public final class MainActivity extends Activity {
         if (destination.isDirectory() && existing != null && existing.length > 0) return;
         if (!destination.exists() && !destination.mkdirs()) throw new IOException("Cannot create reference folder");
         String[] names = getAssets().list(path);
-        if (names == null || names.length == 0) throw new IOException("Reference pack missing from APK");
+        if (names == null || names.length == 0) throw new IOException("Reference pack missing from APK: " + path);
         for (String name : names) {
             String child = path + "/" + name;
             String[] nested = getAssets().list(child);
@@ -169,9 +213,18 @@ public final class MainActivity extends Activity {
         while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
     }
 
+    private void deleteTree(File file) {
+        if (file == null || !file.exists()) return;
+        File[] children = file.listFiles();
+        if (children != null) for (File child : children) deleteTree(child);
+        file.delete();
+    }
+
     private void setActionsEnabled(boolean enabled) {
         select.setEnabled(enabled);
         bundled.setEnabled(enabled);
+        dependencyFull.setEnabled(enabled);
+        dependencyMissing.setEnabled(enabled);
     }
 
     private void showError(Throwable error) {

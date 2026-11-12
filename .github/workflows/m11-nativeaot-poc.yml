@@ -54,6 +54,11 @@ jobs:
         run: |
           REF="$DOTNET_ROOT/packs/Microsoft.NETCore.App.Ref/11.0.0/ref/net11.0"
           dotnet run --project tools/m11-poc/real-assembly-tests/RealAssemblyTests.csproj -c Release -- /tmp/m11-newtonsoft/Newtonsoft.Json.dll "$REF"
+      - name: Run real-world third-party dependency resolution tests
+        run: |
+          set -euo pipefail
+          REF="$DOTNET_ROOT/packs/Microsoft.NETCore.App.Ref/11.0.0/ref/net11.0"
+          dotnet run --project tools/m11-poc/dependency-assembly-tests/DependencyAssemblyTests.csproj -c Release -- "$REF"
       - name: Publish Native AOT Bionic ARM64 engine
         env:
           CC: clang
@@ -88,6 +93,20 @@ jobs:
           cp -a "$REF/." "$MAIN/assets/reference-assemblies/net11.0/"
           cp /tmp/m11-newtonsoft/Newtonsoft.Json.dll "$MAIN/assets/test-assemblies/"
           cp /tmp/m11-newtonsoft/Newtonsoft.Json.dll artifacts/
+          DEP_OUT="tools/m11-poc/dependency-assembly-tests/bin/Release/net11.0"
+          test -s "$DEP_OUT/Serilog.Extensions.Logging.dll"
+          cp "$DEP_OUT/Serilog.Extensions.Logging.dll" "$MAIN/assets/test-assemblies/"
+          cp "$DEP_OUT/Serilog.Extensions.Logging.dll" artifacts/
+          mkdir -p "$MAIN/assets/dependency-references"
+          for dll in "$DEP_OUT"/*.dll; do
+            name="$(basename "$dll")"
+            case "$name" in
+              Serilog.Extensions.Logging.dll|DependencyAssemblyTests.dll|ICSharpCode.Decompiler.dll|System.*|System.dll|mscorlib.dll|netstandard.dll) continue ;;
+            esac
+            cp "$dll" "$MAIN/assets/dependency-references/"
+          done
+          test -s "$MAIN/assets/dependency-references/Serilog.dll"
+          test -s "$MAIN/assets/dependency-references/Microsoft.Extensions.Logging.Abstractions.dll"
           cp tools/m11-poc/fixture/bin/Release/net11.0/DecompilerFixture.dll artifacts/
       - uses: gradle/actions/setup-gradle@v4
         with:
@@ -110,6 +129,9 @@ jobs:
           grep -q 'lib/arm64-v8a/libdroidinspect_jni.so' /tmp/m11-apk-list.txt
           grep -q 'assets/reference-assemblies/net11.0/System.Runtime.dll' /tmp/m11-apk-list.txt
           grep -q 'assets/test-assemblies/Newtonsoft.Json.dll' /tmp/m11-apk-list.txt
+          grep -q 'assets/test-assemblies/Serilog.Extensions.Logging.dll' /tmp/m11-apk-list.txt
+          grep -q 'assets/dependency-references/Serilog.dll' /tmp/m11-apk-list.txt
+          grep -q 'assets/dependency-references/Microsoft.Extensions.Logging.Abstractions.dll' /tmp/m11-apk-list.txt
           mkdir -p artifacts
           cp "$APK" artifacts/DroidInspect-M11-Android-Proof.apk
           sha256sum artifacts/*

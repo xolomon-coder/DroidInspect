@@ -11,7 +11,11 @@ public static class DecompilationService
   var resolver = new UniversalAssemblyResolver(path, false, null, null, System.Reflection.PortableExecutable.PEStreamOptions.PrefetchMetadata);
   var directory = Path.GetDirectoryName(path);
   if (!string.IsNullOrEmpty(directory)) resolver.AddSearchDirectory(directory);
-  if (!string.IsNullOrWhiteSpace(referenceDirectory) && Directory.Exists(referenceDirectory)) resolver.AddSearchDirectory(referenceDirectory);
+  if (!string.IsNullOrWhiteSpace(referenceDirectory))
+  {
+   foreach (var searchDirectory in referenceDirectory.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+    if (Directory.Exists(searchDirectory)) resolver.AddSearchDirectory(searchDirectory);
+  }
   return new CSharpDecompiler(path, resolver, settings).DecompileWholeModuleAsString();
  }
 }
