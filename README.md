@@ -979,3 +979,39 @@ The user completed the remaining DEX browser interaction checks on the same `Git
 - Downloaded artifact ZIP integrity: PASS (`ZipFile.testzip()` returned no error); contains `app-debug.apk` (3,591,301 bytes), SHA-256 `d78c41c48ac74855ab386e8fc130c9c48ab56dc62205bc3ee17993bb3884f753`.
 - Run URL: https://github.com/xolomon-coder/DroidInspect/actions/runs/43138634224
 - This artifact is for cloud verification only. The user's normal workflow remains downloading the latest `main` ZIP and building in CodeAssist.
+
+---
+
+## Explicit Feature Backlog — C# Decompilation
+
+**Status: REQUESTED / NOT IMPLEMENTED**
+
+The user explicitly wants a future **View C# / Decompile** capability in DroidInspect.
+
+### Goal
+- Add a **View C#** or **Decompile** action for supported .NET assemblies.
+- Reconstruct readable C# source from managed .NET method bodies, rather than showing only raw ECMA-335 IL.
+- Present decompiled output by namespace, type, and method, with navigation between related members where supported.
+- Retain the existing raw IL view as a separate inspection mode; decompiled C# must not replace or be confused with raw IL.
+
+### Feasibility and implementation requirements
+- First evaluate a practical Android-compatible decompiler engine/runtime integration for this Java + native XML Android app.
+- Investigate ILSpy or another suitable decompiler, including runtime/interop requirements, Android 11 compatibility, licensing, APK size, memory use, and performance on a phone.
+- Prototype with representative pure-managed assemblies before selecting an engine.
+- Explicitly detect and report unsupported cases, including mixed-mode C++/CLI assemblies and methods without managed IL bodies. Do not promise that every DLL/EXE can be decompiled.
+- Never label raw IL or illustrative pseudocode as reconstructed C#.
+- Preserve the original assembly; decompilation is read-only and must not modify the input file.
+
+### Relationship to the existing roadmap
+This backlog makes the existing M5 C# decompilation goal explicit. The current M5 implementation provides bounded metadata browsing, raw IL viewing, method search, and constrained metadata rename; **it does not currently provide C# decompilation**. The user's successful initial inspection of `ISymWrapper.dll` verifies metadata inspection only, not C# decompilation. Track this capability as outstanding until an Android-compatible engine is selected, implemented, and verified on-device with a supported pure-managed test assembly.
+
+### Verification criteria
+1. A supported managed DLL/EXE can be opened without modifying the original.
+2. A selected type/method can be displayed as readable reconstructed C#.
+3. Decompiled output is distinguishable from raw IL and includes clear unsupported-method diagnostics.
+4. Search/navigation works across decompiled types and members where supported.
+5. A representative pure-managed assembly is tested on the Android device; mixed-mode and no-IL methods are tested for safe, explicit handling.
+6. Engine license, dependency footprint, Android compatibility, memory use, and known limitations are documented.
+
+**Added to the backlog:** 2026-11-12, at the user's request.
+
