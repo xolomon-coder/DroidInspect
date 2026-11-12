@@ -1,0 +1,6 @@
+#include <jni.h>
+#include <cstring>
+extern "C" void* DroidInspect_DecompileFile(const char*,const char*);
+extern "C" void DroidInspect_FreeResult(void*);
+static jstring toJava(JNIEnv* e,const char* s){if(!s)s="M11 DECOMPILATION ERROR: No result";jsize n=(jsize)std::strlen(s);jbyteArray a=e->NewByteArray(n);if(!a)return nullptr;e->SetByteArrayRegion(a,0,n,(const jbyte*)s);jclass c=e->FindClass("java/lang/String");jmethodID m=e->GetMethodID(c,"<init>","([BLjava/lang/String;)V");jstring cs=e->NewStringUTF("UTF-8");jstring out=(jstring)e->NewObject(c,m,a,cs);e->DeleteLocalRef(cs);e->DeleteLocalRef(c);e->DeleteLocalRef(a);return out;}
+extern "C" JNIEXPORT jstring JNICALL Java_com_tanvir_m11poc_NativeBridge_decompileFile(JNIEnv* e,jclass,jstring p,jstring r){if(!p||!r)return toJava(e,"M11 DECOMPILATION ERROR: Missing path");const char* ps=e->GetStringUTFChars(p,nullptr);const char* rs=e->GetStringUTFChars(r,nullptr);if(!ps||!rs){if(ps)e->ReleaseStringUTFChars(p,ps);if(rs)e->ReleaseStringUTFChars(r,rs);return toJava(e,"M11 DECOMPILATION ERROR: Invalid path");}void* out=DroidInspect_DecompileFile(ps,rs);e->ReleaseStringUTFChars(p,ps);e->ReleaseStringUTFChars(r,rs);jstring text=toJava(e,(const char*)out);if(out)DroidInspect_FreeResult(out);return text;}
