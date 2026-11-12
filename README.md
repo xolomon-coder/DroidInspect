@@ -1796,3 +1796,16 @@ The first dependency-test workflow run verified:
 The M11 workflow then failed in APK asset preparation because its shell validation incorrectly expected `Microsoft.Extensions.Logging.Abstractions.dll`. The actual resolved NuGet output contains `Microsoft.Extensions.Logging.dll`, `Microsoft.Extensions.DependencyInjection.dll`, and `Serilog.dll`; the host log confirms these names. The workflow now validates the actual dependency filenames. This is a packaging assertion correction; the decompiler and host dependency test had already passed.
 
 The corrected M11 workflow must complete before a new APK can be distributed for Android device acceptance.
+
+
+### M11 dependency APK verification correction — follow-up (2026-11-13)
+
+The corrected workflow run #16 (`43329300463`) still failed in **Verify APK payload**, after the APK had compiled successfully. Inspection of the exact job log showed that the APK contained these dependency assets:
+
+- `assets/dependency-references/Serilog.dll`
+- `assets/dependency-references/Microsoft.Extensions.Logging.dll`
+- `assets/dependency-references/Microsoft.Extensions.DependencyInjection.dll`
+
+The preparation step had already been corrected to require the latter two files, but the later APK-content validation step still searched for the obsolete `Microsoft.Extensions.Logging.Abstractions.dll` path. That stale grep caused the failure. This is a CI packaging-validation mismatch; it does not indicate a Native AOT, JNI, APK compilation, or ILSpy decompilation failure.
+
+The workflow validation now checks the two dependency DLLs that are actually packaged. The production Android regression workflow #178 (run ID `43329300453`) completed successfully on the same commit. A fresh M11 run is required to verify this correction; no new APK is accepted until it passes all payload checks and artifact upload.
