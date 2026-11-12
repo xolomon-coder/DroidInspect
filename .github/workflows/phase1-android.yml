@@ -91,6 +91,8 @@ jobs:
             --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
             --out "$SIGNED" "$UNSIGNED"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$SIGNED"
+          jarsigner -verify -verbose -certs "$SIGNED" > /tmp/droidinspect-v1-verify.txt
+          grep -iq "jar verified" /tmp/droidinspect-v1-verify.txt
           test -s "$SIGNED"
           python3 - <<'PY'
           import zipfile
