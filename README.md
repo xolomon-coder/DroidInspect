@@ -1416,3 +1416,18 @@ Report the exact status/error text or a screenshot if the app fails to load the 
 - Prototype and CI implementation are committed directly to `main`; no production source was changed.
 - Documentation commit: `7afaa99ae403055528293dad2121dced5c2d62af`. The M11 implementation/CI evidence is from code commit `e10335745a7628dc913fd13ff8c0289e91e5738f`; README is now updated after M11 run #3 and production CI #155 passed.
 - Next exact action: user installs and tests the isolated M11 proof APK and fixture on Android 11. If successful, continue with broader managed-assembly/reference coverage and performance testing before planning production integration. If it fails, diagnose the device logs and fix the isolated prototype first.
+
+
+### Latest M11 repeat run on main
+
+After the loader fix, the workflow was run again against commit `2cea5b5c4c9d47cfa2f5bacff1d4dd7e9722bf0e`.
+
+- M11 workflow run **#4**, run ID `43312342183`: **success**.
+- Artifact ID: `13985553840`; size 26,839,252 bytes; artifact SHA-256 `05657b6ad3ff5ab269c121b1a7cc7d910a09b89c5c38f041c6a8a6c0827d9ab1`.
+- APK SHA-256: `e9760c51ae5c1bff937e716d344c11a2839ce0b266b6a709a37fbc04c1afd219`.
+- Fixture DLL SHA-256: `5411a57b4121a2e95e809be9da179308a8da8979d94c8f7357c005f140b9ad88`.
+- Engine SHA-256 remains `b26967415938118f719e19619f0cc1e98e403eced6cc3cb05eff88db00b72543`.
+- The APK and ELF dependency audit was repeated: engine SONAME is `libdroidinspect_engine.so`; JNI `DT_NEEDED` refers to that SONAME and Android system libraries only; no absolute build-machine dependency path is present.
+- The APK archive integrity test passed again.
+
+The latest production regression run after the README progress update, **DroidInspect Android CI #157** (run ID `43312849428`), also completed successfully. This is cloud build/regression evidence only; Android 11 device acceptance remains pending.
