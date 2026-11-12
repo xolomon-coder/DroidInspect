@@ -105,7 +105,7 @@ public final class MainActivity extends Activity {
         String integrityLabel = originalUri == null
                 ? "Bundled working-copy unchanged" : "Original document unchanged";
         String report = String.format(Locale.US,
-                "%s\\nInput size: %,d bytes\\nDecompilation time: %,d ms\\nJava heap change: %,d bytes (native memory excluded)\\nSHA-256 before: %s\\nSHA-256 after:  %s\\n%s: %s",
+                "%s\nInput size: %,d bytes\nDecompilation time: %,d ms\nJava heap change: %,d bytes (native memory excluded)\nSHA-256 before: %s\nSHA-256 after:  %s\n%s: %s",
                 label, inputBytes, elapsedMs, heapAfter - heapBefore,
                 inputHashBefore, originalHashAfter, integrityLabel, unchanged ? "PASS" : "FAIL");
         runOnUiThread(() -> {
