@@ -195,8 +195,8 @@ public final class ApkSigningActivity extends Activity {
                 KeyGenParameterSpec spec = new KeyGenParameterSpec.Builder(a,
                         KeyProperties.PURPOSE_SIGN | KeyProperties.PURPOSE_VERIFY)
                         .setKeySize(2048)
-                        .setDigests(KeyProperties.DIGEST_SHA256)
-                        .setSignaturePaddings(KeyProperties.SIGNATURE_PADDING_RSA_PKCS1)
+                        .setDigests(KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA512)
+                        .setSignaturePaddings(KeyProperties.SIGNATURE_PADDING_RSA_PKCS1, KeyProperties.SIGNATURE_PADDING_RSA_PSS)
                         .setCertificateSubject(new X500Principal("CN=" + o.replace(",", "\\,").replace("+", "\\+")))
                         .setCertificateSerialNumber(BigInteger.valueOf(System.currentTimeMillis()))
                         .setCertificateNotBefore(start.getTime())
