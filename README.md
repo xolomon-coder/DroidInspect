@@ -1734,3 +1734,22 @@ Confirm that Wi-Fi and mobile data were both disabled during this test, and insp
 Then continue with the next independently obtained managed assembly that has third-party library references. Do not integrate M11 into the production package yet.
 
 This device result supersedes the previous statement in section 15 that the Newtonsoft.Json Android test was pending. It does not supersede any uncompleted acceptance gates above.
+
+
+### Offline-condition confirmation (2026-11-13)
+
+The user explicitly confirmed that both Wi-Fi and mobile data were disabled during the Newtonsoft.Json 13.0.3 Android device test. Therefore the Newtonsoft.Json offline Android decompilation gate is **PASS**, not pending.
+
+Updated acceptance gates:
+
+| Gate | Result |
+|---|---|
+| Newtonsoft.Json Android C# source returned | PASS |
+| Newtonsoft.Json Android offline operation | PASS — user confirmed Wi-Fi and mobile data OFF |
+| Bundled working-copy SHA-256 unchanged | PASS |
+| Android device timing | 19,042 ms |
+| Java heap change | 3,484,336 bytes; native memory excluded |
+| All five expected symbols confirmed in full output | PENDING |
+| Output scrolling and UI responsiveness | PENDING |
+
+The supplied output excerpt only shows the opening using directives; do not claim the five named symbols were individually checked on-device until the full output is inspected or the user confirms them.
