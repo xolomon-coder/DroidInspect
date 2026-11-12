@@ -794,13 +794,13 @@ No new Android runtime dependency or broad storage permission was introduced.
 
 - Repository: https://github.com/xolomon-coder/DroidInspect
 - Branch policy: `main` only. All new source, CI, and documentation commits must target `main` directly. Do not create another branch.
-- Latest code/CI workflow update before this README refresh: `3f31daf7f8e590f3bae427ae6d892e7bc4dee4dd`; this changed the Phase 2 artifact label. The README refresh itself will become the next `main` commit; always inspect actual latest HEAD before continuing.
+- Latest source/documentation commit: `a1adbe9f675a8985ce75de8b83514f4597d2ff21` (M4 Android 11 device verification recorded).
 - Android package: `com.tanvir.droidinspect`; module: `droidinspect/app`.
 - Environment recorded for the current project: Android 11/API 30; CodeAssist 3.36.1; Java + native XML.
 - Existing build settings: AGP 8.13.0, Gradle 8.13, compileSdk 36, minSdk 26, targetSdk 36, Java 8 source/target.
 - Added Android dependency: ARSCLib 1.4.0 (Apache-2.0).
 - Current CI workflow: `.github/workflows/phase1-android.yml`; it runs the .NET metadata test, .NET IL test, DEX parser test, Android debug compilation, APK existence check, and publishes `DroidInspect-Phase2-debug`.
-- The latest M7 source commits add bounded IL-body editing (4 KB editable-body cap) and its host test. The push workflow is configured to run on `main`, but the connected GitHub Actions tools in this session do not expose a list-workflow-runs operation; the commit status endpoint currently returns no status contexts. Therefore the latest M7 CI result and artifact are **not yet verified**. Do not claim a pass until the run, every job, and artifact are inspected.
+- M7 source includes bounded IL-body editing (4 KB editable-body cap) and its host test. The latest completed M7 source CI run #101 (`43136882549`) passed; run #102 (`43138563847`) is currently building the M4 documentation commit and must be inspected before this checkpoint is finalized.
 - Normal user delivery remains the latest `main` ZIP: https://github.com/xolomon-coder/DroidInspect/archive/refs/heads/main.zip. CI APK artifacts are verification records, not the default installation route.
 
 **Milestone state**
