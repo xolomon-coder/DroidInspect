@@ -11,7 +11,7 @@ permissions:
   contents: read
 jobs:
   build-and-verify:
-    name: Fixture, ILSpy host test, Native AOT, JNI and APK
+    name: Fixture, real assembly, ILSpy, Native AOT, JNI and APK
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
@@ -36,11 +36,24 @@ jobs:
           echo "$ANDROID_HOME/ndk/30.0.16248370/toolchains/llvm/prebuilt/linux-x86_64/bin" >> "$GITHUB_PATH"
       - name: Build managed fixture
         run: dotnet build tools/m11-poc/fixture/DecompilerFixture.csproj -c Release
-      - name: Run managed ILSpy C# output test
+      - name: Run managed ILSpy C# fixture test
         run: |
           REF="$DOTNET_ROOT/packs/Microsoft.NETCore.App.Ref/11.0.0/ref/net11.0"
           test -f "$REF/System.Runtime.dll"
           dotnet run --project tools/m11-poc/host-tests/HostTests.csproj -c Release -- "$GITHUB_WORKSPACE/tools/m11-poc/fixture/bin/Release/net11.0/DecompilerFixture.dll" "$REF"
+      - name: Download independent real-world managed assembly
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/m11-newtonsoft
+          curl --fail --location --retry 3 --output /tmp/m11-newtonsoft/newtonsoft.json.13.0.3.nupkg https://api.nuget.org/v3-flatcontainer/newtonsoft.json/13.0.3/newtonsoft.json.13.0.3.nupkg
+          unzip -p /tmp/m11-newtonsoft/newtonsoft.json.13.0.3.nupkg lib/netstandard2.0/Newtonsoft.Json.dll > /tmp/m11-newtonsoft/Newtonsoft.Json.dll
+          test -s /tmp/m11-newtonsoft/Newtonsoft.Json.dll
+          file /tmp/m11-newtonsoft/Newtonsoft.Json.dll
+          sha256sum /tmp/m11-newtonsoft/Newtonsoft.Json.dll
+      - name: Run ILSpy real-world assembly reconstruction test
+        run: |
+          REF="$DOTNET_ROOT/packs/Microsoft.NETCore.App.Ref/11.0.0/ref/net11.0"
+          dotnet run --project tools/m11-poc/host-tests/HostTests.csproj -c Release -- /tmp/m11-newtonsoft/Newtonsoft.Json.dll "$REF"
       - name: Publish Native AOT Bionic ARM64 engine
         env:
           CC: clang
@@ -64,15 +77,17 @@ jobs:
           grep -Fq 'Library soname: [libdroidinspect_engine.so]' /tmp/m11-engine-needed.txt
           mkdir -p artifacts
           cp "$LIB" artifacts/libdroidinspect_engine.so
-      - name: Prepare ARM64 engine and offline .NET reference assemblies
+      - name: Prepare ARM64 engine, offline references and real test assembly
         run: |
           set -euo pipefail
           MAIN="tools/m11-poc/android-host/app/src/main"
-          mkdir -p "$MAIN/jniLibs/arm64-v8a" "$MAIN/assets/reference-assemblies/net11.0"
+          mkdir -p "$MAIN/jniLibs/arm64-v8a" "$MAIN/assets/reference-assemblies/net11.0" "$MAIN/assets/test-assemblies"
           cp artifacts/libdroidinspect_engine.so "$MAIN/jniLibs/arm64-v8a/"
           REF="$DOTNET_ROOT/packs/Microsoft.NETCore.App.Ref/11.0.0/ref/net11.0"
           test -d "$REF"
           cp -a "$REF/." "$MAIN/assets/reference-assemblies/net11.0/"
+          cp /tmp/m11-newtonsoft/Newtonsoft.Json.dll "$MAIN/assets/test-assemblies/"
+          cp /tmp/m11-newtonsoft/Newtonsoft.Json.dll artifacts/
           cp tools/m11-poc/fixture/bin/Release/net11.0/DecompilerFixture.dll artifacts/
       - uses: gradle/actions/setup-gradle@v4
         with:
@@ -90,10 +105,11 @@ jobs:
           unzip -p "$APK" lib/arm64-v8a/libdroidinspect_jni.so > /tmp/m11-jni.so
           readelf -d /tmp/m11-jni.so | tee /tmp/m11-jni-needed.txt
           grep -Fq 'Shared library: [libdroidinspect_engine.so]' /tmp/m11-jni-needed.txt
-          if grep -Eq 'Shared library: \[/' /tmp/m11-jni-needed.txt; then echo 'ERROR: JNI contains an absolute DT_NEEDED path'; exit 1; fi
+          if grep -Eq 'Shared library: [/' /tmp/m11-jni-needed.txt; then echo 'ERROR: JNI contains an absolute DT_NEEDED path'; exit 1; fi
           grep -q 'lib/arm64-v8a/libdroidinspect_engine.so' /tmp/m11-apk-list.txt
           grep -q 'lib/arm64-v8a/libdroidinspect_jni.so' /tmp/m11-apk-list.txt
           grep -q 'assets/reference-assemblies/net11.0/System.Runtime.dll' /tmp/m11-apk-list.txt
+          grep -q 'assets/test-assemblies/Newtonsoft.Json.dll' /tmp/m11-apk-list.txt
           mkdir -p artifacts
           cp "$APK" artifacts/DroidInspect-M11-Android-Proof.apk
           sha256sum artifacts/*
@@ -105,6 +121,7 @@ jobs:
             artifacts/DroidInspect-M11-Android-Proof.apk
             artifacts/libdroidinspect_engine.so
             artifacts/DecompilerFixture.dll
+            artifacts/Newtonsoft.Json.dll
             /tmp/m11-elf-header.txt
             /tmp/m11-exports.txt
             /tmp/m11-engine-needed.txt
