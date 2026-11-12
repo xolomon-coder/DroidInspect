@@ -1,6 +1,9 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="12dp">
-<TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="M11 — Real C# Decompilation Proof" android:textSize="20sp" android:textStyle="bold" android:paddingBottom="8dp"/>
-<Button android:id="@+id/selectAssembly" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Select managed DLL / EXE"/>
-<TextView android:id="@+id/status" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Offline ILSpy Native AOT ARM64 engine" android:padding="8dp"/>
-<ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"><TextView android:id="@+id/source" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Select a managed assembly." android:textIsSelectable="true" android:typeface="monospace" android:textSize="12sp" android:padding="8dp"/></ScrollView>
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="M11 — Real C# Decompilation Proof" android:textSize="20sp" android:textStyle="bold" android:paddingBottom="8dp"/>
+    <Button android:id="@+id/runBundledTest" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Test bundled Newtonsoft.Json 13.0.3"/>
+    <Button android:id="@+id/selectAssembly" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Select another managed DLL / EXE"/>
+    <TextView android:id="@+id/status" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Offline ILSpy Native AOT ARM64 engine" android:padding="8dp"/>
+    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+        <TextView android:id="@+id/source" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Run the bundled real-world test or select a managed assembly." android:textIsSelectable="true" android:typeface="monospace" android:textSize="12sp" android:padding="8dp"/>
+    </ScrollView>
 </LinearLayout>
