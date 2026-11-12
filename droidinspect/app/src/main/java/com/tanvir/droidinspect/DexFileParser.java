@@ -106,6 +106,9 @@ public final class DexFileParser {
                         parseDex(temp, entry.getName(), result);
                         result.dexReports.add(entry.getName() + ": PASS — " + (result.classes.size() - before) + " classes.");
                     } catch (Exception ex) {
+                        // Parsing is transactional per DEX: do not expose partial classes or member counts.
+                        while (result.classes.size() > before) result.classes.remove(result.classes.size() - 1);
+                        result.totalMembers = membersBefore;
                         result.dexReports.add(entry.getName() + ": REJECTED — " + safeMessage(ex));
                     }
                 } finally {
@@ -205,6 +208,8 @@ public final class DexFileParser {
             throw new IOException("Unreasonable class_data member count.");
         int fieldIndex = 0;
         for (int i = 0; i < staticFields + instanceFields; i++) {
+            // DEX field_idx_diff is relative to the start of each encoded field list.
+            if (i == staticFields) fieldIndex = 0;
             fieldIndex += uleb(raf, c, length);
             int flags = uleb(raf, c, length);
             if (fieldIndex < 0 || fieldIndex >= fieldCount) throw new IOException("Field index out of bounds.");
@@ -223,6 +228,8 @@ public final class DexFileParser {
         }
         int methodIndex = 0;
         for (int i = 0; i < directMethods + virtualMethods; i++) {
+            // DEX method_idx_diff is relative to the start of each encoded method list.
+            if (i == directMethods) methodIndex = 0;
             methodIndex += uleb(raf, c, length);
             int flags = uleb(raf, c, length);
             uleb(raf, c, length); // code_off; instructions are not decompiled in M4 structural mode.
