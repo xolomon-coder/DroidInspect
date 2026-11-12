@@ -335,7 +335,7 @@ public final class ApkSigningActivity extends Activity {
         b.append("Signer certificates: ").append(r.getSignerCertificates().size()).append('\n');
         for (int i = 0; i < r.getSignerCertificates().size(); i++) {
             X509Certificate c = r.getSignerCertificates().get(i);
-            b.append("\nSIGNER ").append(i + 1).append('\nSubject: ").append(c.getSubjectX500Principal())
+            b.append("\nSIGNER ").append(i + 1).append("\nSubject: ").append(c.getSubjectX500Principal())
                     .append("\nIssuer: ").append(c.getIssuerX500Principal())
                     .append("\nSerial: ").append(c.getSerialNumber().toString(16))
                     .append("\nValid until: ").append(c.getNotAfter())
