@@ -1023,6 +1023,41 @@ This backlog makes the existing M5 C# decompilation goal explicit. The current M
 
 
 
+
+## Explicit Feature Backlog — IL Instruction Explanations
+
+**Status: REQUESTED / NOT IMPLEMENTED**
+
+The user requested a human-readable explanation alongside each decoded .NET IL instruction in the IL browser.
+
+### Goal
+- Present the raw instruction bytes (hex), decoded IL opcode/mnemonic, and a concise human-readable meaning together.
+- Example display:
+
+| Hex byte | IL instruction | Meaning |
+|---|---|---|
+| `03` | `ldarg.1` | Load the first argument |
+| `04` | `ldarg.2` | Load the second argument |
+| `58` | `add` | Add the two values |
+| `59` | `sub` | Subtract the second value from the first |
+| `2A` | `ret` | Return from the method |
+
+### Implementation requirements
+- Keep the raw hex bytes and opcode mnemonic visible; the explanation is an additional aid, not a replacement.
+- Use a reliable opcode-description table/reference covering supported ECMA-335 IL opcodes.
+- Explain operand meaning and stack behavior where it is useful and accurate; do not invent descriptions for unknown or unsupported opcodes.
+- Preserve instruction offsets and existing raw IL browsing/editing behavior.
+- Keep the presentation readable on a phone screen; consider a compact per-instruction detail or expandable explanation if a three-column table is too wide.
+- Clearly distinguish a simple opcode description from full semantic analysis or reconstructed C#.
+
+### Verification criteria
+1. Known opcodes such as `ldarg.1`, `ldarg.2`, `add`, `sub`, and `ret` show correct explanations.
+2. Hex bytes, offsets, opcode names, and explanations remain aligned to the same instruction.
+3. Operand-bearing, prefixed, and unsupported instructions are described safely and accurately, or explicitly marked when no explanation is available.
+4. The IL browser remains usable on the Android phone and existing browsing/editing behavior is not regressed.
+
+**Added to the backlog:** 2026-11-12, at the user's request.
+
 ### M5 — Android 11 device verification: PASS (2026-11-12)
 
 The user completed the previously pending M5 device checks in DroidInspect on Android 11 / Infinix X689B, using CodeAssist 3.36.1.
