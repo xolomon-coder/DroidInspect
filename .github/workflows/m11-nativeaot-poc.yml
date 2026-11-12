@@ -1,4 +1,5 @@
 name: M11 ILSpy Native AOT Android Proof
+# The JNI loader SONAME is checked to prevent absolute DT_NEEDED paths.
 on:
   push:
     branches: [ main ]
