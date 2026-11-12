@@ -492,7 +492,7 @@ No milestone is complete solely because code was written or committed. When deli
 
 ## 6. Current Project Status (2026-11-12)
 
-**Current phase: Phase 2 — Code and resource analysis.** M4 DEX structural browsing, M5 bounded .NET IL browsing/search/constrained method rename, and M6 selected APK manifest/resource editing have passed their agreed Android 11 device checks. M7 constrained .NET IL byte editing is implemented and cloud CI-verified; its real-device test remains pending. M4 large-APK stress and malformed-DEX device edge cases remain untested. M8–M10 are not implemented. No milestone is declared device-complete based on CI alone.
+**Current phase: Phase 3 — Output, advanced tools, and release.** M4, M5, M6, and M7 have passed their agreed Android 11 device verification scopes. M7's constrained IL byte-edit test confirmed that the exported copy reopens with `sub` (`59`) while the original fixture still reopens with `add` (`58`). M4 large-APK stress and malformed-DEX device edge cases remain untested. M8–M10 are not implemented. Device completion is based on the user's reported on-device evidence, not CI alone.
 
 Phase 1 implementation has passed cloud CI and initial Android 11 device smoke checks. The user chose to proceed without the optional native-PE fixture test. Native/non-managed PE rejection therefore remains an explicit unverified limitation; do not claim full M3 classification coverage. M2 has one successful real APK test, and M3 has one successful CLI-bearing mixed-mode .NET DLL test. Phase 2 may begin while this gap remains documented for later regression coverage.
 
@@ -713,26 +713,23 @@ The automated tests found and corrected real issues:
 
 **Verification gap:** this feature has been compiled in cloud CI in the preceding development batch, but it has not yet been functionally verified on the Android 11 phone with a real APK. The output-signing/install cycle is also still a user-device test.
 
-### M7 — .NET assembly IL editing (bounded implementation added; host/CI PASS; Android device verification pending)
+### M7 — .NET assembly IL editing (COMPLETE; Android 11 device PASS, 2026-11-12)
 
-**Implemented in the current continuation batch:**
-- Added a limited IL-byte editor to the existing .NET method browser.
-- It accepts only a replacement byte sequence with exactly the original method-body length.
-- Both the original and replacement bodies must consist entirely of supported, single-byte, operand-free IL instructions. Branches, operands, metadata tokens, unsupported opcodes, and methods with extra data sections such as exception-handler tables are rejected.
-- Strong-name-signed and Authenticode-signed PE files are rejected.
-- The writer creates a separate copy, updates the PE checksum field, reopens the output with the existing reader, and verifies that the exact replacement IL bytes are present. Editable method bodies are capped at 4 KB to avoid retaining large hex strings in phone memory. The source file remains unchanged.
-- The UI exposes **Edit IL / Export** alongside the existing constrained method metadata rename/export action.
+**Implemented and cloud-verified on `main`:**
+- Bounded same-size method-body byte editor.
+- Supports only known single-byte, operand-free IL opcodes; rejects branches, operands, metadata tokens, unsupported opcodes, extra method data sections, oversized edits, and signed assemblies.
+- Exports to a separate file, reopens it, and verifies the replacement bytes. The original is preserved.
+- This is not a general IL assembler/verifier; structural reopening does not prove runtime semantics or execution correctness.
 
-**Host regression additions:** the synthetic managed PE fixture changes `1819582A` to `1919592A`, verifies the reopened IL disassembly, verifies that the source still contains the original bytes, and rejects a changed body length and an operand-bearing replacement.
+**Android 11 real-device verification — PASS (2026-11-12):**
+- Input: original `test-fixtures/UnsignedRenameFixture.dll`, an unsigned 4,096-byte managed assembly fixture.
+- Selected `UnsignedRenameFixture.RenameTarget::AddValues`; original method body was four bytes: `03 04 58 2A`.
+- Changed only `58` (`add`) to `59` (`sub`), preserving the four-byte body length, and exported as a new file named `m7 DroidInspect-edited-assembly.dll`.
+- Reopened the exported DLL in the .NET IL Browser. It indexed all 4 MethodDef rows and decoded all 4 method bodies. `AddValues` displayed `ldarg.1`, `ldarg.2`, `sub`, `ret`.
+- Reopened the original DLL separately. `AddValues` still displayed `ldarg.1`, `ldarg.2`, `add`, `ret`.
+- The two independent reopen checks establish that the edited copy contains the requested opcode change and the original remains unchanged.
 
-**Important limit:** this is a deliberately narrow byte-level editor, not a general IL assembler or verifier. A structurally reopened file is not proof that the modified method is semantically valid or will execute correctly. Runtime behavior must be tested with a suitable managed assembly/runtime outside the Android app's current scope.
-
-**Android 11 device test procedure (fixture already published):**
-- Use `test-fixtures/UnsignedRenameFixture.dll` from the latest `main` ZIP (or the same original fixture used for M5). The fixture is unsigned and contains `RenameTarget.AddValues(int left, int right)`.
-- Open the .NET IL browser, select the original fixture, search `AddValues`, open the method, then choose **Edit IL / Export**.
-- In the hex editor, the optimized Release method body is expected to be `03 04 58 2A` (`ldarg.1`, `ldarg.2`, `add`, `ret`). Change only `58` to `59`, yielding `03 04 59 2A` (`sub`). If the bytes differ, do not guess; cancel and report the displayed bytes.
-- Validate and export to a new filename. Reopen the exported DLL in DroidInspect and confirm the method displays `ldarg.1`, `ldarg.2`, `sub`, `ret` / bytes `03 04 59 2A`. Reopen the original and confirm it still contains `add` / `03 04 58 2A`.
-- This verifies byte editing, export, reopen, and source preservation only. It does not prove that the changed method executes correctly. The editor must refuse changed body lengths, operand-bearing or branch instructions, unsupported opcodes, extra method data sections, and signed assemblies.
+**Assessment:** M7 is **DEVICE PASS / COMPLETE FOR THE AGREED TEST SCOPE**. This verifies bounded byte editing, separate-file export, exported-file reopening, opcode decoding, and original preservation. It does not verify execution of the edited assembly or general IL validity.
 
 ### Dependencies and compatibility
 
@@ -1105,3 +1102,16 @@ The user completed the previously pending M5 device checks in DroidInspect on An
 **Acceptance criteria:** successful same-size IL edit; verified new export; exported DLL reopens and shows the replacement instruction; original remains unchanged. Report any safety refusal or different original bytes rather than attempting alternative edits.
 
 M4, M5, and M6 remain device-complete for their documented scopes. M7 is the only current Phase 2 device-verification gate. M8–M10 are not implemented. Continue on `main` only.
+
+
+### M7 — final Android 11 device verification and Phase 2 closure (2026-11-12)
+
+The user supplied two independent .NET IL Browser reports from the same unsigned fixture:
+1. Exported file `m7 DroidInspect-edited-assembly.dll`: `AddValues` decoded as `ldarg.1`, `ldarg.2`, `sub`, `ret`.
+2. Original `UnsignedRenameFixture.dll`: `AddValues` decoded as `ldarg.1`, `ldarg.2`, `add`, `ret`.
+
+Both files were recognized as `UnsignedRenameFixture`; the browser indexed 4 methods and decoded 4 bodies. The original and exported outputs demonstrate the expected isolated change (`58/add` to `59/sub`) with the original preserved.
+
+**M7 final status: DEVICE PASS / COMPLETE FOR AGREED SCOPE. Phase 2 device verification is now complete for M4–M7.** Remaining M4 stress/malformed-input checks and the separate requested C# decompilation / IL explanation enhancements remain documented as limitations or backlog items, not completed features.
+
+**Next milestone:** begin M8 — APK rebuild and signing. Before implementation, inspect current source/build/CI and evaluate the APK rebuild/signing path against existing ARSCLib integration, original-preservation rules, key handling, and Android 11 device constraints. Keep all changes on `main`; do not start a new branch.
