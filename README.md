@@ -1481,3 +1481,130 @@ The isolated M11 proof APK has now passed the first offline device decompilation
 ### Next exact action
 
 Continue M11 on the existing `main` branch. Inspect the isolated prototype and test a second, independently obtained real managed DLL or EXE, preferably one with external framework/library references and substantially more types/methods than the small fixture. Verify successful C# reconstruction, document missing-reference behavior, measure practical runtime/memory behavior, and compare the selected original file's hash before and after processing. Fix any isolated-engine issues and repeat the complete M11 CI workflow plus production regression workflow when source changes. Do not integrate the engine into `com.tanvir.droidinspect` or declare M11 complete until the remaining gates are addressed.
+
+
+---
+
+## 14. M11 second assembly — Newtonsoft.Json host acceptance and Android test build (2026-11-13)
+
+**Status: SECOND INDEPENDENT MANAGED ASSEMBLY PASSES HOST-SIDE C# RECONSTRUCTION; UPDATED ISOLATED ANDROID TEST APK BUILDS AND PASSES PACKAGE/ELF VERIFICATION. THE SECOND ASSEMBLY HAS NOT YET BEEN TESTED ON THE ANDROID DEVICE. M11 REMAINS IN PROGRESS.**
+
+### Real-world assembly selected
+
+The second assembly is **Newtonsoft.Json 13.0.3**, obtained from the official NuGet flat-container package:
+
+- Package: `Newtonsoft.Json` 13.0.3.
+- Assembly target: `lib/netstandard2.0/Newtonsoft.Json.dll`.
+- Assembly size: 705,296 bytes.
+- SHA-256: `8c1dd5c184b4e2e7ead06971ff3ebcb46783be972292d1deb1061744369b4d80`.
+- The assembly is independent of the DroidInspect fixture project and is not compiled by this repository's fixture build.
+
+### Host-side ILSpy result
+
+The M11 workflow now runs two separate acceptance programs:
+
+1. `tools/m11-poc/host-tests/HostTests.csproj` continues to verify the original small fixture.
+2. `tools/m11-poc/real-assembly-tests/RealAssemblyTests.csproj` decompiles Newtonsoft.Json and checks for reconstructed C# symbols including `JsonConvert`, `SerializeObject`, `JsonSerializer`, `JsonReader`, and `JsonWriter`.
+
+Results on the GitHub runner:
+
+- Original fixture test: PASS.
+- Newtonsoft.Json C# reconstruction: PASS.
+- Verified symbols: all five expected symbols present.
+- Reconstructed output: 1,182,022 characters.
+- Host decompilation time: 21,339 ms.
+
+This confirms real third-party assembly reconstruction on the host using the .NET 11 reference assembly directory. It does not yet prove Android device performance or all external dependency combinations.
+
+### Updated Android proof application
+
+The isolated Java/XML proof application remains under `tools/m11-poc/android-host/` and retains its existing arbitrary DLL/EXE picker.
+
+It now additionally provides:
+
+- **Test bundled Newtonsoft.Json 13.0.3** — runs the exact independently obtained DLL packaged in the APK; no separate file extraction is required.
+- **Select another managed DLL / EXE** — retains the custom SAF selection path.
+- Input size and decompilation duration in the status report.
+- Java heap change measurement (explicitly excludes Native AOT/native memory).
+- SHA-256 before and after decompilation.
+- Original-file unchanged result for a selected SAF document, based on comparison with the reopened original document.
+
+The bundled test is reproducible with network access disabled after APK installation. The assembly and .NET reference pack are embedded in the APK.
+
+### M11 workflow #12 — complete PASS
+
+- Workflow: **M11 ILSpy Native AOT Android Proof**.
+- Run: **#12**.
+- Run ID: `43320056080`.
+- Commit tested: `d8bd908d9a5afdb0b621842c29ed07ce6d2a4ecc`.
+- Result: **SUCCESS**.
+- Run URL: https://github.com/xolomon-coder/DroidInspect/actions/runs/43320056080
+
+All required steps passed:
+
+- Original fixture build and reconstruction test.
+- Download and integrity check of the official Newtonsoft.Json 13.0.3 package assembly.
+- Real-world assembly C# reconstruction test.
+- Native AOT `linux-bionic-arm64` publish.
+- ELF architecture, exported symbols, and engine SONAME checks.
+- JNI dependency and absolute-path checks.
+- Android proof APK build.
+- APK ZIP integrity and required ARM64 libraries/reference/test assembly checks.
+- Artifact upload.
+
+### Diagnostic artifact
+
+- Artifact: `DroidInspect-M11-Android-Proof`.
+- Artifact ID: `13989813195`.
+- Artifact ZIP size: 27,401,749 bytes.
+- Artifact ZIP SHA-256: `3e16071360d0a85d2fa241513be22c3d95f006c0a7586ddff55e35fcc679de48`.
+- Expiry: 2026-11-26.
+- APK size: approximately 20 MiB.
+- APK SHA-256: `366c54f67ba61bcad341231b61200385d97cba462ac2d83efdcb5809755010df`.
+- Bundled Newtonsoft.Json DLL SHA-256: `8c1dd5c184b4e2e7ead06971ff3ebcb46783be972292d1deb1061744369b4d80`.
+- Native engine SHA-256 remains `b26967415938118f719e19619f0cc1e98e403eced6cc3cb05eff88db00b72543`.
+
+### CI harness correction
+
+M11 run #8 failed because the fixture test command was temporarily pointed at the Newtonsoft-specific assertions while still passing the small fixture DLL. This was a test-harness wiring error, not a decompiler failure.
+
+The original fixture assertions were restored unchanged. A separate `real-assembly-tests` project and program were added, and the workflow now runs the two test programs independently. M11 run #12 passed both.
+
+### Production regression
+
+- Workflow: **DroidInspect Android CI**.
+- Run: **#168**.
+- Run ID: `43320055735`.
+- Commit tested: `d8bd908d9a0c1a6a776a79534798fe300cb94a90`.
+- Result: **SUCCESS**.
+- Run URL: https://github.com/xolomon-coder/DroidInspect/actions/runs/43320055735
+
+No production application source or package integration was performed. M11 remains isolated.
+
+### Updated M11 verification gates
+
+| Gate | Result |
+|---|---|
+| Original fixture host reconstruction | PASS |
+| Independent Newtonsoft.Json host reconstruction | PASS |
+| Native AOT ARM64 cloud build | PASS |
+| JNI/ELF/SONAME verification | PASS |
+| Updated proof APK build and package verification | PASS |
+| Production regression CI | PASS |
+| First fixture offline Android test | PASS |
+| Newtonsoft.Json offline Android device test | PENDING |
+| Android real-assembly performance and memory | PENDING |
+| Additional assembly with third-party library dependencies | PENDING |
+| Missing-reference behavior | PENDING |
+| Original selected-file SHA-256 device comparison | PENDING |
+| Large assembly test | PENDING |
+| Malformed/unsupported assembly device tests | PENDING |
+| Production integration | NOT STARTED |
+
+### Exact next action
+
+Install the updated isolated M11 diagnostic APK from workflow run #12. Open it with Wi-Fi and mobile data disabled, then tap **Test bundled Newtonsoft.Json 13.0.3**. Allow the operation to finish; the output is much larger than the original fixture. Record the complete status report (input size, elapsed time, Java heap change, SHA-256 values, and original-unchanged result) and confirm that reconstructed source contains `JsonConvert`, `SerializeObject`, `JsonSerializer`, `JsonReader`, and `JsonWriter`.
+
+Do not declare M11 complete or integrate it into `com.tanvir.droidinspect` yet.
+
+The latest source implementation commit for this update is `d8bd908d9a0c1a6a776a79534798fe300cb94a90`. The README progress update itself will receive a later commit on `main`.
