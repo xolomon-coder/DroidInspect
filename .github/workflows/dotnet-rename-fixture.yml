@@ -1,0 +1,93 @@
+name: Build unsigned .NET rename test fixture
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'tools/dotnet-rename-test/**'
+      - '.github/workflows/dotnet-rename-fixture.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-unsigned-fixture:
+    name: Build and verify unsigned .NET DLL
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build unsigned fixture
+        run: dotnet build tools/dotnet-rename-test/UnsignedRenameFixture.csproj --configuration Release --output artifacts/unsigned-fixture
+
+      - name: Verify DLL exists and is unsigned
+        run: |
+          python3 - <<'PY'
+          import pathlib, struct
+          p = pathlib.Path("artifacts/unsigned-fixture/UnsignedRenameFixture.dll")
+          data = p.read_bytes()
+          assert len(data) > 512, "DLL is unexpectedly small"
+          assert data[:2] == b"MZ", "Missing DOS signature"
+          pe = struct.unpack_from("<I", data, 0x3c)[0]
+          assert data[pe:pe+4] == b"PE\0\0", "Missing PE signature"
+          coff = pe + 4
+          opt_size = struct.unpack_from("<H", data, coff + 16)[0]
+          opt = coff + 20
+          magic = struct.unpack_from("<H", data, opt)[0]
+          dd = opt + (112 if magic == 0x20b else 96)
+          cli_rva, cli_size = struct.unpack_from("<II", data, dd + 14 * 8)
+          assert cli_rva and cli_size >= 40, "Missing CLI header"
+          sections = struct.unpack_from("<H", data, coff + 2)[0]
+          section_table = opt + opt_size
+          def rva_to_offset(rva):
+              for i in range(sections):
+                  s = section_table + i * 40
+                  vsize, va, rawsize, rawptr = struct.unpack_from("<IIII", data, s + 8)
+                  if va <= rva < va + max(vsize, rawsize):
+                      return rawptr + (rva - va)
+              raise AssertionError("CLI RVA not mapped")
+          cli = rva_to_offset(cli_rva)
+          flags = struct.unpack_from("<I", data, cli + 16)[0]
+          sn_rva, sn_size = struct.unpack_from("<II", data, cli + 32)
+          assert not (flags & 0x8), "Strong-name-signed flag is set"
+          assert sn_rva == 0 and sn_size == 0, "Strong-name signature directory is not empty"
+          print(f"PASS: {p} ({len(data)} bytes), CLI flags=0x{flags:08X}, no strong-name signature")
+          PY
+
+      - name: Add test instructions
+        run: |
+          cat > artifacts/unsigned-fixture/TEST-INSTRUCTIONS.txt <<'EOF'
+          DroidInspect unsigned .NET rename test fixture
+          
+          Assembly: UnsignedRenameFixture
+          Target framework: .NET Standard 2.0
+          Strong-name signing: disabled
+          
+          In DroidInspect:
+          1. Open BROWSE .NET IL AND RENAME METHOD.
+          2. Select UnsignedRenameFixture.dll.
+          3. Search for GetValue.
+          4. Open UnsignedRenameFixture.RenameTarget :: GetValue.
+          5. Tap RENAME / EXPORT.
+          6. Rename GetValue to GetTotal (same 8 ASCII bytes).
+          7. Export as a new file; do not overwrite the input.
+          8. Reopen the exported DLL and verify GetTotal is indexed.
+          
+          This is a test-only fixture. It is not part of the Android app.
+          EOF
+
+      - name: Upload unsigned DLL artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DroidInspect-Unsigned-DotNet-Test-DLL
+          path: artifacts/unsigned-fixture/
+          if-no-files-found: error
+          retention-days: 30
