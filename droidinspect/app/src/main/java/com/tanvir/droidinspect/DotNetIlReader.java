@@ -344,8 +344,8 @@ final class DotNetIlReader {
         StringBuilder out=new StringBuilder();int p=0,count=0;
         while(p<c.length&&count<MAX_INSTRUCTIONS){
             int start=p,op=c[p++]&255;String name;int arg;
-            if(op==0xfe){if(p>=c.length)throw new IOException("Truncated FE opcode.");int x=c[p++]&255;name=FE[x];arg=FEA[x];if(name==null){out.append(at(start)).append(" FE").append(h2(x)).append(" <unsupported>\n");break;}}
-            else{name=OPS[op];arg=ARGS[op];if(name==null){out.append(at(start)).append(" ").append(h2(op)).append(" <unsupported opcode; remaining body omitted>\n");break;}}
+            if(op==0xfe){if(p>=c.length)throw new IOException("Truncated FE opcode.");int x=c[p++]&255;name=FE[x];arg=FEA[x];if(name==null){out.append(at(start)).append(" | ").append(hexRange(c,start,p)).append(" | FE").append(h2(x)).append(" | No verified explanation is available for this opcode.\n");break;}}
+            else{name=OPS[op];arg=ARGS[op];if(name==null){out.append(at(start)).append(" | ").append(hexRange(c,start,p)).append(" | ").append(h2(op)).append(" | No verified explanation is available for this opcode; remaining body omitted.\n");break;}}
             String val="";
             switch(arg){
                 case N:break;
@@ -362,12 +362,13 @@ final class DotNetIlReader {
                 case T:need(c,p,4);val="token 0x"+h8(i32(c,p));p+=4;break;
                 default:throw new IOException("Unknown operand type.");
             }
-            if(!val.isEmpty())out.append(" ").append(val);out.append("\n");count++;
+            out.append(at(start)).append(" | ").append(hexRange(c,start,p)).append(" | ").append(name);if(!val.isEmpty())out.append(" ").append(val);out.append(" | ").append(IlOpcodeExplainer.explain(name,val)).append("\n");count++;
         }
         if(p<c.length)out.append("… output capped at ").append(MAX_INSTRUCTIONS).append(" instructions.\n");
         if(c.length==0)out.append("(empty body)\n");
         return out.toString();
     }
+    private static String hexRange(byte[] data,int start,int end){StringBuilder b=new StringBuilder();for(int i=start;i<end;i++){if(i>start)b.append(" ");b.append(h2(data[i]&255));}return b.toString();}
     private static void set(int x,String n,int a){OPS[x]=n;ARGS[x]=a;}
     private static void fe(int x,String n,int a){FE[x]=n;FEA[x]=a;}
     private static void need(byte[] b,int p,int n)throws IOException{if(p<0||n<0||p>b.length||n>b.length-p)throw new IOException("Truncated IL operand.");}
