@@ -542,7 +542,7 @@ This is the required process for building DroidInspect:
 
 No milestone is complete solely because code was written or committed. When delivering a full phase, complete implementation and available automated verification for all milestones in that phase before the normal ZIP handoff. Device-only verification may be collected as a clearly documented user test batch after handoff when it does not block safe implementation of later milestones; never claim device tests passed without user evidence.
 
-## 6. Current Project Status (2026-11-12)
+## 6. Current Project Status (2026-11-13)
 
 **Current phase: Phase 3 — implementation and cloud verification completed; consolidated Android 11 device verification pending. Phase 4 / M11 is approved and planned, but not started.** M4–M7 have passed their agreed Android 11 device verification scopes. M8 now includes an on-device APK signing and verification screen; M9 includes raw IL byte/opcode explanations and MethodDef token navigation, while full C# decompilation remains unsupported in the current Java/CodeAssist architecture; M10 regression, signing, tamper, build, and artifact checks pass in GitHub Actions run #131. Phase 3 has not yet received user device-test evidence. M4 large-APK stress and malformed-DEX device edge cases remain untested. Do not confuse CI verification with device verification.
 
@@ -1269,7 +1269,7 @@ This section supersedes earlier continuation notes in this README that said M7 d
 
 The user approved adding **M11 — Full C# decompilation engine and Android integration** after M10. This is a new major milestone and Phase 4; the roadmap is now **11 milestones across four phases**.
 
-**Current M11 status: PLANNED / NOT STARTED.** No decompiler dependency, .NET runtime, native bridge, ABI, or production UI has been added. The current app continues to provide metadata inspection, raw IL browsing, opcode explanations, token navigation, and constrained IL editing; it does not yet provide C# source decompilation.
+**Current M11 status: FEASIBILITY RESEARCH IN PROGRESS; Android proof of concept not started.** No decompiler dependency, .NET runtime, native bridge, ABI, or production UI has been added. The current app continues to provide metadata inspection, raw IL browsing, opcode explanations, token navigation, and constrained IL editing; it does not yet provide C# source decompilation.
 
 **Key technical direction:**
 - Evaluate ILSpy's decompiler engine first, but do not assume its .NET library can be loaded as a normal Java/Android dependency.
@@ -1281,4 +1281,40 @@ The user approved adding **M11 — Full C# decompilation engine and Android inte
 **Exact next action:** begin M11 feasibility research and compare supported ways to host a real .NET decompiler engine on Android 11. Then design the smallest isolated prototype and its test fixtures. Do not add speculative dependencies to the app or claim M11 complete until the Android device acceptance criteria above pass.
 
 **Repository workflow:** use only main; inspect its latest HEAD before each change. The README update for this approval is the only planned repository change in this step. No feature branch is to be created.
+
+---
+
+## 11. M11 preliminary technical research (2026-11-13)
+
+This is a preliminary feasibility note, not an implementation or Android compatibility claim.
+
+### ILSpy engine findings
+
+- ILSpy identifies ICSharpCode.Decompiler as its standalone decompilation engine; the engine is a class library without UI dependencies and reconstructs C# from assembly metadata and IL.
+- The current package documentation marks the engine trim- and Native-AOT-compatible and describes a dedicated AOT test that compares native and managed output. This makes it a strong first engine candidate, but does not prove Android deployment.
+- ILSpy is MIT-licensed. Any packaged dependencies and third-party notices still require separate review.
+- The decompiler uses an assembly resolver and semantic type system. A phone build will need a deliberate reference-assembly strategy; merely opening the target DLL may not resolve its framework and external dependencies correctly.
+
+### Android hosting findings
+
+- Microsoft's Native AOT platform matrix lists Android architectures, but explicitly marks Android support experimental and notes there is no built-in Java interop.
+- Microsoft's Android Bionic Native AOT notes describe a separate, limited native-library route using linux-bionic RIDs and manual JNI. Those notes state that android-* RIDs are not supported for that Bionic publishing mode; this must not be confused with the .NET for Android application runtime route.
+- Native AOT shared libraries can expose explicitly exported unmanaged entry points, which could form a narrow JNI boundary. The exact supported Android RID/toolchain combination and runtime dependencies must be proven with a small prototype.
+- The current DroidInspect app is a Java/XML Gradle project. Its existing CodeAssist workflow does not automatically provide the .NET SDK, Native AOT compiler, Android NDK integration, or managed-to-Java binding generation. CI may need to build the native component separately and package ABI-specific libraries, but the result must remain maintainable and reproducible.
+
+### Current feasibility assessment
+
+ILSpy plus a narrow native/JNI bridge is the leading candidate to prototype. It is not yet selected as the production architecture. The highest-risk questions are: (1) can the exact decompiler engine be published for the Android 11 phone's ARM64 ABI with all required runtime pieces; (2) can Java call it reliably through JNI; (3) can framework and third-party reference assemblies be resolved offline; and (4) can the build be reproduced in CI without making the user's CodeAssist project unmanageable.
+
+### Primary technical references
+
+- ILSpy decompiler architecture: https://github.com/icsharpcode/ILSpy/blob/master/doc/DecompilerArchitecture.html
+- ICSharpCode.Decompiler package and Native AOT notes: https://github.com/icsharpcode/ILSpy/blob/master/ICSharpCode.Decompiler/PackageReadme.md
+- ILSpy license: https://github.com/icsharpcode/ILSpy/blob/master/LICENSE
+- Microsoft Native AOT platform support and limitations: https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/
+- Android Bionic Native AOT details: https://github.com/dotnet/runtime/blob/main/src/coreclr/nativeaot/docs/android-bionic.md
+- Native AOT shared-library exports: https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/libraries
+- .NET for Android Java interop: https://learn.microsoft.com/en-us/dotnet/maui/android/internals/java-interop
+
+**Next technical experiment:** create a minimal native decompiler library that accepts a path to a managed fixture and returns decompiled C# text through a stable C ABI/JNI call. Build it for the Android ARM64 target using a supported toolchain, package it into a disposable Java Android test app, and execute it on Android 11. Do not touch production DroidInspect dependencies or UI until this experiment succeeds.
 
