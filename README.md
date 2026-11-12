@@ -1809,3 +1809,16 @@ The corrected workflow run #16 (`43329300463`) still failed in **Verify APK payl
 The preparation step had already been corrected to require the latter two files, but the later APK-content validation step still searched for the obsolete `Microsoft.Extensions.Logging.Abstractions.dll` path. That stale grep caused the failure. This is a CI packaging-validation mismatch; it does not indicate a Native AOT, JNI, APK compilation, or ILSpy decompilation failure.
 
 The workflow validation now checks the two dependency DLLs that are actually packaged. The production Android regression workflow #178 (run ID `43329300453`) completed successfully on the same commit. A fresh M11 run is required to verify this correction; no new APK is accepted until it passes all payload checks and artifact upload.
+
+
+### M11 Android proof APK CI verification — PASS (2026-11-13)
+
+M11 Native AOT workflow run #17 (`43331172627`) completed successfully on commit `9c50411cae1d194a6c00f4adfc7710ec21ea89ce`. Every job step passed, including the managed fixture test, independent real-assembly reconstruction test, third-party dependency-resolution tests, Native AOT Bionic ARM64 publish, ELF/export checks, offline asset preparation, Java/XML Android APK build, APK payload verification, and artifact upload. The production Android regression workflow run #179 (`43331172654`) also completed successfully; all parser, host-JVM, Android compile, signing, verification, and tamper-test steps passed.
+
+The M11 artifact is `DroidInspect-M11-Android-Proof.zip` (artifact ID `13995705995`), 27,562,412 bytes, uploaded successfully. GitHub artifact SHA-256: `e4db8754e09eb63e2096eb52589fc8eb254106ddf54adb7c2ab0195cc832ebb9`. Artifact expiry: 2026-11-26.
+
+The extracted Android proof APK is 21,063,673 bytes. Its independently checked SHA-256 is `39a65775b1232e991d5afc9d1a1aa5216d7197ab3219d2cc1345a4ead5dda0b7`; ZIP integrity check passed. The APK contains both ARM64 libraries (`libdroidinspect_engine.so` and `libdroidinspect_jni.so`), .NET 11 reference assemblies, the 705,296-byte Newtonsoft.Json test assembly, Serilog.Extensions.Logging, and all three dependency assemblies: `Serilog.dll`, `Microsoft.Extensions.Logging.dll`, and `Microsoft.Extensions.DependencyInjection.dll`. ELF inspection confirmed the engine is ELF64 AArch64, its SONAME is `libdroidinspect_engine.so`, and JNI links to that SONAME without an absolute DT_NEEDED path. The Native AOT engine extracted from the artifact is 45,943,408 bytes with SHA-256 `fb532cecfd57c22587bbd0fd7492106fdd9ac0187e58fcd7b89ebb85b3bc7ff4`.
+
+**Acceptance boundary:** This is successful cloud CI and APK/package verification, not Android-device acceptance. The APK has not yet been verified by the user on-device. Offline operation, Android-side dependency resolution for Serilog.Extensions.Logging, full output correctness/scrolling, UI responsiveness, and phone memory/performance remain to be tested on the device. M11 remains isolated and is not integrated into the production app.
+
+Exact next action: install the M11 proof APK on the Android phone, disable Wi-Fi and mobile data, run the bundled Newtonsoft.Json and Serilog.Extensions.Logging tests, and report the displayed output, timing, memory change, and any errors. Keep the APK and engine SHA-256 values above as the test artifact identity.
