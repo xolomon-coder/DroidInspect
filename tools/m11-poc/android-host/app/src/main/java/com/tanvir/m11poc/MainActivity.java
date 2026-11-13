@@ -254,14 +254,14 @@ public final class MainActivity extends Activity {
         currentMatchIndex = -1;
         if (query.trim().isEmpty() || completeSource.isEmpty()) return;
 
-        String searchable = completeSource.toLowerCase(Locale.ROOT);
-        String needle = query.toLowerCase(Locale.ROOT);
         int from = 0;
-        while (from <= searchable.length() - needle.length()) {
-            int found = searchable.indexOf(needle, from);
-            if (found < 0) break;
-            searchMatches.add(found);
-            from = found + Math.max(1, query.length());
+        while (from <= completeSource.length() - query.length()) {
+            if (completeSource.regionMatches(true, from, query, 0, query.length())) {
+                searchMatches.add(from);
+                from += Math.max(1, query.length());
+            } else {
+                from++;
+            }
         }
     }
 
