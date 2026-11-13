@@ -158,6 +158,8 @@ public final class MainActivity extends Activity {
     }
 
     private void runDecompilation(File input, String label, Uri originalUri, String referenceSearchPath) throws Exception {
+        runOnUiThread(() -> status.setText("Preparing offline .NET reference assemblies..."));
+        ensureFrameworkReferences();
         String inputHashBefore = sha256(input);
         long inputBytes = input.length();
         long heapBefore = usedJavaHeap();
@@ -234,6 +236,20 @@ public final class MainActivity extends Activity {
         previousPage.setEnabled(count > 0 && currentPage > 0);
         nextPage.setEnabled(count > 0 && currentPage + 1 < count);
         findNext.setEnabled(count > 0);
+    }
+
+    private void ensureFrameworkReferences() throws IOException {
+        File references = new File(getFilesDir(), "reference-assemblies/net11.0");
+        File marker = new File(references, ".m11-ready");
+        if (marker.isFile()) return;
+
+        deleteTree(references);
+        if (!references.mkdirs()) throw new IOException("Cannot create offline .NET reference directory");
+        copyAssets("reference-assemblies/net11.0", references);
+        try (FileOutputStream output = new FileOutputStream(marker)) {
+            output.write("net11.0".getBytes("UTF-8"));
+            output.flush();
+        }
     }
 
     private long usedJavaHeap() {
