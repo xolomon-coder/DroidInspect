@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Debug;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -13,12 +14,14 @@ import java.io.*;
 import java.security.MessageDigest;
 import java.util.Locale;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 
 public final class MainActivity extends Activity {
     private static final int PICK = 41;
     private static final int SOURCE_PAGE_CHARS = 24000;
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final ScheduledExecutorService memorySampler = Executors.newSingleThreadScheduledExecutor();
     private Button select, bundled, dependencyFull, dependencyMissing;
     private Button findNext, previousPage, nextPage;
     private EditText searchText;
@@ -163,10 +166,22 @@ public final class MainActivity extends Activity {
         String inputHashBefore = sha256(input);
         long inputBytes = input.length();
         long heapBefore = usedJavaHeap();
+        long pssBefore = Debug.getPss() * 1024L;
+        AtomicLong sampledPeakPss = new AtomicLong(pssBefore);
+        ScheduledFuture<?> sampler = memorySampler.scheduleAtFixedRate(
+                () -> sampledPeakPss.accumulateAndGet(Debug.getPss() * 1024L, Math::max),
+                0, 200, TimeUnit.MILLISECONDS);
         long started = System.nanoTime();
-        String result = NativeBridge.decompileFile(input.getAbsolutePath(), referenceSearchPath);
+        String result;
+        try {
+            result = NativeBridge.decompileFile(input.getAbsolutePath(), referenceSearchPath);
+        } finally {
+            sampler.cancel(false);
+        }
         long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
         long heapAfter = usedJavaHeap();
+        long pssAfter = Debug.getPss() * 1024L;
+        sampledPeakPss.accumulateAndGet(pssAfter, Math::max);
         String inputHashAfter = sha256(input);
         String originalHashAfter = originalUri == null ? inputHashAfter : sha256Uri(originalUri);
         boolean unchanged = inputHashBefore.equals(inputHashAfter)
@@ -174,8 +189,9 @@ public final class MainActivity extends Activity {
         String integrityLabel = originalUri == null
                 ? "Working-copy unchanged" : "Original document unchanged";
         String report = String.format(Locale.US,
-                "%s\nInput size: %,d bytes\nDecompilation time: %,d ms\nJava heap change: %,d bytes (native memory excluded)\nSHA-256 before: %s\nSHA-256 after:  %s\n%s: %s",
+                "%s\nInput size: %,d bytes\nDecompilation time: %,d ms\nJava heap change: %,d bytes\nProcess PSS before: %,d bytes\nProcess PSS peak (200 ms sampling): %,d bytes\nProcess PSS after: %,d bytes\nSHA-256 before: %s\nSHA-256 after:  %s\n%s: %s",
                 label, inputBytes, elapsedMs, heapAfter - heapBefore,
+                pssBefore, sampledPeakPss.get(), pssAfter,
                 inputHashBefore, originalHashAfter, integrityLabel, unchanged ? "PASS" : "FAIL");
         runOnUiThread(() -> {
             completeSource = result == null ? "" : result;
@@ -327,6 +343,7 @@ public final class MainActivity extends Activity {
 
     @Override protected void onDestroy() {
         worker.shutdownNow();
+        memorySampler.shutdownNow();
         super.onDestroy();
     }
 }
