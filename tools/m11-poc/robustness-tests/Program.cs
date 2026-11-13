@@ -27,6 +27,21 @@ try
     File.WriteAllBytes(truncated, fixtureBytes[..Math.Min(256, fixtureBytes.Length)]);
     ExpectFailure(truncated, "InvalidDataException", "truncated PE input");
 
+    var corruptMetadata = Path.Combine(temp, "corrupt-metadata.dll");
+    var corruptBytes = fixtureBytes.ToArray();
+    using (var fixtureStream = File.OpenRead(fixture))
+    using (var peReader = new System.Reflection.PortableExecutable.PEReader(fixtureStream))
+    {
+        var metadataRva = peReader.PEHeaders.CorHeader!.MetadataDirectory.RelativeVirtualAddress;
+        var section = peReader.PEHeaders.SectionHeaders.First(section =>
+            metadataRva >= section.VirtualAddress
+            && metadataRva < section.VirtualAddress + Math.Max(section.VirtualSize, section.SizeOfRawData));
+        var metadataOffset = section.PointerToRawData + (metadataRva - section.VirtualAddress);
+        Array.Clear(corruptBytes, metadataOffset, 4);
+    }
+    File.WriteAllBytes(corruptMetadata, corruptBytes);
+    ExpectFailure(corruptMetadata, "InvalidDataException", "corrupted CLR metadata");
+
     var nativeLike = Path.Combine(temp, "native.exe");
     File.WriteAllBytes(nativeLike, new byte[512]);
     ExpectFailure(nativeLike, "InvalidDataException", "invalid executable input");
