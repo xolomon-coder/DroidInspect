@@ -41,6 +41,10 @@ jobs:
           REF="$DOTNET_ROOT/packs/Microsoft.NETCore.App.Ref/11.0.0/ref/net11.0"
           test -f "$REF/System.Runtime.dll"
           dotnet run --project tools/m11-poc/host-tests/HostTests.csproj -c Release -- "$GITHUB_WORKSPACE/tools/m11-poc/fixture/bin/Release/net11.0/DecompilerFixture.dll" "$REF"
+      - name: Run invalid-input and repeatability robustness tests
+        run: |
+          REF="$DOTNET_ROOT/packs/Microsoft.NETCore.App.Ref/11.0.0/ref/net11.0"
+          dotnet run --project tools/m11-poc/robustness-tests/RobustnessTests.csproj -c Release -- "$GITHUB_WORKSPACE/tools/m11-poc/fixture/bin/Release/net11.0/DecompilerFixture.dll" "$REF"
       - name: Download independent real-world managed assembly
         run: |
           set -euo pipefail
