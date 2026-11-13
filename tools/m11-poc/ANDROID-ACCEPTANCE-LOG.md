@@ -64,3 +64,12 @@ Download the latest `main` ZIP, replace the extracted M11 proof project, open `D
 After the layout is confirmed, continue the consolidated remaining device acceptance batch. Do not repeat the already-passed Newtonsoft.Json offline decompilation test unless needed to diagnose a regression.
 
 M11 remains isolated under `tools/m11-poc/`. Do not integrate it into the production app until full device acceptance is complete.
+
+
+## Source implementation commits
+
+- `9fc6ee9956ce92636bd7f3bc0fcb03f545fdf13b` — implement match indexing, page highlights, selected-match styling, navigation and scrolling.
+- `4cb1a7903207d84f1075b7a8caae1f42a78f1ed1` — add Previous Match control and clarify page navigation labels.
+- `590339f8f584c228bd303860726c8193d2d1c261` — avoid repeatedly lowercasing the full source while searching and correct match status line formatting.
+
+The M11 GitHub Actions workflow is triggered by these `tools/m11-poc/**` changes. Do not ask the user to rebuild until CI has completed and the final source batch is ready.
