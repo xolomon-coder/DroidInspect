@@ -47,9 +47,9 @@ Source commits:
 | Native engine startup | Passed on device |
 | Offline Newtonsoft.Json decompilation | Passed on device |
 | Input SHA-256 unchanged | Passed on device |
-| Search field layout | Fix committed; new APK/device confirmation pending |
+| Search field layout | User confirmed visible and usable after fix |
 | Keyboard-open search usability | Pending |
-| Find and Previous/Next behavior | Pending |
+| Find and Previous/Next behavior | Implemented; CI/device confirmation pending |
 | Serilog dependencies available | Pending |
 | Serilog missing dependency diagnostic | Pending |
 | External managed DLL/EXE | Pending |
@@ -73,3 +73,27 @@ M11 remains isolated under `tools/m11-poc/`. Do not integrate it into the produc
 - `590339f8f584c228bd303860726c8193d2d1c261` — avoid repeatedly lowercasing the full source while searching and correct match status line formatting.
 
 The M11 GitHub Actions workflow is triggered by these `tools/m11-poc/**` changes. Do not ask the user to rebuild until CI has completed and the final source batch is ready.
+
+
+## Search highlighting and match navigation — implementation (2026-11-14)
+
+Implemented in the isolated Android proof viewer:
+- Case-insensitive matching over the complete decompiled output, across all pages.
+- All occurrences on the current page receive a visible highlight.
+- The active match uses a stronger, distinct highlight.
+- Previous Match and Find/Next Match navigate through the full result list and wrap at either end.
+- Selecting a match opens its source page, scrolls it into view, and reports the match number/count.
+- Page navigation remains independent.
+- Search spans are applied to the displayed page copy; the original complete source string is not modified.
+
+Changed files:
+- `tools/m11-poc/android-host/app/src/main/java/com/tanvir/m11poc/MainActivity.java`
+- `tools/m11-poc/android-host/app/src/main/res/layout/activity_main.xml`
+
+Source commits:
+- `9fc6ee9956ce92636bd7f3bc0fcb03f545fdf13b`
+- `4cb1a7903207d84f1075b7a8caae1f42a78f1ed1`
+- `590339f8f584c228bd303860726c8193d2d1c261`
+- Latest search-memory optimization is committed separately on main; see the current branch history.
+
+**Next:** wait for M11 CI to complete. If CI passes, download the latest main ZIP, open `DroidInspect/tools/m11-poc/android-host` in CodeAssist, build/install, and verify search highlights, selected-match styling, Previous/Find navigation, cross-page jumps, and match count. Do not repeat the already-passed Newtonsoft.Json decompilation unless diagnosing a regression.
