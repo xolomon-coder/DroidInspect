@@ -37,7 +37,7 @@ public static class DecompilationService
 
             MetadataReader metadata;
             try { metadata = pe.GetMetadataReader(); }
-            catch (Exception ex) when (ex is BadImageFormatException or InvalidOperationException)
+            catch (Exception ex) when (ex is BadImageFormatException or InvalidOperationException or ArgumentOutOfRangeException or IndexOutOfRangeException)
             {
                 throw new InvalidDataException("The .NET metadata is malformed or unsupported.", ex);
             }
@@ -93,6 +93,10 @@ public static class DecompilationService
         catch (EndOfStreamException ex)
         {
             throw new InvalidDataException("The selected DLL or EXE is truncated or incomplete.", ex);
+        }
+        catch (Exception ex) when (ex is ArgumentOutOfRangeException or IndexOutOfRangeException)
+        {
+            throw new InvalidDataException("The selected DLL or EXE contains malformed PE/.NET metadata.", ex);
         }
     }
 
