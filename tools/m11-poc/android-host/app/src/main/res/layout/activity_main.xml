@@ -36,26 +36,23 @@
         android:layout_height="wrap_content"
         android:text="Select another managed DLL / EXE" />
 
-    <TextView
-        android:id="@+id/status"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Offline ILSpy Native AOT ARM64 engine"
-        android:padding="8dp" />
-
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
 
         <EditText
             android:id="@+id/searchText"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="48dp"
             android:layout_weight="1"
             android:hint="Find symbol or source text"
             android:singleLine="true"
-            android:inputType="text" />
+            android:inputType="text"
+            android:imeOptions="actionSearch"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp" />
 
         <Button
             android:id="@+id/findNext"
@@ -91,11 +88,22 @@
             android:text="Next" />
     </LinearLayout>
 
+    <TextView
+        android:id="@+id/status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:maxLines="5"
+        android:ellipsize="end"
+        android:text="Offline ILSpy Native AOT ARM64 engine"
+        android:textSize="11sp"
+        android:padding="6dp" />
+
     <ScrollView
         android:id="@+id/sourceScroll"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1">
+        android:layout_weight="1"
+        android:fillViewport="true">
 
         <TextView
             android:id="@+id/source"
