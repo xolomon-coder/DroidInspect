@@ -52,9 +52,17 @@ Console.WriteLine("Resolved dependency DLLs: " + string.Join(", ", dependencyNam
 Console.WriteLine("Verified symbols: " + string.Join(", ", required));
 Console.WriteLine("Output characters: " + sourceText.Length);
 Console.WriteLine("Host decompilation milliseconds: " + timer.ElapsedMilliseconds);
-if (sourceText.Contains("M11 DEPENDENCY DIAGNOSTICS", StringComparison.Ordinal)
-    && sourceText.Contains("Serilog, Version=", StringComparison.Ordinal))
-    throw new InvalidOperationException("Serilog.dll was present but was reported unresolved.");
+var requiredResolvedReferences = new[]
+{
+    "Serilog, Version=",
+    "Microsoft.Extensions.Logging, Version=",
+    "Microsoft.Extensions.DependencyInjection, Version="
+};
+foreach (var reference in requiredResolvedReferences)
+{
+    if (sourceText.Contains("// Unresolved or mismatched reference: " + reference, StringComparison.Ordinal))
+        throw new InvalidOperationException("A dependency was present but reported unresolved: " + reference);
+}
 
 try
 {
