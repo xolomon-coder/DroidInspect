@@ -254,10 +254,11 @@ public final class MainActivity extends Activity {
         currentMatchIndex = -1;
         if (query.trim().isEmpty() || completeSource.isEmpty()) return;
 
+        String searchable = completeSource.toLowerCase(Locale.ROOT);
+        String needle = query.toLowerCase(Locale.ROOT);
         int from = 0;
-        while (from <= completeSource.length() - query.length()) {
-            int found = completeSource.toLowerCase(Locale.ROOT)
-                    .indexOf(query.toLowerCase(Locale.ROOT), from);
+        while (from <= searchable.length() - needle.length()) {
+            int found = searchable.indexOf(needle, from);
             if (found < 0) break;
             searchMatches.add(found);
             from = found + Math.max(1, query.length());
