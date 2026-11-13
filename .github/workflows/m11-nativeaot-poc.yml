@@ -66,6 +66,14 @@ jobs:
         run: |
           REF="$DOTNET_ROOT/packs/Microsoft.NETCore.App.Ref/11.0.0/ref/net11.0"
           dotnet run --project tools/m11-poc/real-assembly-tests/RealAssemblyTests.csproj -c Release -- /tmp/m11-newtonsoft/Newtonsoft.Json.dll "$REF"
+      - name: Decompile independent System.Text.Json runtime assembly
+        run: |
+          set -euo pipefail
+          REF="$DOTNET_ROOT/packs/Microsoft.NETCore.App.Ref/11.0.0/ref/net11.0"
+          JSON_DLL="$(find "$DOTNET_ROOT/shared/Microsoft.NETCore.App" -name System.Text.Json.dll -print | sort -V | tail -n 1)"
+          test -s "$JSON_DLL"
+          file "$JSON_DLL"
+          dotnet run --project tools/m11-poc/framework-assembly-tests/FrameworkAssemblyTests.csproj -c Release -- "$JSON_DLL" "$(dirname "$JSON_DLL"):$REF"
       - name: Run real-world third-party dependency resolution tests
         run: |
           set -euo pipefail
