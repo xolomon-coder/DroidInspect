@@ -2002,3 +2002,10 @@ Do not test intermediate APKs. Use one APK built from the latest ZIP and complet
 | Production integration | Not started; intentionally deferred until M11 device acceptance |
 
 **Current next action:** download the latest main ZIP, build the isolated tools/m11-poc/android-host project in CodeAssist, and perform the single consolidated device test above. Do not integrate M11 into the production application until those device results have been reviewed.
+
+
+### User CodeAssist build confirmation (2026-11-13)
+
+The user downloaded the latest `main` ZIP, opened `tools/m11-poc/android-host` in CodeAssist, and reported: **Build ok.** This confirms the extracted Gradle project imports and the debug APK compiles in the user's CodeAssist environment. It does not yet confirm APK installation, app startup, offline operation, decompilation correctness on-device, source paging/Find, Serilog dependency scenarios, error handling, repeatability, or memory/performance. Those remain part of the single consolidated Android-device acceptance test.
+
+**Updated stopping point:** CodeAssist debug build passed. Next action is to install the locally built `com.tanvir.m11poc` APK and perform the consolidated offline device test in section 19. Do not ask the user to rebuild unless a source change is made. Do not integrate M11 into production before reviewing device results.
