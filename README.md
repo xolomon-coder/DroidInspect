@@ -2009,3 +2009,26 @@ Do not test intermediate APKs. Use one APK built from the latest ZIP and complet
 The user downloaded the latest `main` ZIP, opened `tools/m11-poc/android-host` in CodeAssist, and reported: **Build ok.** This confirms the extracted Gradle project imports and the debug APK compiles in the user's CodeAssist environment. It does not yet confirm APK installation, app startup, offline operation, decompilation correctness on-device, source paging/Find, Serilog dependency scenarios, error handling, repeatability, or memory/performance. Those remain part of the single consolidated Android-device acceptance test.
 
 **Updated stopping point:** CodeAssist debug build passed. Next action is to install the locally built `com.tanvir.m11poc` APK and perform the consolidated offline device test in section 19. Do not ask the user to rebuild unless a source change is made. Do not integrate M11 into production before reviewing device results.
+
+
+## 20. M11 Android startup failure — CodeAssist JNI packaging correction (2026-11-13)
+
+The user installed and launched the CodeAssist-built M11 APK. The app reported:
+
+`java.lang.UnsatisfiedLinkError: dlopen failed: library "libdroidinspect_jni.so" not found`
+
+The installed APK successfully found the prebuilt `libdroidinspect_engine.so`, but the separate JNI bridge library was absent. The Java bridge loads both libraries. Cloud Gradle builds had generated and packaged the JNI target through CMake, while the phone-side CodeAssist build did not package that CMake-produced library into the APK. This is an IDE/build integration gap, not evidence of a Native AOT decompilation failure.
+
+### Correction committed to main
+
+- Removed the M11 host app's dependency on Gradle externalNativeBuild/CMake for local packaging.
+- Configured the Android app to package prebuilt ARM64 libraries directly from `app/src/main/jniLibs`.
+- Updated the M11 workflow to compile `jni_bridge.cpp` with the Android NDK ARM64 clang++ toolchain, link it against `libdroidinspect_engine.so`, verify its SONAME dependency, and publish `libdroidinspect_jni.so` beside the engine in `jniLibs/arm64-v8a`.
+- Extended the generated-payload commit step to include the JNI bridge library.
+- The production app and its source remain unchanged.
+
+### Verification and next action
+
+The source correction is committed, but the generated JNI binary and new APK must pass the M11 workflow's APK payload checks and production Android regression CI before delivery. Do not ask the user to rebuild from the old ZIP. After the workflow publishes the JNI binary to `main`, provide the new `main` ZIP and ask the user to replace the extracted M11 proof project, build once in CodeAssist, install, and confirm native engine startup. Then resume the existing consolidated offline acceptance batch.
+
+**Current device acceptance:** installation completed; startup failed because the JNI bridge .so was missing. Newtonsoft.Json, Serilog, paging, external assembly, invalid-input, repeatability, and performance tests have not yet run on this installed build. Full M11 acceptance remains pending.
