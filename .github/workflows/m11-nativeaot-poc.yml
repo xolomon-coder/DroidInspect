@@ -41,6 +41,14 @@ jobs:
           REF="$DOTNET_ROOT/packs/Microsoft.NETCore.App.Ref/11.0.0/ref/net11.0"
           test -f "$REF/System.Runtime.dll"
           dotnet run --project tools/m11-poc/host-tests/HostTests.csproj -c Release -- "$GITHUB_WORKSPACE/tools/m11-poc/fixture/bin/Release/net11.0/DecompilerFixture.dll" "$REF"
+      - name: Build and decompile managed EXE input
+        run: |
+          set -euo pipefail
+          REF="$DOTNET_ROOT/packs/Microsoft.NETCore.App.Ref/11.0.0/ref/net11.0"
+          dotnet build tools/m11-poc/exe-fixture/ExeFixture.csproj -c Release
+          mkdir -p /tmp/m11-exe
+          cp tools/m11-poc/exe-fixture/bin/Release/net11.0/ExeFixture.dll /tmp/m11-exe/ExeFixture.exe
+          dotnet run --project tools/m11-poc/exe-tests/ExeTests.csproj -c Release -- /tmp/m11-exe/ExeFixture.exe "$REF"
       - name: Run invalid-input and repeatability robustness tests
         run: |
           REF="$DOTNET_ROOT/packs/Microsoft.NETCore.App.Ref/11.0.0/ref/net11.0"
