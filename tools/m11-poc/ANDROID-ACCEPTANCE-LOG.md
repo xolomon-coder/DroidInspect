@@ -97,3 +97,8 @@ Source commits:
 - Latest search-memory optimization is committed separately on main; see the current branch history.
 
 **Next:** wait for M11 CI to complete. If CI passes, download the latest main ZIP, open `DroidInspect/tools/m11-poc/android-host` in CodeAssist, build/install, and verify search highlights, selected-match styling, Previous/Find navigation, cross-page jumps, and match count. Do not repeat the already-passed Newtonsoft.Json decompilation unless diagnosing a regression.
+
+
+Additional search implementation follow-up:
+- `4e5b8da368541955335ceebe9661b20c26679fa7` — avoid duplicating the complete source in memory for case-insensitive matching.
+- `76e75a45fffec14c02b9e3deac23577dc4ed6c37` — correct match-status formatting.
