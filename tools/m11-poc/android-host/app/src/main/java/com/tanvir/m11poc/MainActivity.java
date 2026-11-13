@@ -273,7 +273,7 @@ public final class MainActivity extends Activity {
         final String query = lastSearchQuery;
         final int matchNumber = currentMatchIndex + 1;
         final int matchCount = searchMatches.size();
-        status.setText(lastReport + "\\nFound: " + query + " (match "
+        status.setText(lastReport + "\nFound: " + query + " (match "
                 + matchNumber + " of " + matchCount + ") — page " + (currentPage + 1));
         final int localOffset = found - currentPage * SOURCE_PAGE_CHARS;
         sourceScroll.post(() -> {
