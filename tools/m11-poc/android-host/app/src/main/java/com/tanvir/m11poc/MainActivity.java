@@ -158,7 +158,9 @@ public final class MainActivity extends Activity {
     }
 
     private void runDecompilation(File input, String label, Uri originalUri) throws Exception {
-        String references = new File(getFilesDir(), "reference-assemblies/net11.0").getAbsolutePath();
+        String frameworkReferences = ensureFrameworkReferences();
+        String bundledDependencies = ensureThirdPartyReferences();
+        String references = frameworkReferences + File.pathSeparator + bundledDependencies;
         runDecompilation(input, label, originalUri, references);
     }
 
@@ -267,10 +269,10 @@ public final class MainActivity extends Activity {
         findNext.setEnabled(count > 0);
     }
 
-    private void ensureFrameworkReferences() throws IOException {
+    private String ensureFrameworkReferences() throws IOException {
         File references = new File(getFilesDir(), "reference-assemblies/net11.0");
         File marker = new File(references, ".m11-ready");
-        if (marker.isFile()) return;
+        if (marker.isFile()) return references.getAbsolutePath();
 
         deleteTree(references);
         if (!references.mkdirs()) throw new IOException("Cannot create offline .NET reference directory");
@@ -293,6 +295,22 @@ public final class MainActivity extends Activity {
             output.write(("net11.0:" + copied).getBytes("UTF-8"));
             output.flush();
         }
+        return references.getAbsolutePath();
+    }
+
+    private String ensureThirdPartyReferences() throws IOException {
+        File references = new File(getFilesDir(), "dependency-references");
+        File marker = new File(references, ".m11-ready");
+        if (marker.isFile()) return references.getAbsolutePath();
+
+        deleteTree(references);
+        if (!references.mkdirs()) throw new IOException("Cannot create offline dependency reference directory");
+        copyAssets("dependency-references", references);
+        try (FileOutputStream output = new FileOutputStream(marker)) {
+            output.write("m11-dependencies".getBytes("UTF-8"));
+            output.flush();
+        }
+        return references.getAbsolutePath();
     }
 
     private long usedJavaHeap() {
