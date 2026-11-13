@@ -55,6 +55,7 @@ public sealed class Calculator : CalculatorBase, ICalculator
     public T Echo<T>(T value) => value;
     public TResult Map<T, TResult>(T value, Func<T, TResult> map) => map(value);
     public IEnumerable<int> Evens(IEnumerable<int> values) => values.Where(x => x % 2 == 0);
+    public IEnumerable<int> Iterate(int count) { for (var i = 0; i < count; i++) yield return i; }
     public async Task<int> AddLaterAsync(int left, int right) =>
         await Task.FromResult(left + right).ConfigureAwait(false);
 }
