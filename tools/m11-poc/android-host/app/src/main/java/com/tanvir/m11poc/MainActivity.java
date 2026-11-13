@@ -261,9 +261,23 @@ public final class MainActivity extends Activity {
 
         deleteTree(references);
         if (!references.mkdirs()) throw new IOException("Cannot create offline .NET reference directory");
-        copyAssets("reference-assemblies/net11.0", references);
+        String assetRoot = "reference-assemblies/net11.0";
+        String[] names = getAssets().list(assetRoot);
+        if (names == null || names.length == 0)
+            throw new IOException("Offline .NET reference assemblies are missing from the APK.");
+
+        int copied = 0;
+        for (String name : names) {
+            if (!name.toLowerCase(Locale.ROOT).endsWith(".dll")) continue;
+            try (InputStream input = getAssets().open(assetRoot + "/" + name);
+                 OutputStream output = new FileOutputStream(new File(references, name))) {
+                copy(input, output);
+            }
+            copied++;
+        }
+        if (copied == 0) throw new IOException("No .NET reference DLLs were extracted.");
         try (FileOutputStream output = new FileOutputStream(marker)) {
-            output.write("net11.0".getBytes("UTF-8"));
+            output.write(("net11.0:" + copied).getBytes("UTF-8"));
             output.flush();
         }
     }
