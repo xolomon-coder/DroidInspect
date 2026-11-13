@@ -52,11 +52,18 @@ Console.WriteLine("Resolved dependency DLLs: " + string.Join(", ", dependencyNam
 Console.WriteLine("Verified symbols: " + string.Join(", ", required));
 Console.WriteLine("Output characters: " + sourceText.Length);
 Console.WriteLine("Host decompilation milliseconds: " + timer.ElapsedMilliseconds);
+if (sourceText.Contains("M11 DEPENDENCY DIAGNOSTICS", StringComparison.Ordinal) && sourceText.Contains("Serilog, Version=", StringComparison.Ordinal))
+    throw new InvalidOperationException("Serilog.dll was present but was reported unresolved.");
 
 var missingSearch = string.Join(Path.PathSeparator, args[0], missingRefs);
 try
 {
     var missingText = DecompilationService.Decompile(target, missingSearch);
+    if (missingText.Contains("M11 DEPENDENCY DIAGNOSTICS", StringComparison.Ordinal)
+        && missingText.Contains("Serilog, Version=", StringComparison.Ordinal))
+        Console.WriteLine("MISSING_REFERENCE_DIAGNOSTIC: PASS — Serilog reference explicitly reported unresolved");
+    else
+        throw new InvalidOperationException("Missing Serilog.dll was not identified by dependency diagnostics.");
     if (missingText.StartsWith("M11 DECOMPILATION ERROR:", StringComparison.Ordinal))
         Console.WriteLine("MISSING_REFERENCE_OUTCOME: ERROR_TEXT — " + missingText[..Math.Min(missingText.Length, 500)]);
     else if (missingText.Contains("SerilogLoggerProvider", StringComparison.Ordinal))
