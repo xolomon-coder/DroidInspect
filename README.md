@@ -2219,3 +2219,8 @@ Implementation files:
 - `tools/m11-poc/android-host/app/src/main/res/layout/activity_main.xml`
 
 This changes only the isolated M11 proof viewer, not the native engine or production app. GitHub Actions build verification and Android device acceptance are separate gates. Implementation alone does not establish that highlighting works correctly on the phone.
+
+
+M11 search implementation follow-up commits on 2026-11-14:
+- `4e5b8da368541955335ceebe9661b20c26679fa7` — search matching without allocating a second full-size lowercase copy of the decompiled output.
+- `76e75a45fffec14c02b9e3deac23577dc4ed6c37` — correct the match-status line separator.
