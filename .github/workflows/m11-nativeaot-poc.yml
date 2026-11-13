@@ -79,6 +79,13 @@ jobs:
           LD: ld.lld
         run: |
           dotnet publish tools/m11-poc/engine/DroidInspect.M11.Engine.csproj -c Release -r linux-bionic-arm64 -p:DisableUnsupportedError=true -p:PublishAotUsingRuntimePack=true -p:StripSymbols=false
+      - name: Reject the built native ELF as a non-managed input
+        run: |
+          set -euo pipefail
+          REF="$DOTNET_ROOT/packs/Microsoft.NETCore.App.Ref/11.0.0/ref/net11.0"
+          LIB="$(find tools/m11-poc/engine/bin/Release/net11.0/linux-bionic-arm64/publish -maxdepth 1 -name "*.so" -print -quit)"
+          test -s "$LIB"
+          dotnet run --project tools/m11-poc/robustness-tests/RobustnessTests.csproj -c Release -- "$GITHUB_WORKSPACE/tools/m11-poc/fixture/bin/Release/net11.0/DecompilerFixture.dll" "$REF" "$GITHUB_WORKSPACE/$LIB"
       - name: Verify ARM64 ELF and native exports
         run: |
           set -euo pipefail
