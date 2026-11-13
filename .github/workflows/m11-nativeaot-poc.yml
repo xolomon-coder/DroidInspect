@@ -32,9 +32,9 @@ jobs:
       - uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools'
-      - name: Install Android SDK, NDK and CMake
+      - name: Install Android SDK and NDK
         run: |
-          sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;30.0.16248370" "cmake;3.31.6"
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;30.0.16248370"
           echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/30.0.16248370" >> "$GITHUB_ENV"
           echo "$ANDROID_HOME/ndk/30.0.16248370/toolchains/llvm/prebuilt/linux-x86_64/bin" >> "$GITHUB_PATH"
       - name: Build managed fixture
@@ -118,6 +118,18 @@ jobs:
           MAIN="tools/m11-poc/android-host/app/src/main"
           mkdir -p "$MAIN/jniLibs/arm64-v8a" "$MAIN/assets/reference-assemblies/net11.0" "$MAIN/assets/test-assemblies"
           cp artifacts/libdroidinspect_engine.so "$MAIN/jniLibs/arm64-v8a/"
+          # Build the JNI bridge once in CI and commit it beside the AOT engine.
+          # CodeAssist can package both prebuilt ARM64 libraries without running CMake.
+          "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang++" \
+            -std=c++17 -shared -fPIC -nostdlib++ \
+            -I"$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include" \
+            "$MAIN/cpp/jni_bridge.cpp" \
+            -L"$MAIN/jniLibs/arm64-v8a" -ldroidinspect_engine \
+            -Wl,-soname,libdroidinspect_jni.so \
+            -o "$MAIN/jniLibs/arm64-v8a/libdroidinspect_jni.so"
+          test -s "$MAIN/jniLibs/arm64-v8a/libdroidinspect_jni.so"
+          readelf -d "$MAIN/jniLibs/arm64-v8a/libdroidinspect_jni.so" | tee /tmp/m11-jni-needed.txt
+          grep -Fq 'Shared library: [libdroidinspect_engine.so]' /tmp/m11-jni-needed.txt
           REF="$DOTNET_ROOT/packs/Microsoft.NETCore.App.Ref/11.0.0/ref/net11.0"
           test -d "$REF"
           find "$REF" -maxdepth 1 -type f -name '*.dll' -exec cp -t "$MAIN/assets/reference-assemblies/net11.0/" {} +
@@ -175,6 +187,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add tools/m11-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_engine.so
+          git add tools/m11-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_jni.so
           git add tools/m11-poc/android-host/app/src/main/assets/reference-assemblies/net11.0
           git add tools/m11-poc/android-host/app/src/main/assets/test-assemblies
           git add tools/m11-poc/android-host/app/src/main/assets/dependency-references
