@@ -148,7 +148,6 @@ Use GitHub for:
 - Actions: automated host tests, Android compilation, APK output verification, and artifact publishing where configured.
 - Commits: chronological record of changes made directly on `main`.
 - Issues and Projects: optional tracking when useful; they do not require additional branches.
-
 A successful commit or cloud build does not prove the feature works on the user's phone. The user's CodeAssist build and Android device test remain separate verification gates.
 5. Implementation Rules
 
@@ -297,8 +296,7 @@ Mandatory behavior
 1. Inspect before modifying.
 2. Never recreate an existing project unnecessarily.
 3. Follow the established roadmap.
-4. Preserve existing working features.
-5. Avoid unnecessary changes.
+4. Preserve existing working features.5. Avoid unnecessary changes.
 6. Provide complete replacement files when delivering code.
 7. Consider phone-only development constraints.
 8. Explain technical problems in understandable language.
@@ -447,8 +445,7 @@ The roadmap has **11 milestones**, grouped into four phases. M1–M10 retain the
 
 **M7 — .NET assembly editing**
 - Evaluate safe assembly metadata and IL editing using a validated engine.
-- Support selected metadata/member edits and IL editing only where the engine and format permit.
-- Validate output structure and report unsupported or risky operations.
+- Support selected metadata/member edits and IL editing only where the engine and format permit.- Validate output structure and report unsupported or risky operations.
 - Exit criteria: a test assembly can be modified, reopened, and checked for expected changes without corrupting the original.
 
 ### Phase 3 — Output, advanced tools, and release
@@ -597,7 +594,6 @@ The project remains the existing Java + native XML Android application. The road
 - Original files remain untouched; inspection uses temporary working copies.
 
 **Android 11 device test (2026-11-12): PASS for a CLI-bearing mixed-mode DLL candidate.** User inspected a 71,224-byte `ISymWrapper.dll` candidate. PE signature PASS; x64 / PE32+; 7 sections; CLI header present; runtime string `v4.0.30319`; metadata root and 5 streams parsed; Assembly, Module, TypeDef (52), MethodDef (242), and AssemblyRef (2) rows found. Module/assembly identity, MVID, references, type names, field names, and method names were decoded. Flags and native C++ implementation-detail types suggest a mixed-mode C++/CLI assembly, not a pure-managed C# fixture.
-
 **Known limits and verification gap:**
 - Metadata inspection is not C# decompilation, IL editing, or assembly rewriting.
 - Display caps: 200 assembly references, 300 types, and 200 members per type.
@@ -748,7 +744,6 @@ The automated tests found and corrected real issues:
 - Supports text search across the indexed method/type labels.
 - Metadata method rename is deliberately constrained: ASCII identifier, identical UTF-8 byte length, no special-name methods, no shared metadata string, and no strong-name or Authenticode-signed input. The original file is preserved and the exported copy is reopened for verification.
 - The current implementation is **not a C# decompiler**. It displays a bounded subset of raw IL; metadata tokens remain numeric and unsupported opcodes are reported/omitted.
-
 **Host verification already present:** `tools/il-reader-test/DotNetIlReaderSelfTest.java` builds a synthetic managed PE/CLI fixture, checks method ownership and IL decoding, verifies a metadata rename round trip, and confirms the source fixture remains unchanged. The newer IL-body editing assertions are described under M7 below. Host verification passed. Android 11 device verification is now complete for the agreed core scope; see the dated M5 device-verification record at the end of this README.
 
 ### M6 — APK manifest and resource analysis/editing (COMPLETE; device PASS)
@@ -897,8 +892,7 @@ Preserve the phone-only CodeAssist workflow, Java + XML architecture, GitHub as 
 
 The user tested the DEX browser against a real APK containing nine root-level DEX files. The browser opened and displayed partial metadata (183 classes and 1,314 members), but only `classes8.dex` passed; the other eight entries were rejected with field-index or method-index out-of-bounds errors. The aggregate class/member counts were therefore partial and must not be treated as a successful parse of the APK.
 
-**Root cause confirmed in DEX class_data decoding:**
-- DEX encodes static fields and instance fields as two separate lists. Each list's `field_idx_diff` sequence starts from index zero.
+**Root cause confirmed in DEX class_data decoding:**- DEX encodes static fields and instance fields as two separate lists. Each list's `field_idx_diff` sequence starts from index zero.
 - Direct methods and virtual methods are also separate lists, and each `method_idx_diff` sequence starts from index zero.
 - The previous parser incorrectly continued the cumulative index across each list boundary, causing valid member references to exceed the corresponding field/method table bounds.
 
@@ -1048,7 +1042,6 @@ The user explicitly wants a future **View C# / Decompile** capability in DroidIn
 - Reconstruct readable C# source from managed .NET method bodies, rather than showing only raw ECMA-335 IL.
 - Present decompiled output by namespace, type, and method, with navigation between related members where supported.
 - Retain the existing raw IL view as a separate inspection mode; decompiled C# must not replace or be confused with raw IL.
-
 ### Feasibility and implementation requirements
 - First evaluate a practical Android-compatible decompiler engine/runtime integration for this Java + native XML Android app.
 - Investigate ILSpy or another suitable decompiler, including runtime/interop requirements, Android 11 compatibility, licensing, APK size, memory use, and performance on a phone.
@@ -1197,7 +1190,6 @@ This section supersedes earlier continuation notes in this README that said M7 d
 - Generated Android Keystore keys are non-exportable. If the app is uninstalled or its private data is cleared, that generated key may become unavailable. Use a securely backed-up imported keystore for long-term production signing.
 - The original APK and original keystore document are never overwritten. Signed output is a distinct file and is only export-enabled after successful signature verification.
 - CI test passwords and test keys are ephemeral test-only material; no real private signing key is stored in source control or uploaded to CI artifacts.
-
 ### M9 implementation and decompilation decision
 
 - New source: `droidinspect/app/src/main/java/com/tanvir/droidinspect/IlOpcodeExplainer.java`.
@@ -1347,7 +1339,6 @@ The first experiment should therefore target a small `linux-bionic-arm64` Native
 ---
 
 ## 12. M11 isolated ILSpy Native AOT proof — implementation and CI verification (2026-11-13)
-
 **Status: ISOLATED PROTOTYPE BUILDS AND PASSES CLOUD VERIFICATION; ANDROID 11 DEVICE ACCEPTANCE IS PENDING.** This is not production integration and does not mark M11 complete.
 
 ### Isolated implementation
@@ -1498,7 +1489,6 @@ The second assembly is **Newtonsoft.Json 13.0.3**, obtained from the official Nu
 - Assembly size: 705,296 bytes.
 - SHA-256: `8c1dd5c184b4e2e7ead06971ff3ebcb46783be972292d1deb1061744369b4d80`.
 - The assembly is independent of the DroidInspect fixture project and is not compiled by this repository's fixture build.
-
 ### Host-side ILSpy result
 
 The M11 workflow now runs two separate acceptance programs:
@@ -1647,8 +1637,7 @@ The real-world host test again reconstructed 1,182,022 characters from Newtonsof
 - Artifact ZIP SHA-256: `d9cfcf6af29c935bb0b03dd53ccb0e68fd51c76f91718d67964dbdfe3ca01665`.
 - Expiry: 2026-11-26.
 - APK SHA-256: `c38d98792fd5a8b7caae9e60909778d951002795e215e83c2b461339ac68afce`.
-- Bundled Newtonsoft.Json DLL SHA-256: `8c1dd5c184b4e2e7ead06971ff3ebcb46783be972292d1deb1061744369b4d80`.
-- Native engine SHA-256: `b26967415938118f719e19619f0cc1e98e403eced6cc3cb05eff88db00b72543`.
+- Bundled Newtonsoft.Json DLL SHA-256: `8c1dd5c184b4e2e7ead06971ff3ebcb46783be972292d1deb1061744369b4d80`.- Native engine SHA-256: `b26967415938118f719e19619f0cc1e98e403eced6cc3cb05eff88db00b72543`.
 
 Artifact download page:
 https://github.com/xolomon-coder/DroidInspect/actions/runs/43320888768/artifacts/13991320684
@@ -1796,7 +1785,6 @@ The first dependency-test workflow run verified:
 The M11 workflow then failed in APK asset preparation because its shell validation incorrectly expected `Microsoft.Extensions.Logging.Abstractions.dll`. The actual resolved NuGet output contains `Microsoft.Extensions.Logging.dll`, `Microsoft.Extensions.DependencyInjection.dll`, and `Serilog.dll`; the host log confirms these names. The workflow now validates the actual dependency filenames. This is a packaging assertion correction; the decompiler and host dependency test had already passed.
 
 The corrected M11 workflow must complete before a new APK can be distributed for Android device acceptance.
-
 
 ### M11 dependency APK verification correction — follow-up (2026-11-13)
 
@@ -1948,7 +1936,6 @@ The latest CI APK from run #55 has SHA-256 8b12de6faceec6ee71d5e350f92c5fdd6e258
 Payload commit: fcf77f4e7ad88c3badcdbd5d16d1c2c3b0817e2b.
 
 The repository now includes 182 generated files totaling 53,490,176 bytes:
-
 - ARM64 Native AOT engine: 45,966,680 bytes.
 - .NET 11 reference assemblies: 176 DLLs.
 - Third-party dependency DLLs: Serilog.dll, Microsoft.Extensions.Logging.dll, and Microsoft.Extensions.DependencyInjection.dll.
@@ -2032,3 +2019,36 @@ The installed APK successfully found the prebuilt `libdroidinspect_engine.so`, b
 The source correction is committed, but the generated JNI binary and new APK must pass the M11 workflow's APK payload checks and production Android regression CI before delivery. Do not ask the user to rebuild from the old ZIP. After the workflow publishes the JNI binary to `main`, provide the new `main` ZIP and ask the user to replace the extracted M11 proof project, build once in CodeAssist, install, and confirm native engine startup. Then resume the existing consolidated offline acceptance batch.
 
 **Current device acceptance:** installation completed; startup failed because the JNI bridge .so was missing. Newtonsoft.Json, Serilog, paging, external assembly, invalid-input, repeatability, and performance tests have not yet run on this installed build. Full M11 acceptance remains pending.
+
+## 21. M11 offline Android result and search layout correction (2026-11-14)
+
+### Device result confirmed
+
+The user confirmed that the latest M11 proof app starts and reports: “Native engine loaded. Offline decompilation ready.” The user then ran the bundled Newtonsoft.Json 13.0.3 test offline. It returned C# source with dependency diagnostics:
+
+- Input: 705,296 bytes.
+- Decompilation time: 20,258 ms.
+- Output: 1,182,379 characters across 50 pages.
+- Java heap change: 3,584,000 bytes.
+- Process PSS before: 21,039,104 bytes; sampled peak and after: 130,262,016 bytes.
+- SHA-256 before and after matched: 8c1dd5c184b4e2e7ead06971ff3ebcb46783be972292d1deb1061744369b4d80.
+- Working-copy unchanged: PASS.
+
+This is positive on-device evidence for offline decompilation and input integrity. Find, page navigation, Serilog dependency-present/missing tests, external managed assembly selection, invalid-input handling, repeatability, and full UI responsiveness remain unverified.
+
+### Search field visibility bug and correction
+
+The user reported that the Find symbol or source text field was pushed to the bottom of the screen and barely visible. The layout was corrected directly on main:
+
+- Search and Previous/Next controls now appear before the long diagnostic report.
+- Search field height is 48dp with padding.
+- Diagnostic report is limited to five lines with end ellipsis, preventing it from pushing search controls off-screen.
+- Activity uses adjustResize when the keyboard opens.
+- Native engine, decompilation logic, and Java search implementation were not changed.
+
+Source commits:
+- 9438a80ac03dd5df95c745956b93c953bc8132f9 — search field layout correction.
+- 830a4b8b922689037e26d83cf86ec3e60a1974c8 — keyboard resize behavior.
+- ff6a6d4fa9682d91a61ac4817a10da18baedb14d — detailed device acceptance log.
+
+**Current stopping point:** wait for CI to verify the updated M11 Android host. Then provide the latest main ZIP and ask the user to rebuild/install once in CodeAssist and confirm the search field is visible and usable with the keyboard open. Resume the remaining consolidated M11 device tests only after the layout is confirmed. M11 remains isolated; production integration is not started.
