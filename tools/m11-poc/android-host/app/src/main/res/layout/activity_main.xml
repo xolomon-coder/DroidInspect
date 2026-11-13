@@ -55,6 +55,12 @@
             android:paddingEnd="10dp" />
 
         <Button
+            android:id="@+id/findPrevious"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Prev" />
+
+        <Button
             android:id="@+id/findNext"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -71,7 +77,7 @@
             android:id="@+id/previousPage"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Previous" />
+            android:text="Prev page" />
 
         <TextView
             android:id="@+id/pageInfo"
@@ -85,7 +91,7 @@
             android:id="@+id/nextPage"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Next" />
+            android:text="Next page" />
     </LinearLayout>
 
     <TextView
