@@ -2199,3 +2199,23 @@ A PDB or Source Link record is useful only when it matches the inspected assembl
 - Network failures, unavailable servers, invalid packages, and incompatible dependencies do not crash the app or corrupt the offline cache.
 
 **Status:** planned only; no online resolver, downloader, symbol-server client, Source Link client, or cache implementation is claimed to exist. M11 device acceptance remains the immediate priority. M12 remains gated by M11 acceptance and the documented production-integration decision; this enhancement should be separately scoped and scheduled without weakening those gates.
+
+
+## 24. M11 source search highlighting and navigation — implementation (2026-11-14)
+
+The isolated M11 proof viewer now supports visible search highlighting and match navigation in reconstructed C# source.
+
+- Search the complete decompiled output across all source pages, case-insensitively.
+- Highlight every occurrence on the currently displayed page.
+- Use a visually distinct highlight for the selected occurrence.
+- Provide separate Previous Match and Find/Next Match actions, wrapping at the ends of the match list.
+- Automatically switch to the page containing the selected match and scroll it into view.
+- Display the query and current match position/count, for example `Found: JsonConvert (match 1 of 12)`.
+- Keep page navigation separate from match navigation.
+- Apply Android text spans only to a displayed page copy; do not mutate the original complete decompiled source.
+
+Implementation files:
+- `tools/m11-poc/android-host/app/src/main/java/com/tanvir/m11poc/MainActivity.java`
+- `tools/m11-poc/android-host/app/src/main/res/layout/activity_main.xml`
+
+This changes only the isolated M11 proof viewer, not the native engine or production app. GitHub Actions build verification and Android device acceptance are separate gates. Implementation alone does not establish that highlighting works correctly on the phone.
