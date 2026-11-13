@@ -105,6 +105,21 @@ public static class DecompilationService
             var reference = metadata.GetAssemblyReference(handle);
             var name = metadata.GetString(reference.Name);
             var expectedVersion = reference.Version;
+            var expectedIdentity = new AssemblyName
+            {
+                Name = name,
+                Version = expectedVersion,
+                CultureName = reference.Culture.IsNil ? null : metadata.GetString(reference.Culture)
+            };
+            var publicKeyOrToken = metadata.GetBlobBytes(reference.PublicKeyOrToken);
+            if (publicKeyOrToken.Length > 0)
+            {
+                if ((reference.Flags & AssemblyFlags.PublicKey) != 0)
+                    expectedIdentity.SetPublicKey(publicKeyOrToken);
+                else
+                    expectedIdentity.SetPublicKeyToken(publicKeyOrToken);
+            }
+            var expectedToken = expectedIdentity.GetPublicKeyToken() ?? Array.Empty<byte>();
             var found = false;
             var mismatched = new List<string>();
 
@@ -118,8 +133,15 @@ public static class DecompilationService
                     try
                     {
                         var actual = AssemblyName.GetAssemblyName(candidate);
+                        var actualToken = actual.GetPublicKeyToken() ?? Array.Empty<byte>();
+                        var cultureMatches = string.Equals(
+                            actual.CultureName ?? string.Empty,
+                            expectedIdentity.CultureName ?? string.Empty,
+                            StringComparison.OrdinalIgnoreCase);
                         if (string.Equals(actual.Name, name, StringComparison.OrdinalIgnoreCase)
-                            && (actual.Version is null || actual.Version == expectedVersion))
+                            && actual.Version == expectedVersion
+                            && cultureMatches
+                            && actualToken.SequenceEqual(expectedToken))
                         {
                             found = true;
                             break;
