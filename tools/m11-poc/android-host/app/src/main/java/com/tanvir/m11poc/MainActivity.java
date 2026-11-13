@@ -5,6 +5,11 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Debug;
+import android.text.Spannable;
+import android.text.SpannableString;
+import android.text.style.BackgroundColorSpan;
+import android.text.style.ForegroundColorSpan;
+import android.graphics.Color;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -13,6 +18,7 @@ import android.widget.TextView;
 import java.io.*;
 import java.security.MessageDigest;
 import java.util.Locale;
+import java.util.ArrayList;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -23,13 +29,14 @@ public final class MainActivity extends Activity {
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final ScheduledExecutorService memorySampler = Executors.newSingleThreadScheduledExecutor();
     private Button select, bundled, dependencyFull, dependencyMissing;
-    private Button findNext, previousPage, nextPage;
+    private Button findNext, findPrevious, previousPage, nextPage;
     private EditText searchText;
     private TextView status, source, pageInfo;
     private ScrollView sourceScroll;
     private String completeSource = "";
     private int currentPage;
-    private int lastSearchIndex = -1;
+    private final ArrayList<Integer> searchMatches = new ArrayList<>();
+    private int currentMatchIndex = -1;
     private String lastSearchQuery = "";
     private String lastReport = "";
 
@@ -46,6 +53,7 @@ public final class MainActivity extends Activity {
         sourceScroll = findViewById(R.id.sourceScroll);
         searchText = findViewById(R.id.searchText);
         findNext = findViewById(R.id.findNext);
+        findPrevious = findViewById(R.id.findPrevious);
         previousPage = findViewById(R.id.previousPage);
         nextPage = findViewById(R.id.nextPage);
 
@@ -54,6 +62,7 @@ public final class MainActivity extends Activity {
         dependencyFull.setOnClickListener(v -> runDependencyTest(false));
         dependencyMissing.setOnClickListener(v -> runDependencyTest(true));
         findNext.setOnClickListener(v -> findNextMatch());
+        findPrevious.setOnClickListener(v -> findPreviousMatch());
         previousPage.setOnClickListener(v -> showPage(currentPage - 1));
         nextPage.setOnClickListener(v -> showPage(currentPage + 1));
         updatePageControls();
@@ -200,7 +209,8 @@ public final class MainActivity extends Activity {
         runOnUiThread(() -> {
             completeSource = result == null ? "" : result;
             currentPage = 0;
-            lastSearchIndex = -1;
+            searchMatches.clear();
+            currentMatchIndex = -1;
             lastSearchQuery = "";
             renderCurrentPage();
             String state;
@@ -216,26 +226,62 @@ public final class MainActivity extends Activity {
     }
 
     private void findNextMatch() {
+        refreshSearchMatches();
+        if (searchMatches.isEmpty()) {
+            status.setText("No matches found: " + searchText.getText().toString());
+            return;
+        }
+        currentMatchIndex = (currentMatchIndex + 1) % searchMatches.size();
+        showCurrentMatch();
+    }
+
+    private void findPreviousMatch() {
+        refreshSearchMatches();
+        if (searchMatches.isEmpty()) {
+            status.setText("No matches found: " + searchText.getText().toString());
+            return;
+        }
+        currentMatchIndex = currentMatchIndex <= 0
+                ? searchMatches.size() - 1 : currentMatchIndex - 1;
+        showCurrentMatch();
+    }
+
+    private void refreshSearchMatches() {
         String query = searchText.getText().toString();
-        if (query.trim().isEmpty() || completeSource.isEmpty()) {
-            status.setText("Enter text to search in the reconstructed source.");
-            return;
+        if (query.equals(lastSearchQuery)) return;
+        lastSearchQuery = query;
+        searchMatches.clear();
+        currentMatchIndex = -1;
+        if (query.trim().isEmpty() || completeSource.isEmpty()) return;
+
+        int from = 0;
+        while (from <= completeSource.length() - query.length()) {
+            int found = completeSource.toLowerCase(Locale.ROOT)
+                    .indexOf(query.toLowerCase(Locale.ROOT), from);
+            if (found < 0) break;
+            searchMatches.add(found);
+            from = found + Math.max(1, query.length());
         }
-        if (!query.equals(lastSearchQuery)) {
-            lastSearchQuery = query;
-            lastSearchIndex = -1;
-        }
-        int found = completeSource.indexOf(query, lastSearchIndex + 1);
-        if (found < 0 && lastSearchIndex >= 0) found = completeSource.indexOf(query);
-        if (found < 0) {
-            status.setText("No match found: " + query);
-            return;
-        }
-        lastSearchIndex = found;
+    }
+
+    private void showCurrentMatch() {
+        if (currentMatchIndex < 0 || currentMatchIndex >= searchMatches.size()) return;
+        int found = searchMatches.get(currentMatchIndex);
         currentPage = found / SOURCE_PAGE_CHARS;
         renderCurrentPage();
-        status.setText(lastReport + "\nFound \"" + query + "\" at character " + found
-                + " (page " + (currentPage + 1) + ").");
+        final String query = lastSearchQuery;
+        final int matchNumber = currentMatchIndex + 1;
+        final int matchCount = searchMatches.size();
+        status.setText(lastReport + "\\nFound: " + query + " (match "
+                + matchNumber + " of " + matchCount + ") — page " + (currentPage + 1));
+        final int localOffset = found - currentPage * SOURCE_PAGE_CHARS;
+        sourceScroll.post(() -> {
+            android.text.Layout layout = source.getLayout();
+            if (layout == null) return;
+            int safeOffset = Math.max(0, Math.min(localOffset, source.length() - 1));
+            int line = layout.getLineForOffset(safeOffset);
+            sourceScroll.smoothScrollTo(0, Math.max(0, layout.getLineTop(line) - 12));
+        });
     }
 
     private void showPage(int page) {
@@ -253,9 +299,26 @@ public final class MainActivity extends Activity {
     private void renderCurrentPage() {
         int start = currentPage * SOURCE_PAGE_CHARS;
         int end = Math.min(completeSource.length(), start + SOURCE_PAGE_CHARS);
-        source.setText(completeSource.isEmpty()
-                ? "No source output is available."
-                : completeSource.substring(start, end));
+        if (completeSource.isEmpty()) {
+            source.setText("No source output is available.");
+        } else {
+            SpannableString page = new SpannableString(completeSource.substring(start, end));
+            for (int i = 0; i < searchMatches.size(); i++) {
+                int absoluteStart = searchMatches.get(i);
+                int absoluteEnd = absoluteStart + lastSearchQuery.length();
+                if (absoluteEnd <= start || absoluteStart >= end) continue;
+                int localStart = Math.max(0, absoluteStart - start);
+                int localEnd = Math.min(end, absoluteEnd) - start;
+                boolean selected = i == currentMatchIndex;
+                int background = selected ? Color.rgb(255, 152, 0) : Color.rgb(255, 235, 130);
+                int foreground = Color.rgb(25, 25, 25);
+                page.setSpan(new BackgroundColorSpan(background), localStart, localEnd,
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                page.setSpan(new ForegroundColorSpan(foreground), localStart, localEnd,
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+            source.setText(page);
+        }
         pageInfo.setText("Source page " + (getPageCount() == 0 ? 0 : currentPage + 1)
                 + " / " + getPageCount());
         updatePageControls();
@@ -267,6 +330,7 @@ public final class MainActivity extends Activity {
         previousPage.setEnabled(count > 0 && currentPage > 0);
         nextPage.setEnabled(count > 0 && currentPage + 1 < count);
         findNext.setEnabled(count > 0);
+        findPrevious.setEnabled(count > 0);
     }
 
     private String ensureFrameworkReferences() throws IOException {
