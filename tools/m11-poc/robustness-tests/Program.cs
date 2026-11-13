@@ -1,8 +1,8 @@
 using DroidInspect.M11;
 
-if (args.Length != 2)
+if (args.Length < 2 || args.Length > 3)
 {
-    Console.Error.WriteLine("Usage: RobustnessTests <fixture.dll> <reference-dir>");
+    Console.Error.WriteLine("Usage: RobustnessTests <fixture.dll> <reference-dir> [native-pe-or-elf-file]");
     return 2;
 }
 
@@ -23,12 +23,16 @@ try
     ExpectFailure(text, "InvalidDataException", "non-PE input");
 
     var truncated = Path.Combine(temp, "truncated.dll");
-    File.WriteAllBytes(truncated, new byte[] { 0x4D, 0x5A, 0x00, 0x00, 0x01 });
+    var fixtureBytes = File.ReadAllBytes(fixture);
+    File.WriteAllBytes(truncated, fixtureBytes[..Math.Min(256, fixtureBytes.Length)]);
     ExpectFailure(truncated, "InvalidDataException", "truncated PE input");
 
     var nativeLike = Path.Combine(temp, "native.exe");
     File.WriteAllBytes(nativeLike, new byte[512]);
     ExpectFailure(nativeLike, "InvalidDataException", "invalid executable input");
+
+    if (args.Length == 3)
+        ExpectFailure(args[2], "InvalidDataException", "native ELF/non-PE executable");
 
     for (var i = 0; i < 3; i++)
     {
