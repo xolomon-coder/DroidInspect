@@ -8,9 +8,10 @@ on:
       - '.github/workflows/m11-nativeaot-poc.yml'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   build-and-verify:
+    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[m11-assets]')
     name: Fixture, real assembly, ILSpy, Native AOT, JNI and APK
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -117,7 +118,7 @@ jobs:
           cp artifacts/libdroidinspect_engine.so "$MAIN/jniLibs/arm64-v8a/"
           REF="$DOTNET_ROOT/packs/Microsoft.NETCore.App.Ref/11.0.0/ref/net11.0"
           test -d "$REF"
-          cp -a "$REF/." "$MAIN/assets/reference-assemblies/net11.0/"
+          find "$REF" -maxdepth 1 -type f -name '*.dll' -exec cp -t "$MAIN/assets/reference-assemblies/net11.0/" {} +
           cp /tmp/m11-newtonsoft/Newtonsoft.Json.dll "$MAIN/assets/test-assemblies/"
           cp /tmp/m11-newtonsoft/Newtonsoft.Json.dll artifacts/
           DEP_OUT="tools/m11-poc/dependency-assembly-tests/bin/Release/net11.0"
@@ -165,6 +166,22 @@ jobs:
           cp "$APK" artifacts/DroidInspect-M11-Android-Proof.apk
           sha256sum artifacts/*
           ls -lh artifacts
+      - name: Commit generated offline Android build payload to main
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[publish-m11-assets]')
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tools/m11-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_engine.so
+          git add tools/m11-poc/android-host/app/src/main/assets/reference-assemblies/net11.0
+          git add tools/m11-poc/android-host/app/src/main/assets/test-assemblies
+          git add tools/m11-poc/android-host/app/src/main/assets/dependency-references
+          if git diff --cached --quiet; then
+            echo "Generated CodeAssist payload is already current."
+            exit 0
+          fi
+          git commit -m "[m11-assets] Add generated ARM64 engine and offline assets for CodeAssist"
+          git push origin HEAD:main
       - uses: actions/upload-artifact@v4
         with:
           name: DroidInspect-M11-Android-Proof
