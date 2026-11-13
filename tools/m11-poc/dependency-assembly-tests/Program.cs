@@ -52,18 +52,32 @@ Console.WriteLine("Resolved dependency DLLs: " + string.Join(", ", dependencyNam
 Console.WriteLine("Verified symbols: " + string.Join(", ", required));
 Console.WriteLine("Output characters: " + sourceText.Length);
 Console.WriteLine("Host decompilation milliseconds: " + timer.ElapsedMilliseconds);
-if (sourceText.Contains("M11 DEPENDENCY DIAGNOSTICS", StringComparison.Ordinal) && sourceText.Contains("Serilog, Version=", StringComparison.Ordinal))
+if (sourceText.Contains("M11 DEPENDENCY DIAGNOSTICS", StringComparison.Ordinal)
+    && sourceText.Contains("Serilog, Version=", StringComparison.Ordinal))
     throw new InvalidOperationException("Serilog.dll was present but was reported unresolved.");
 
-var missingSearch = string.Join(Path.PathSeparator, args[0], missingRefs);
 try
 {
-    var missingText = DecompilationService.Decompile(target, missingSearch);
-    if (missingText.Contains("M11 DEPENDENCY DIAGNOSTICS", StringComparison.Ordinal)
-        && missingText.Contains("Serilog, Version=", StringComparison.Ordinal))
-        Console.WriteLine("MISSING_REFERENCE_DIAGNOSTIC: PASS — Serilog reference explicitly reported unresolved");
-    else
+    var missingSearch = string.Join(Path.PathSeparator, args[0], missingRefs);
+    string missingText;
+    try
+    {
+        missingText = DecompilationService.Decompile(target, missingSearch);
+    }
+    catch (Exception ex)
+    {
+        if (!ex.ToString().Contains("Serilog", StringComparison.OrdinalIgnoreCase))
+            throw;
+        Console.WriteLine("MISSING_REFERENCE_OUTCOME: ERROR — " + ex.GetType().FullName + ": " + ex.Message);
+        Console.WriteLine("MISSING_REFERENCE_DIAGNOSTIC: PASS — error identifies Serilog");
+        return 0;
+    }
+
+    if (!missingText.Contains("M11 DEPENDENCY DIAGNOSTICS", StringComparison.Ordinal)
+        || !missingText.Contains("Serilog, Version=", StringComparison.Ordinal))
         throw new InvalidOperationException("Missing Serilog.dll was not identified by dependency diagnostics.");
+
+    Console.WriteLine("MISSING_REFERENCE_DIAGNOSTIC: PASS — Serilog reference explicitly reported unresolved");
     if (missingText.StartsWith("M11 DECOMPILATION ERROR:", StringComparison.Ordinal))
         Console.WriteLine("MISSING_REFERENCE_OUTCOME: ERROR_TEXT — " + missingText[..Math.Min(missingText.Length, 500)]);
     else if (missingText.Contains("SerilogLoggerProvider", StringComparison.Ordinal))
@@ -71,10 +85,6 @@ try
     else
         Console.WriteLine("MISSING_REFERENCE_OUTCOME: SOURCE_RETURNED_BUT_EXPECTED_TYPE_NOT_FOUND");
     Console.WriteLine("Missing-reference output characters: " + missingText.Length);
-}
-catch (Exception ex)
-{
-    Console.WriteLine("MISSING_REFERENCE_OUTCOME: EXCEPTION — " + ex.GetType().FullName + ": " + ex.Message);
 }
 finally
 {
