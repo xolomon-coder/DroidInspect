@@ -396,9 +396,9 @@ Important feasibility constraints:
 - If a preferred engine cannot run reliably on Android 11 / CodeAssist, investigate a smaller native implementation or clearly document a reduced feature scope. Do not silently change the Java/XML preference; discuss a major architecture change first.
 - Check and document each dependency's license and redistribution requirements before packaging it.
 
-## 4. Complete Roadmap — 11 Milestones
+## 4. Complete Roadmap — 12 Milestones
 
-The roadmap has **11 milestones**, grouped into four phases. M1–M10 retain their existing scope and history; M11 is the newly approved major milestone for real on-device C# source decompilation. The sequence may be refined only when a verified technical blocker requires it; document the reason and preserve the original goal.
+The roadmap has **12 milestones**, grouped into five phases. M1–M10 retain their existing scope and history; M11 adds real on-device C# source decompilation, and M12 adds separate-copy C# source editing and rebuilt DLL export. M12 is gated on M11 Android-device acceptance and a documented production-integration decision. The sequence may be refined only when a verified technical blocker requires it; document the reason and preserve the original goal.
 
 ### Phase 1 — Foundation and file understanding
 
@@ -525,13 +525,60 @@ The roadmap has **11 milestones**, grouped into four phases. M1–M10 retain the
 
 **Architecture decision gate:** No production dependency, runtime, ABI change, or UI entry is to be added until the isolated Android proof of concept passes. If no viable route satisfies the device, licensing, performance, and CodeAssist/CI constraints, stop at the feasibility report and present the alternatives; do not ship a fake or partial feature under the name full C# decompilation.
 
+### Phase 5 — C# source editing and managed assembly rebuilding
+
+**M12 — C# Source Editing & DLL Recompilation (APPROVED; NOT STARTED)**
+
+**Objective:** Let the user edit reconstructed C# source as a separate working copy and, where technically supported, compile that edited source into a new managed DLL without modifying the original assembly or the original decompilation result.
+
+**Start gate:** Do not begin M12 implementation until M11 has passed its required Android-device acceptance tests and the project has recorded the production-integration decision. M12 must build on the accepted decompilation architecture; do not bypass or destabilize M11.
+
+**Required work, in order:**
+
+1. **Editing model and source preservation**
+   - Keep the original input DLL/EXE immutable.
+   - Keep the first decompilation result available as a read-only reference.
+   - Add an explicit Edit Source action that creates a separate editable working copy; never silently make the original result editable.
+   - Support editing and saving reconstructed C# source as separate .cs file(s), with clear filenames and a defined project/source-folder structure.
+   - Clearly distinguish decompiled source, edited working source, and compiled output in the UI and status messages.
+
+2. **Compilation feasibility and project generation**
+   - Identify the actual target framework/runtime and language/compiler requirements of the input assembly where metadata permits; report uncertainty rather than guessing.
+   - Evaluate a compatible offline .NET compiler/toolchain that can run through the app's supported Android architecture. Prove it in an isolated prototype before adopting it in production.
+   - Generate the required project/build configuration and references for the selected target. Do not assume that successful decompilation guarantees recompilable source.
+   - Resolve or explicitly report missing, mismatched, unavailable, or non-redistributable dependencies. Do not silently substitute incompatible reference assemblies.
+   - Document compiler/runtime versions, licenses, ABI and Android API requirements, offline payload size, memory/CPU use, and CodeAssist/CI reproducibility.
+
+3. **Rebuild into a separate assembly**
+   - Compile the edited source into a new managed DLL, for example Newtonsoft.Json_edited.dll.
+   - Never overwrite the selected original DLL/EXE or the untouched decompilation output.
+   - Keep the source files and compiler diagnostics available when compilation fails.
+   - Show build progress, errors, warnings, target framework, output identity, and output path.
+   - Do not claim binary-equivalent reconstruction: rebuilt assemblies may differ in metadata, signing, layout, compiler-generated details, and behavior.
+
+4. **Validation and export**
+   - Reopen the rebuilt DLL with DroidInspect and verify its PE/CLI structure, assembly identity, metadata, and expected edited symbols or members.
+   - Run available structural and behavioral checks; distinguish structural validity from runtime compatibility and behavioral equivalence.
+   - Export the rebuilt DLL as a new file through Android's document picker/SAF. Preserve the edited .cs source and build report as separate exports where practical.
+   - Report unsupported inputs, strong-name/signature implications, framework limitations, and any dependencies the recipient must provide.
+
+**Hard acceptance criteria:**
+- The user can edit a separate copy of reconstructed C# source while the original assembly and original decompilation remain unchanged.
+- Edited source can be saved as separate .cs file(s).
+- A supported offline compilation path produces a new managed DLL on the Android device.
+- The output DLL is reopened and its expected edited changes are verified by DroidInspect.
+- Missing/incompatible references and compilation failures are reported clearly; no fake success or extension-only rename is allowed.
+- The workflow is tested on the user's phone, reproducible in CI, and compatible with the established phone-only CodeAssist workflow.
+
+**Architecture and feasibility gate:** Source editing and DLL compilation are separate capabilities. A text editor plus .cs export does not constitute DLL recompilation. If a reliable offline Android compiler/runtime path cannot be proven, deliver source editing/export as a clearly bounded subfeature and document the blocker and alternatives; do not label M12 complete or claim DLL rebuild support.
+
 ## 5. Development and Creation Process
 
 This is the required process for building DroidInspect:
 
 1. **Repository-first:** inspect the latest `main` branch, commit, README, build files, and source before every implementation task.
 2. **Feasibility before dependency adoption:** create small, isolated on-device prototypes for risky engines. Do not add a major decompiler/rebuilder dependency until its Android compatibility is demonstrated.
-3. **Phase-level delivery:** when the user asks to complete a whole phase, continue through every milestone in that phase in sequence on `main`, using milestone boundaries as internal checkpoints rather than stopping for a routine handoff after each milestone. Do not arbitrarily expand scope beyond the phase. Pause early only when a user decision, missing fixture, safety constraint, or essential device-only validation genuinely blocks further work; explain the blocker and ask whether to defer that check and continue. Keep the eleven-milestone roadmap visible.
+3. **Phase-level delivery:** when the user asks to complete a whole phase, continue through every milestone in that phase in sequence on `main`, using milestone boundaries as internal checkpoints rather than stopping for a routine handoff after each milestone. Do not arbitrarily expand scope beyond the phase. Pause early only when a user decision, missing fixture, safety constraint, or essential device-only validation genuinely blocks further work; explain the blocker and ask whether to defer that check and continue. Keep the twelve-milestone roadmap visible.
 4. **Plan exact changes:** list files to add/change, dependencies and exact versions, permissions, compatibility effects, and test cases before coding.
 5. **Implement phone-friendly code:** provide complete replacement files with full paths; avoid partial snippets and desktop-only instructions.
 6. **Cloud verification:** run the configured host tests and GitHub Actions on the latest `main` source; fix failures before handoff. CI artifacts are for verification, not the normal user delivery route.
@@ -548,7 +595,7 @@ No milestone is complete solely because code was written or committed. When deli
 
 Phase 1 implementation has passed cloud CI and initial Android 11 device smoke checks. The user chose to proceed without the optional native-PE fixture test. Native/non-managed PE rejection therefore remains an explicit unverified limitation; do not claim full M3 classification coverage. M2 has one successful real APK test, and M3 has one successful CLI-bearing mixed-mode .NET DLL test. Phase 2 may begin while this gap remains documented for later regression coverage.
 
-The project remains the existing Java + native XML Android application. The roadmap now contains eleven milestones across four phases; M11 adds the approved full C# decompilation goal without changing the existing app architecture before feasibility is proven. Development branch: `main`. M4 dashboard Java fix: `6f67cad16e4dab99cc2e13b7a49dbcd8d058eaa9`. Main HEAD immediately before this handoff documentation refresh: `346b1cb63a2e90fb29b09d122ab173b1024a6e02`. The documentation refresh itself creates a newer main commit; use the latest repository HEAD when continuing.
+The project remains the existing Java + native XML Android application. The roadmap now contains twelve milestones across five phases; M11 adds full C# decompilation and M12 adds the approved, gated source-editing and DLL-recompilation goal. Neither milestone authorizes unproven runtime/compiler dependencies or changes to the production app before feasibility is established. Development branch: `main`. M4 dashboard Java fix: `6f67cad16e4dab99cc2e13b7a49dbcd8d058eaa9`. Main HEAD immediately before this handoff documentation refresh: `346b1cb63a2e90fb29b09d122ab173b1024a6e02`. The documentation refresh itself creates a newer main commit; use the latest repository HEAD when continuing.
 
 ### M1 — Foundation and file identification
 
@@ -2072,3 +2119,24 @@ Source commits:
 - Latest checked main commit at this record: 9ea33576ed28fb1b44876be3e5029a443255e588.
 
 **Next:** provide the latest main ZIP. The user should replace the extracted M11 proof project, open `DroidInspect/tools/m11-poc/android-host` in CodeAssist, build and install once, and verify the search field is visible and usable with the keyboard open. After that, continue the remaining consolidated device acceptance tests. Do not repeat the already-passed Newtonsoft.Json offline decompilation test unless needed to investigate a regression. M11 remains isolated; production integration has not started.
+
+
+## 22. M12 approved scope — C# Source Editing & DLL Recompilation (2026-11-14)
+
+The user approved M12 as the next planned milestone. This approval records the scope only; **no M12 implementation has started and no source-editing or DLL-recompilation feature is claimed to exist**.
+
+The intended user workflow is:
+
+1. Decompile an original managed DLL/EXE using the accepted M11 engine.
+2. Keep the original input and original reconstructed source unchanged.
+3. Choose Edit Source to create a separate editable copy.
+4. Save the edited reconstruction as separate .cs file(s).
+5. Compile the edited source using a proven compatible offline .NET compiler/toolchain and the correct references.
+6. Export the compiled result as a new DLL, for example Newtonsoft.Json_edited.dll.
+7. Reopen the new DLL in DroidInspect and verify its managed metadata and expected changes.
+
+A .cs file cannot be renamed into a DLL; an actual compatible compiler and dependency/reference resolution are required. Decompilation does not guarantee that all source can be recompiled, and a rebuilt DLL is not guaranteed to be byte-for-byte or behaviorally identical to the original. Strong-name signing, framework compatibility, external dependencies, and licensing must be addressed.
+
+**Ordering:** Finish M11 Android-device acceptance first. Then make and document the M11 production-integration decision. Only after that gate should M12 feasibility and implementation begin. Preserve the original assembly and the untouched decompilation result throughout.
+
+**Current M12 status:** Approved scope documented; implementation not started; compiler/runtime feasibility not yet proven; no device tests or CI verification exist for M12.
