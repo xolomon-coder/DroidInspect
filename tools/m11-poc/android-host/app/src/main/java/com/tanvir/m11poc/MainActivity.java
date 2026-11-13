@@ -4,7 +4,10 @@ import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import java.io.*;
 import java.security.MessageDigest;
@@ -13,9 +16,17 @@ import java.util.concurrent.*;
 
 public final class MainActivity extends Activity {
     private static final int PICK = 41;
+    private static final int SOURCE_PAGE_CHARS = 24000;
+
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private Button select, bundled, dependencyFull, dependencyMissing;
-    private TextView status, source;
+    private Button findNext, previousPage, nextPage;
+    private EditText searchText;
+    private TextView status, source, pageInfo;
+    private ScrollView sourceScroll;
+    private String completeSource = "";
+    private int currentPage;
+    private int lastSearchIndex = -1;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -26,10 +37,22 @@ public final class MainActivity extends Activity {
         dependencyMissing = findViewById(R.id.runMissingDependencyTest);
         status = findViewById(R.id.status);
         source = findViewById(R.id.source);
+        pageInfo = findViewById(R.id.pageInfo);
+        sourceScroll = findViewById(R.id.sourceScroll);
+        searchText = findViewById(R.id.searchText);
+        findNext = findViewById(R.id.findNext);
+        previousPage = findViewById(R.id.previousPage);
+        nextPage = findViewById(R.id.nextPage);
+
         select.setOnClickListener(v -> pick());
         bundled.setOnClickListener(v -> runBundledTest());
         dependencyFull.setOnClickListener(v -> runDependencyTest(false));
         dependencyMissing.setOnClickListener(v -> runDependencyTest(true));
+        findNext.setOnClickListener(v -> findNextMatch());
+        previousPage.setOnClickListener(v -> showPage(currentPage - 1));
+        nextPage.setOnClickListener(v -> showPage(currentPage + 1));
+        updatePageControls();
+
         try {
             Class.forName("com.tanvir.m11poc.NativeBridge");
             status.setText("Native engine loaded. Offline decompilation ready.");
@@ -153,9 +176,64 @@ public final class MainActivity extends Activity {
                 label, inputBytes, elapsedMs, heapAfter - heapBefore,
                 inputHashBefore, originalHashAfter, integrityLabel, unchanged ? "PASS" : "FAIL");
         runOnUiThread(() -> {
-            source.setText(result);
-            status.setText((result.startsWith("M11 DECOMPILATION ERROR:") ? "DECOMPILATION ERROR\n" : "DECOMPILATION RETURNED SOURCE\n") + report);
+            completeSource = result == null ? "" : result;
+            currentPage = 0;
+            lastSearchIndex = -1;
+            renderCurrentPage();
+            status.setText((completeSource.startsWith("M11 DECOMPILATION ERROR:")
+                    ? "DECOMPILATION ERROR\n" : "DECOMPILATION RETURNED SOURCE\n") + report
+                    + "\nSource characters: " + completeSource.length());
         });
+    }
+
+    private void findNextMatch() {
+        String query = searchText.getText().toString();
+        if (query.trim().isEmpty() || completeSource.isEmpty()) {
+            status.setText("Enter text to search in the reconstructed source.");
+            return;
+        }
+        int found = completeSource.indexOf(query, lastSearchIndex + 1);
+        if (found < 0 && lastSearchIndex >= 0) found = completeSource.indexOf(query);
+        if (found < 0) {
+            status.setText("No match found: " + query);
+            return;
+        }
+        lastSearchIndex = found;
+        currentPage = found / SOURCE_PAGE_CHARS;
+        renderCurrentPage();
+        status.setText("Found \"" + query + "\" at character " + found
+                + " (page " + (currentPage + 1) + ").");
+    }
+
+    private void showPage(int page) {
+        int pageCount = getPageCount();
+        if (page < 0 || page >= pageCount) return;
+        currentPage = page;
+        renderCurrentPage();
+    }
+
+    private int getPageCount() {
+        return completeSource.isEmpty() ? 0
+                : (completeSource.length() + SOURCE_PAGE_CHARS - 1) / SOURCE_PAGE_CHARS;
+    }
+
+    private void renderCurrentPage() {
+        int start = currentPage * SOURCE_PAGE_CHARS;
+        int end = Math.min(completeSource.length(), start + SOURCE_PAGE_CHARS);
+        source.setText(completeSource.isEmpty()
+                ? "No source output is available."
+                : completeSource.substring(start, end));
+        pageInfo.setText("Source page " + (getPageCount() == 0 ? 0 : currentPage + 1)
+                + " / " + getPageCount());
+        updatePageControls();
+        sourceScroll.post(() -> sourceScroll.scrollTo(0, 0));
+    }
+
+    private void updatePageControls() {
+        int count = getPageCount();
+        previousPage.setEnabled(count > 0 && currentPage > 0);
+        nextPage.setEnabled(count > 0 && currentPage + 1 < count);
+        findNext.setEnabled(count > 0);
     }
 
     private long usedJavaHeap() {
