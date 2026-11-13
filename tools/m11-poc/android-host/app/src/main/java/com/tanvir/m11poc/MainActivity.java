@@ -30,6 +30,8 @@ public final class MainActivity extends Activity {
     private String completeSource = "";
     private int currentPage;
     private int lastSearchIndex = -1;
+    private String lastSearchQuery = "";
+    private String lastReport = "";
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -197,10 +199,17 @@ public final class MainActivity extends Activity {
             completeSource = result == null ? "" : result;
             currentPage = 0;
             lastSearchIndex = -1;
+            lastSearchQuery = "";
             renderCurrentPage();
-            status.setText((completeSource.startsWith("M11 DECOMPILATION ERROR:")
-                    ? "DECOMPILATION ERROR\n" : "DECOMPILATION RETURNED SOURCE\n") + report
-                    + "\nSource characters: " + completeSource.length());
+            String state;
+            if (completeSource.startsWith("M11 DECOMPILATION ERROR:"))
+                state = "DECOMPILATION ERROR";
+            else if (completeSource.startsWith("// M11 DEPENDENCY DIAGNOSTICS:"))
+                state = "SOURCE RETURNED — DEPENDENCY WARNINGS";
+            else
+                state = "DECOMPILATION RETURNED SOURCE";
+            lastReport = state + "\n" + report + "\nSource characters: " + completeSource.length();
+            status.setText(lastReport);
         });
     }
 
@@ -209,6 +218,10 @@ public final class MainActivity extends Activity {
         if (query.trim().isEmpty() || completeSource.isEmpty()) {
             status.setText("Enter text to search in the reconstructed source.");
             return;
+        }
+        if (!query.equals(lastSearchQuery)) {
+            lastSearchQuery = query;
+            lastSearchIndex = -1;
         }
         int found = completeSource.indexOf(query, lastSearchIndex + 1);
         if (found < 0 && lastSearchIndex >= 0) found = completeSource.indexOf(query);
@@ -219,7 +232,7 @@ public final class MainActivity extends Activity {
         lastSearchIndex = found;
         currentPage = found / SOURCE_PAGE_CHARS;
         renderCurrentPage();
-        status.setText("Found \"" + query + "\" at character " + found
+        status.setText(lastReport + "\nFound \"" + query + "\" at character " + found
                 + " (page " + (currentPage + 1) + ").");
     }
 
