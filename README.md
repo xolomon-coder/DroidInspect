@@ -556,11 +556,19 @@ The roadmap has **12 milestones**, grouped into five phases. M1–M10 retain the
    - Show build progress, errors, warnings, target framework, output identity, and output path.
    - Do not claim binary-equivalent reconstruction: rebuilt assemblies may differ in metadata, signing, layout, compiler-generated details, and behavior.
 
-4. **Validation and export**
+4. **Validation, replacement compatibility and export**
    - Reopen the rebuilt DLL with DroidInspect and verify its PE/CLI structure, assembly identity, metadata, and expected edited symbols or members.
+   - Evaluate whether the rebuilt DLL can replace the original in its intended application. Never assume successful compilation alone makes it a drop-in replacement.
+   - Compare required assembly identity (name, version, culture, public key/token), public types and member signatures, target framework/runtime, and dependency requirements. Preserve compatibility where required or clearly report differences.
+   - Check strong-name signing and other signature implications; a rebuilt assembly may not retain the original signing identity and may be rejected by consumers that require it.
    - Run available structural and behavioral checks; distinguish structural validity from runtime compatibility and behavioral equivalence.
    - Export the rebuilt DLL as a new file through Android's document picker/SAF. Preserve the edited .cs source and build report as separate exports where practical.
-   - Report unsupported inputs, strong-name/signature implications, framework limitations, and any dependencies the recipient must provide.
+   - Report unsupported inputs, framework limitations, and any dependencies the recipient must provide.
+
+**Three explicit success levels (report each independently):**
+- **Level 1 — Compilation:** the edited C# source compiles and produces a valid managed DLL. This alone does not establish compatibility.
+- **Level 2 — Structural compatibility:** the rebuilt assembly preserves the identity, required types, public members/signatures, framework target, and dependency expectations needed by the intended consumer, or clearly documents any differences.
+- **Level 3 — Behavioral compatibility:** the intended application or a suitable runtime test successfully uses the replacement and the relevant behavior—including the user's edits—is verified. A structural match alone does not prove behavior.
 
 **Hard acceptance criteria:**
 - The user can edit a separate copy of reconstructed C# source while the original assembly and original decompilation remain unchanged.
@@ -2135,7 +2143,11 @@ The intended user workflow is:
 6. Export the compiled result as a new DLL, for example Newtonsoft.Json_edited.dll.
 7. Reopen the new DLL in DroidInspect and verify its managed metadata and expected changes.
 
-A .cs file cannot be renamed into a DLL; an actual compatible compiler and dependency/reference resolution are required. Decompilation does not guarantee that all source can be recompiled, and a rebuilt DLL is not guaranteed to be byte-for-byte or behaviorally identical to the original. Strong-name signing, framework compatibility, external dependencies, and licensing must be addressed.
+A .cs file cannot be renamed into a DLL; an actual compatible compiler and dependency/reference resolution are required. Decompilation does not guarantee that all source can be recompiled, because reconstructed source may omit or imperfectly reproduce original information and compiler-generated details. Therefore, a successfully rebuilt DLL is not automatically a drop-in replacement and is not guaranteed to be byte-for-byte or behaviorally identical to the original.
+
+M12 must report three independent success levels: **(1) Compilation** — a new managed DLL is produced; **(2) Structural compatibility** — required assembly identity, types, signatures, framework target, and dependencies are compatible with the intended consumer; **(3) Behavioral compatibility** — the intended application/runtime successfully uses the replacement and relevant behavior, including the edits, is verified. Do not describe Level 1 as replacement compatibility. Replacement may work when the reconstructed source, references, target framework, identity and signing requirements are sufficiently compatible, but this must be tested for the intended application. Preserve the original DLL and export the rebuilt assembly as a separate file.
+
+Strong-name signing, framework compatibility, external dependencies, and licensing must be addressed.
 
 **Ordering:** Finish M11 Android-device acceptance first. Then make and document the M11 production-integration decision. Only after that gate should M12 feasibility and implementation begin. Preserve the original assembly and the untouched decompilation result throughout.
 
