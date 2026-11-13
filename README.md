@@ -481,7 +481,7 @@ The roadmap has **11 milestones**, grouped into four phases. M1–M10 retain the
 
 ### Phase 4 — Full .NET C# source decompilation
 
-**M11 — Full C# decompilation engine and Android integration (IN PROGRESS — isolated proof hardening and expanded automated verification)**
+**M11 — Full C# decompilation engine and Android integration (IMPLEMENTATION COMPLETE; AUTOMATED CI VERIFIED; ANDROID-DEVICE ACCEPTANCE PENDING)**
 
 **Objective:** Add genuine C# source decompilation for supported managed .NET DLL/EXE assemblies, directly on the Android device, while preserving the existing Java + native XML application and the current metadata/IL/editing features.
 
@@ -544,7 +544,7 @@ No milestone is complete solely because code was written or committed. When deli
 
 ## 6. Current Project Status (2026-11-13)
 
-**Current phase: Phase 4 / M11 — isolated Native AOT proof implementation is active; expanded input validation, fixture coverage, and repeatability tests have been committed for CI. Android device acceptance remains pending.** M4–M7 have passed their agreed Android 11 device verification scopes. M8 now includes an on-device APK signing and verification screen; M9 includes raw IL byte/opcode explanations and MethodDef token navigation, while full C# decompilation remains unsupported in the current Java/CodeAssist architecture; M10 regression, signing, tamper, build, and artifact checks pass in GitHub Actions run #131. Phase 3 has not yet received user device-test evidence. M4 large-APK stress and malformed-DEX device edge cases remain untested. Do not confuse CI verification with device verification.
+**Current phase: Phase 4 / M11 — isolated Native AOT implementation and automated CI verification are complete. The CodeAssist-ready engine/assets are committed on main; consolidated Android-device acceptance is the remaining gate.** M4–M7 have passed their agreed Android 11 device verification scopes. M8 now includes an on-device APK signing and verification screen; M9 includes raw IL byte/opcode explanations and MethodDef token navigation, while full C# decompilation remains unsupported in the current Java/CodeAssist architecture; M10 regression, signing, tamper, build, and artifact checks pass in GitHub Actions run #131. Phase 3 has not yet received user device-test evidence. M4 large-APK stress and malformed-DEX device edge cases remain untested. Do not confuse CI verification with device verification.
 
 Phase 1 implementation has passed cloud CI and initial Android 11 device smoke checks. The user chose to proceed without the optional native-PE fixture test. Native/non-managed PE rejection therefore remains an explicit unverified limitation; do not claim full M3 classification coverage. M2 has one successful real APK test, and M3 has one successful CLI-bearing mixed-mode .NET DLL test. Phase 2 may begin while this gap remains documented for later regression coverage.
 
@@ -1824,7 +1824,9 @@ The extracted Android proof APK is 21,063,673 bytes. Its independently checked S
 Exact next action: install the M11 proof APK on the Android phone, disable Wi-Fi and mobile data, run the bundled Newtonsoft.Json and Serilog.Extensions.Logging tests, and report the displayed output, timing, memory change, and any errors. Keep the APK and engine SHA-256 values above as the test artifact identity.
 
 
-## 18. M11 continued implementation — robustness and coverage batch (2026-11-13)
+## 18. M11 continued implementation — robustness and coverage batch (historical snapshot, 2026-11-13)
+
+**Historical note:** This section records the state at its original checkpoint. Its pending items and stopping point were superseded by the completed work and verification documented in section 19.
 
 **Latest starting point inspected:** `main` HEAD `0511c36a08f32c2bc9219ab12211d68d799f65c1`. The complete current README, M11 workflow, engine, native export boundary, JNI bridge, Android host, fixture, and existing real/dependency test projects were inspected before this batch. The production application remains untouched.
 
@@ -1888,4 +1890,115 @@ The robustness suite currently covers missing path, empty file, text/non-PE inpu
 | Full Android-device acceptance | Pending |
 | Production integration | Not started; intentionally isolated |
 
-**Current stopping point:** latest code and workflow commits are on `main`; wait for and inspect the M11 workflow triggered by commit `803855c6fd47a8bc77adc3628dadbcb74454be9e`. Fix all actual failures, then continue the remaining coverage and verification work. Do not ask the user to test an intermediate APK.
+**Historical stopping point at this checkpoint:** the first expanded robustness workflow had been added; subsequent commits, test corrections, real-world assembly coverage, native/JNI hardening, APK packaging, and CodeAssist payload publication are documented in section 19.
+
+## 19. M11 implementation completion, automated acceptance, and CodeAssist delivery (2026-11-13)
+
+### Current milestone status
+
+**M11 implementation complete. Automated host tests, Native AOT ARM64 verification, Android APK build, and APK payload verification have passed. Android-device acceptance of the latest build remains pending.** M11 remains isolated under tools/m11-poc/; no production application source was modified and no production integration has been attempted.
+
+### Implemented work
+
+- Added explicit PE/CLI validation before ILSpy: input existence, empty files, PE metadata, CLR header, PE header, and assembly-vs-netmodule validation.
+- Added understandable errors for non-managed, truncated, corrupted, and malformed inputs.
+- Added dependency preflight diagnostics that compare assembly name, version, culture, and public-key token across configured search directories. Missing or mismatched references are listed in C# comments at the beginning of returned source. Returning source with an unresolved reference is not reported as successful dependency resolution.
+- Hardened Native AOT exports and JNI conversion/error paths. Native result memory is freed after Java conversion, including conversion-failure paths.
+- Expanded the C# fixture to cover interfaces, inheritance, events, fields/properties, overloads, constructors, generics, nested generics, lambdas, LINQ, async/await, iterators, exceptions, attributes, enums, nullable/reference metadata, structs, and control flow.
+- Added managed executable-entry-point input coverage. The CI test supplies the managed PE assembly with an .exe extension; this does not claim testing a native Windows executable.
+- Added real-world host tests for Newtonsoft.Json 13.0.3, the .NET 11 System.Text.Json runtime assembly, and Serilog.Extensions.Logging 9.0.2 with dependencies present and intentionally missing.
+- Added invalid-input and repeatability cases: missing path, empty file, text/non-PE input, truncated managed PE, corrupted CLR metadata, malformed executable-like input, native ELF input, and three repeated successful fixture decompilations.
+- Reworked the Android proof UI to show source in 24,000-character pages with Previous/Next controls and source-wide Find. The full output remains searchable in memory.
+- Added first-use offline extraction of the bundled .NET reference DLLs and third-party reference DLLs. Bundled and selected assemblies use those offline reference directories.
+- Added Java heap delta and process PSS before/after plus a 200 ms sampled PSS peak during decompilation. PSS is a process-wide approximation, not an exact native-allocation counter or guaranteed instantaneous peak.
+- Kept decompilation on a background worker so the Android UI thread is not blocked by the synchronous Native AOT call.
+
+### Real-world automated test results
+
+The final M11 workflow verified:
+
+| Test | Verified result |
+|---|---|
+| Expanded C# fixture | Expected constructs and symbols reconstructed as C# |
+| Managed EXE input | Entry-point assembly reconstructed; expected symbols present |
+| Newtonsoft.Json 13.0.3 | 705,296-byte official NuGet assembly; 1,182,379 output characters; expected symbols JsonConvert, SerializeObject, JsonSerializer, JsonReader, JsonWriter |
+| System.Text.Json runtime assembly | 2,506,064-byte .NET 11 runtime assembly; 1,942,420 output characters; expected JSON API symbols present |
+| Serilog.Extensions.Logging 9.0.2 | 29,567 output characters; expected provider/logger/extension symbols present with dependencies supplied |
+| Missing Serilog.dll | Source still returned (33,457 characters) and the missing Serilog reference was explicitly diagnosed |
+| Invalid/corrupt inputs | All configured robustness assertions passed |
+| Repeatability | Three repeated fixture decompilations passed |
+| Native input rejection | Built native ELF was rejected as a non-managed input |
+| Native AOT | Bionic ARM64 ELF verified; required exports and SONAME checked |
+| JNI | JNI library linked against libdroidinspect_engine.so; no absolute DT_NEEDED path |
+| Android proof APK | Gradle build, ZIP integrity, ARM64 libraries, offline references, and bundled dependency/test assets verified |
+
+Host decompilation timings are CI-host measurements, not Android performance promises. Earlier Android-device evidence remains limited to the previously documented fixture and offline Newtonsoft.Json test; the latest UI, PSS display, Serilog scenario, and source paging have not yet been accepted on-device.
+
+### Final CI verification
+
+- M11 workflow run #55, ID 43337520812, result SUCCESS, source commit 392137ad907fd5a2a144353ab67fd6404df341e1: full host tests, Native AOT ARM64 publish, native-input rejection, ELF/export/SONAME checks, Android APK build, and APK payload verification.
+- Production Android regression workflow #219, ID 43337520745, result SUCCESS, same source commit.
+- M11 workflow run #54, ID 43337084718, result SUCCESS, commit 5c68d952873b37b07abddb480d0d3f02cdac18d2: independently rebuilt the Android APK from the committed CodeAssist payload.
+- M11 workflow run #53, ID 43336682293, result SUCCESS: generated and committed the CodeAssist payload.
+
+The latest CI APK from run #55 has SHA-256 8b12de6faceec6ee71d5e350f92c5fdd6e258baae98d4de2c2b31b241a6329b6. It is a diagnostic artifact, not the normal delivery format.
+
+### CodeAssist-ready payload committed to main
+
+Payload commit: fcf77f4e7ad88c3badcdbd5d16d1c2c3b0817e2b.
+
+The repository now includes 182 generated files totaling 53,490,176 bytes:
+
+- ARM64 Native AOT engine: 45,966,680 bytes.
+- .NET 11 reference assemblies: 176 DLLs.
+- Third-party dependency DLLs: Serilog.dll, Microsoft.Extensions.Logging.dll, and Microsoft.Extensions.DependencyInjection.dll.
+- Bundled test assemblies: Newtonsoft.Json.dll and Serilog.Extensions.Logging.dll.
+
+This makes the repository ZIP self-contained for the isolated Android proof build. No .NET SDK or Native AOT compiler is required on the phone; the ARM64 engine is prebuilt. CodeAssist still needs to build the Java/JNI Android host using the Android SDK, NDK, and CMake versions below.
+
+### CodeAssist build instructions
+
+1. Download and extract the latest main ZIP.
+2. In CodeAssist, open the Gradle project directory DroidInspect/tools/m11-poc/android-host (the directory containing settings.gradle), not the repository root.
+3. Use Gradle 8.13 and Android Gradle Plugin 8.13.0.
+4. Ensure Android SDK Platform 36, Build Tools 36.0.0, NDK 30.0.16248370, and CMake 3.31.6 are installed/available to the project.
+5. Build the app debug variant from CodeAssist. The resulting APK is tools/m11-poc/android-host/app/build/outputs/apk/debug/app-debug.apk.
+6. Install the APK on an ARM64 Android device (package com.tanvir.m11poc, minSdk 26). No additional .NET runtime installation is needed.
+
+The initial Gradle/plugin sync may need internet access. Once installed, the bundled decompilation scenarios are designed to run offline.
+
+### Consolidated final Android-device test
+
+Do not test intermediate APKs. Use one APK built from the latest ZIP and complete this batch once:
+
+1. **Install/startup:** Install the CodeAssist-built APK and launch “DroidInspect M11 Proof”. Confirm the native engine loads without an error.
+2. **Offline check:** Disable Wi-Fi and mobile data before running the bundled scenarios.
+3. **Newtonsoft.Json:** Run the bundled Newtonsoft.Json 13.0.3 test. Confirm C# source appears; use Find for JsonConvert, SerializeObject, JsonSerializer, JsonReader, and JsonWriter.
+4. **Large-output navigation:** Use Find, Next, and Previous across the source pages. Confirm the app remains responsive and the displayed page changes correctly.
+5. **Serilog with dependencies:** Run “Test dependencies available”. Find SerilogLoggerProvider, SerilogLogger, SerilogLoggerFactoryExtensions, AddSerilog, and ILoggerProvider. Check the dependency-warning status.
+6. **Serilog with a missing dependency:** Run “Test with Serilog.dll missing”. Confirm that the output clearly reports the missing Serilog reference. Source may still be returned; that must not be mistaken for complete dependency resolution.
+7. **External assembly:** Select another genuine managed .NET DLL or managed EXE through the document picker. Confirm source output, expected symbols, and navigation. Native PE/ELF executables are unsupported.
+8. **Error handling:** Select an empty, text, or native/non-.NET file. Confirm a readable error appears and the app remains usable.
+9. **Stability:** Repeat the Newtonsoft test three times. Watch for crashes, frozen UI, or stale/overwritten output.
+10. **Performance/integrity:** Record input size, decompilation time, Java heap delta, process PSS before/peak/after, source character count, and the unchanged-input/hash result shown by the app.
+
+### Acceptance gates
+
+| Gate | Status |
+|---|---|
+| M11 implementation | Complete |
+| Automated host tests | Passed |
+| Real-world DLL reconstruction | Passed for tested assemblies and expected symbols |
+| Managed EXE-entrypoint reconstruction | Passed |
+| Dependency-present/missing host scenarios | Passed, with explicit missing-reference diagnostic |
+| Invalid/corrupt/native input robustness | Passed for configured cases |
+| Native AOT ARM64 output | Verified |
+| JNI exports/linkage/SONAME | Verified |
+| Android APK build | Passed |
+| APK payload/ZIP integrity | Passed |
+| CodeAssist-ready repository payload | Committed and independently rebuilt in CI |
+| Latest Android-device UI/Serilog/paging/PSS acceptance | Pending user test |
+| Full M11 milestone acceptance | Pending consolidated Android-device test |
+| Production integration | Not started; intentionally deferred until M11 device acceptance |
+
+**Current next action:** download the latest main ZIP, build the isolated tools/m11-poc/android-host project in CodeAssist, and perform the single consolidated device test above. Do not integrate M11 into the production application until those device results have been reviewed.
