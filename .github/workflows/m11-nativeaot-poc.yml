@@ -8,6 +8,8 @@ on:
     branches: [ main ]
     paths:
       - 'tools/m11-poc/**'
+      - 'droidinspect/app/src/main/cpp/**'
+      - 'droidinspect/app/src/main/java/com/tanvir/droidinspect/NativeBridge.java'
       - '.github/workflows/m11-nativeaot-poc.yml'
   workflow_dispatch:
 permissions:
@@ -113,6 +115,31 @@ jobs:
           grep -Fq 'Library soname: [libdroidinspect_engine.so]' /tmp/m11-engine-needed.txt
           mkdir -p artifacts
           cp "$LIB" artifacts/libdroidinspect_engine.so
+      - name: Prepare production ARM64 engine, JNI bridge and offline references
+        run: |
+          set -euo pipefail
+          PROD="droidinspect/app/src/main"
+          mkdir -p "$PROD/jniLibs/arm64-v8a" "$PROD/assets/reference-assemblies/net11.0"
+          cp artifacts/libdroidinspect_engine.so "$PROD/jniLibs/arm64-v8a/"
+          "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang++" \\
+            -std=c++17 -shared -fPIC -nostdlib++ \\
+            -I"$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include" \\
+            "$PROD/cpp/jni_bridge.cpp" \\
+            -L"$PROD/jniLibs/arm64-v8a" -ldroidinspect_engine \\
+            -Wl,-soname,libdroidinspect_jni.so \\
+            -o "$PROD/jniLibs/arm64-v8a/libdroidinspect_jni.so"
+          test -s "$PROD/jniLibs/arm64-v8a/libdroidinspect_jni.so"
+          llvm-nm -D --defined-only "$PROD/jniLibs/arm64-v8a/libdroidinspect_jni.so" | grep -q 'Java_com_tanvir_droidinspect_NativeBridge_decompileFile'
+          readelf -d "$PROD/jniLibs/arm64-v8a/libdroidinspect_jni.so" | tee /tmp/droidinspect-production-jni-needed.txt
+          grep -Fq 'Shared library: [libdroidinspect_engine.so]' /tmp/droidinspect-production-jni-needed.txt
+          if grep -Eq 'Shared library: [/' /tmp/droidinspect-production-jni-needed.txt; then
+            echo 'ERROR: production JNI contains an absolute DT_NEEDED path'
+            exit 1
+          fi
+          REF="$DOTNET_ROOT/packs/Microsoft.NETCore.App.Ref/11.0.0/ref/net11.0"
+          test -d "$REF"
+          find "$REF" -maxdepth 1 -type f -name '*.dll' -exec cp -t "$PROD/assets/reference-assemblies/net11.0/" {} +
+          test -s "$PROD/assets/reference-assemblies/net11.0/System.Runtime.dll"
       - name: Prepare ARM64 engine, offline references and real test assembly
         run: |
           set -euo pipefail
@@ -181,6 +208,28 @@ jobs:
           cp "$APK" artifacts/DroidInspect-M11-Android-Proof.apk
           sha256sum artifacts/*
           ls -lh artifacts
+      - name: Build and verify production DroidInspect APK with M11 payload
+        working-directory: droidinspect
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --stacktrace :app:assembleDebug
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          unzip -t "$APK"
+          unzip -l "$APK" | tee /tmp/droidinspect-production-apk-list.txt
+          grep -q 'lib/arm64-v8a/libdroidinspect_engine.so' /tmp/droidinspect-production-apk-list.txt
+          grep -q 'lib/arm64-v8a/libdroidinspect_jni.so' /tmp/droidinspect-production-apk-list.txt
+          grep -q 'assets/reference-assemblies/net11.0/System.Runtime.dll' /tmp/droidinspect-production-apk-list.txt
+          if grep -q 'assets/test-assemblies/' /tmp/droidinspect-production-apk-list.txt; then
+            echo 'ERROR: M11 proof test assemblies leaked into the production APK'
+            exit 1
+          fi
+          unzip -p "$APK" lib/arm64-v8a/libdroidinspect_jni.so > /tmp/droidinspect-production-jni.so
+          llvm-nm -D --defined-only /tmp/droidinspect-production-jni.so | grep 'Java_com_tanvir_droidinspect_NativeBridge_decompileFile'
+          mkdir -p ../artifacts
+          cp "$APK" ../artifacts/DroidInspect-M11-Production-Debug.apk
+          sha256sum ../artifacts/DroidInspect-M11-Production-Debug.apk
+          ls -lh ../artifacts/DroidInspect-M11-Production-Debug.apk
       - name: Commit generated offline Android build payload to main
         if: github.event_name == 'push' && contains(github.event.head_commit.message, '[publish-m11-assets]')
         run: |
@@ -192,6 +241,9 @@ jobs:
           git add tools/m11-poc/android-host/app/src/main/assets/reference-assemblies/net11.0
           git add tools/m11-poc/android-host/app/src/main/assets/test-assemblies
           git add tools/m11-poc/android-host/app/src/main/assets/dependency-references
+          git add droidinspect/app/src/main/jniLibs/arm64-v8a/libdroidinspect_engine.so
+          git add droidinspect/app/src/main/jniLibs/arm64-v8a/libdroidinspect_jni.so
+          git add droidinspect/app/src/main/assets/reference-assemblies/net11.0
           if git diff --cached --quiet; then
             echo "Generated CodeAssist payload is already current."
             exit 0
@@ -205,6 +257,7 @@ jobs:
           name: DroidInspect-M11-Android-Proof
           path: |
             artifacts/DroidInspect-M11-Android-Proof.apk
+            artifacts/DroidInspect-M11-Production-Debug.apk
             artifacts/libdroidinspect_engine.so
             artifacts/DecompilerFixture.dll
             artifacts/Newtonsoft.Json.dll
