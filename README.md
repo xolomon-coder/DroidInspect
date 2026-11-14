@@ -2475,3 +2475,97 @@ Intentionally unchanged:
 | M13–M20 | Planned only |
 
 **Next exact action:** deliver the latest `main` ZIP and installable debug APK for one consolidated production-device acceptance test. Do not start M12.
+
+
+---
+
+## 28. M11 production-device acceptance — first test session (2026-11-14)
+
+This section supersedes the earlier production-device acceptance status in section 27 wherever the same checks are now marked complete. These results were reported by the user from the installed production package `com.tanvir.droidinspect`, using `droidinspect-ci-signed.apk`. They are distinct from the earlier isolated proof-app results.
+
+### Production app launch and initial inspection
+
+- Installed `droidinspect-ci-signed.apk` from the GitHub Actions artifact ZIP.
+- DroidInspect launched successfully and displayed the production dashboard.
+- The dashboard exposed the expected APK/.NET inspection actions, including **DECOMPILE TO C# SOURCE**.
+- Selected `Newtonsoft.Json.dll`; PE inspection completed and reported:
+  - Size: 705,296 bytes
+  - PE signature: PASS
+  - Machine: x86 (0x014C)
+  - Optional header: PE32
+  - Sections: 3
+  - .NET CLI header: PRESENT
+
+### Production C# source viewer — Newtonsoft.Json.dll
+
+The production app returned reconstructed C# source and displayed the dependency diagnostics above the source. The viewer reported 99 source pages.
+
+User-confirmed results:
+
+| Production device check | Result |
+|---|---|
+| Dashboard launch | PASS |
+| Newtonsoft.Json.dll selection and PE/.NET recognition | PASS |
+| Real C# source returned | PASS |
+| Source viewer and 99-page count | PASS |
+| Dependency diagnostics visibly included | PASS |
+| Search highlighting | PASS |
+| PREV/NEXT search navigation | PASS |
+| Cross-screen navigation to the next matching occurrence | PASS |
+| PREV PAGE/NEXT PAGE navigation | PASS |
+| Copy current source page and paste into another text editor | PASS |
+
+Reported dependency diagnostic: requested `netstandard, Version=2.0.0.0` did not match the configured `netstandard, Version=2.1.0.0` candidate. Source reconstruction succeeded, but dependency resolution remains partial.
+
+Search navigation behavior was clarified during testing: PREV/NEXT moves to the next or previous matching occurrence, automatically switching to another visible screen/page when the match is elsewhere. The user confirmed the new match is highlighted and visible. This is accepted as working behavior; it is not a requirement to move only among matches already visible on the current screen.
+
+### Production C# source viewer — FluentCleaner.Classic.exe
+
+The user selected `FluentCleaner.Classic.exe`. The production app returned reconstructed C# source and reported 31 source pages.
+
+Observed diagnostics:
+
+- `System.Net.Http, Version=4.2.0.0`: candidate identity mismatch with version 11.0.0.0.
+- `FluentCleaner.Core, Version=1.0.0.0`: unresolved.
+- `System.Text.Json, Version=8.0.0.5`: candidate identity mismatch with version 11.0.0.0.
+- `System.Windows.Forms, Version=4.0.0.0`: unresolved.
+- `System.Management, Version=4.0.0.0`: unresolved.
+
+User confirmed that source paging/search testing on this 31-page result worked. The dependency warnings are correctly exposed; they do not mean decompilation failed or that all references were resolved. The WinForms and Management references are Windows-specific dependencies and do not establish Android runtime compatibility.
+
+### Search match counter — accepted enhancement request
+
+During production testing, the user requested a visible search match counter that shows the exact active match number and total number of matches while navigating with PREV/NEXT.
+
+Add this to the planned DroidInspect enhancement backlog; **do not implement it during the current M11 acceptance session**.
+
+Required behavior:
+- Count matches across the complete decompiled source, not only the currently displayed page.
+- Display the active position and total, for example `MATCH 1 OF 27`.
+- Update immediately on PREV/NEXT, e.g. `MATCH 2 OF 27`.
+- Keep the active occurrence highlighted and automatically navigate to its page/screen.
+- Reset/recalculate when the search query changes or is cleared.
+- Display a clear `NO MATCHES` state when the query has no results.
+- Keep page navigation independent from match navigation.
+- Define and test consistent wrap-around behavior at the first and last match.
+- Avoid unnecessary full-source copies or large temporary allocations; preserve the current memory-conscious search implementation.
+
+This is a planned UX enhancement, not a current M11 acceptance failure. The existing search/highlighting/navigation behavior has passed the production-device checks above.
+
+### Current production acceptance state
+
+**Confirmed PASS:** production install/startup, managed DLL recognition, real C# source reconstruction for both a DLL and a real-world EXE, dependency warning display, source page navigation, search highlighting and cross-page match navigation, and copy-current-page.
+
+**Still to verify in this production acceptance session:**
+1. Existing raw .NET IL browsing remains functional.
+2. Existing metadata inspection remains functional.
+3. Input originals remain unchanged after decompilation.
+4. Offline decompilation works with internet disabled.
+5. Invalid/unsupported input is handled gracefully in the production app.
+6. Review responsiveness/memory behavior during the production tests as practical.
+
+Do not claim these remaining checks passed until the user reports the results. Do not start M12 until the consolidated production M11 acceptance is complete and the user explicitly accepts the production integration.
+
+No application source was changed by this documentation update. No CodeAssist rebuild is required for these documentation-only changes.
+
+**Exact stopping point:** the user has completed the production Newtonsoft.Json.dll workflow and confirmed search highlighting/navigation, source-page navigation, and copy/paste. The production FluentCleaner.Classic.exe result returned 31 pages with dependency warnings; the user confirmed paging/search works. The next action is to continue the remaining production regression checks, beginning with existing raw .NET IL browsing and metadata inspection. The search match counter is recorded as a later enhancement.
