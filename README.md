@@ -398,7 +398,7 @@ Important feasibility constraints:
 
 ## 4. Complete Roadmap — 20 Milestones
 
-The long-term roadmap has **20 milestones**, grouped into eight phases. M1–M10 retain their existing scope and completed history. M11 establishes real on-device C# source decompilation; M12 covers separate-copy C# source editing and managed DLL recompilation. M13–M20 extend the product into deeper .NET analysis, advanced source tools, APK analysis/editing, project management, and final reliability/integration. Existing completed capabilities are foundations to extend, not work to restart. M12 remains gated on the explicit M11 production-integration decision. Later milestones must preserve working features, prove Android feasibility before adopting major engines, and keep the offline-first/phone-only development requirements.
+The long-term roadmap has **20 milestones**, grouped into eight phases. M1–M10 retain their existing scope and completed history. M11 establishes real on-device C# source decompilation; M12 covers separate-copy C# source editing and managed DLL recompilation. M13–M20 extend the product into deeper .NET analysis, advanced source tools, APK analysis/editing, project management, and final reliability/integration. Existing completed capabilities are foundations to extend, not work to restart. M12 remains gated until the integrated production M11 workflow passes consolidated user device acceptance. Later milestones must preserve working features, prove Android feasibility before adopting major engines, and keep the offline-first/phone-only development requirements.
 
 ### Phase 1 — Foundation and file understanding
 
@@ -531,7 +531,7 @@ The long-term roadmap has **20 milestones**, grouped into eight phases. M1–M10
 
 **Objective:** Let the user edit reconstructed C# source as a separate working copy and, where technically supported, compile that edited source into a new managed DLL without modifying the original assembly or the original decompilation result.
 
-**Start gate:** Do not begin M12 implementation until M11 has passed its required Android-device acceptance tests and the project has recorded the production-integration decision. M12 must build on the accepted decompilation architecture; do not bypass or destabilize M11.
+**Start gate:** Do not begin M12 implementation until the integrated production M11 workflow has passed consolidated Android-device acceptance. The production architecture is now established; M12 must build on it without bypassing or destabilizing M11.
 
 **Required work, in order:**
 
@@ -658,11 +658,11 @@ No milestone is complete solely because code was written or committed. When deli
 
 ## 6. Current Project Status (2026-11-13)
 
-**Current phase: Phase 4 / M11 — production integration is authorized and implemented; automated production APK verification has passed, and final generated-payload publication plus user device acceptance are the remaining gates.** The isolated proof app remains intact. M4–M7 retain their previously accepted Android 11 device scopes. M8–M10 production foundations and regression CI remain preserved. M11 production integration does not claim complete dependency resolution, recompilation, or target-program execution. Do not confuse cloud APK verification with user device acceptance.
+**Current phase: Phase 4 / M11 — production integration and generated native payload are committed on `main`; final production CI run #256 passed; production-device acceptance remains pending.** The isolated proof app remains intact. M4–M7 retain their previously accepted Android 11 device scopes. M8–M10 production foundations and regression CI remain preserved. M11 production integration does not claim complete dependency resolution, recompilation, or target-program execution. Do not confuse cloud APK verification with user device acceptance.
 
 Phase 1 implementation has passed cloud CI and initial Android 11 device smoke checks. The user chose to proceed without the optional native-PE fixture test. Native/non-managed PE rejection therefore remains an explicit unverified limitation; do not claim full M3 classification coverage. M2 has one successful real APK test, and M3 has one successful CLI-bearing mixed-mode .NET DLL test. Phase 2 may begin while this gap remains documented for later regression coverage.
 
-The project remains the existing Java + native XML Android application. The roadmap now contains twelve milestones across five phases; M11 adds full C# decompilation and M12 adds the approved, gated source-editing and DLL-recompilation goal. Neither milestone authorizes unproven runtime/compiler dependencies or changes to the production app before feasibility is established. Development branch: `main`. M4 dashboard Java fix: `6f67cad16e4dab99cc2e13b7a49dbcd8d058eaa9`. Main HEAD immediately before this handoff documentation refresh: `346b1cb63a2e90fb29b09d122ab173b1024a6e02`. The documentation refresh itself creates a newer main commit; use the latest repository HEAD when continuing.
+The project remains the existing Java + native XML Android application. The roadmap contains 20 milestones across eight phases. M11 production C# decompilation is integrated and cloud-verified; user device acceptance remains pending. M12 is the approved next scope for separate-copy C# editing and DLL recompilation, but it remains gated until production M11 device acceptance. M13–M20 remain planned only. Development branch: `main`.
 
 ### M1 — Foundation and file identification
 
@@ -2383,7 +2383,7 @@ The agreed long-term sequence is the 20-milestone roadmap in section 4:
 ### Current gates and status
 
 - **M11:** Real-world DLL and ordinary managed EXE source reconstruction have both been reported working on the user's Android phone. The latest managed EXE test was FluentCleaner.exe (1,164,800 bytes; 4,469 ms; 16 source pages), with dependency warnings. Dependency resolution is still partial. M11 production integration is authorized and implemented; production-device acceptance remains pending.
-- **M12:** Approved scope, not started. It remains gated until the user and project record the M11 production-integration decision.
+- **M12:** Approved scope, not started. It remains gated until the user accepts production M11 behavior on-device.
 - **M13–M20:** Planned only; no implementation is claimed.
 - The isolated M11 proof app remains under tools/m11-poc/; do not silently merge it into the production app.
 - The project remains offline-first and phone-developed through CodeAssist, with Java + native Android XML as the preferred application architecture. Any major runtime/compiler/engine change requires demonstrated feasibility and a documented decision.
@@ -2443,6 +2443,7 @@ Intentionally unchanged:
 - Production Android CI run #251, run ID `43543910838`, on source commit `68642367dee691a015140558333cb02b0ac4af8e`: SUCCESS. All existing metadata, IL, and DEX host tests passed; Android debug and release compilation passed; CI APK signing, v1/v2/v3 verification, tamper rejection, and artifact upload passed.
 - Production Android CI run #253, run ID `43544227605`, on workflow commit `6af43f88a2b3ecfcb95f24994f5821d062a50b5c`: SUCCESS with the same regression checks.
 - Final production Android CI run #255, run ID `43545083044`, on commit `c2d6db4eda9d95650d538cfe179e223653035562` (including the committed engine, JNI, and reference payload): SUCCESS. Metadata, IL, and DEX host tests passed; debug and release APK builds passed; CI signing, v1/v2/v3 verification, tamper rejection, APK output checks, and artifact upload passed. Artifact: `DroidInspect-Phase3-builds`, ID `14094040530`, 41,095,024 bytes. Run: https://github.com/xolomon-coder/DroidInspect/actions/runs/43545083044
+- Final documentation/source-tree CI run #256, run ID `43545304528`, on commit `c11b8ee83d68bcd07172217949abaa15b2b9e5c6`: SUCCESS. All host tests, Android debug/release builds, signing/verification, tamper rejection, and artifact upload passed with the committed production payload. Artifact: `DroidInspect-Phase3-builds`, ID `14094240278`. Run: https://github.com/xolomon-coder/DroidInspect/actions/runs/43545304528
 - M11 Native AOT workflow run #75, run ID `43544705781`, on source commit `1fa29a6c7c8faa466ea00d913b687741d7edd315`: SUCCESS. Existing M11 managed fixture, real-world assembly, dependency diagnostics, robustness, Native AOT publish, ELF/exports/SONAME, both JNI builds, isolated proof APK, production APK payload checks, generated asset commit, and artifact upload passed.
 - Production APK payload checks confirmed both ARM64 shared libraries, the production JNI symbol, and `assets/reference-assemblies/net11.0/System.Runtime.dll`; no proof-only `assets/test-assemblies` were present.
 - Generated payload commit: `f5e774d04c466ebdcd020363f5f837786adfa8bd` (`[m11-assets] Add generated ARM64 engine and offline assets for CodeAssist`). It adds 176 .NET 11 reference DLLs (6,483,320 bytes), the 45,966,680-byte engine, and the 11,032-byte production JNI bridge. Engine SHA-1 Git blob: `33761b7fbbdde03ed9fd9d8da74a211b25a9731a`; JNI SHA-1 Git blob: `102b105bdc199a773c909e58f40df73ede43b666`.
@@ -2468,7 +2469,7 @@ Intentionally unchanged:
 | Production Android regression CI | PASS |
 | M11 Native AOT + production APK CI | PASS |
 | Generated production engine/JNI/reference payload committed to main | PASS — commit `f5e774d` |
-| Final main ZIP and production APK handoff | Ready — final regression run #255 passed |
+| Final main ZIP and production APK handoff | Ready — final regression run #256 passed |
 | Consolidated production Android device acceptance | Pending user test |
 | M12 C# source editing/recompilation | Not started; remains gated on production M11 acceptance |
 | M13–M20 | Planned only |
