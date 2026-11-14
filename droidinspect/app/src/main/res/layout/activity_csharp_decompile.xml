@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="10dp"
+    android:background="#101318">
+
+    <TextView
+        android:id="@+id/csharpTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="C# source"
+        android:textColor="#FFFFFF"
+        android:textSize="19sp"
+        android:textStyle="bold"
+        android:maxLines="2" />
+
+    <ProgressBar
+        android:id="@+id/csharpProgress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:indeterminate="true"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/csharpStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
+        android:text="Preparing decompilation…"
+        android:textColor="#80CBC4"
+        android:textSize="12sp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <EditText
+            android:id="@+id/csharpSearch"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="Find in C# source"
+            android:singleLine="true"
+            android:inputType="text"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#9AA6B2" />
+
+        <Button
+            android:id="@+id/csharpFindPrevious"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="48dp"
+            android:text="PREV" />
+
+        <Button
+            android:id="@+id/csharpFindNext"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="48dp"
+            android:text="NEXT" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/csharpPreviousPage"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="PREV PAGE" />
+
+        <TextView
+            android:id="@+id/csharpPageInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingLeft="8dp"
+            android:paddingRight="8dp"
+            android:text="Source page 0 / 0"
+            android:textColor="#DCE4ED"
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/csharpNextPage"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="NEXT PAGE" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/csharpCopyPage"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="COPY CURRENT SOURCE PAGE" />
+
+    <ScrollView
+        android:id="@+id/csharpSourceScroll"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true"
+        android:background="#191F27"
+        android:padding="10dp">
+
+        <TextView
+            android:id="@+id/csharpSource"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="C# source will appear here."
+            android:textColor="#E5EAF0"
+            android:textSize="12sp"
+            android:fontFamily="monospace"
+            android:textIsSelectable="true"
+            android:lineSpacingExtra="2dp" />
+    </ScrollView>
+</LinearLayout>

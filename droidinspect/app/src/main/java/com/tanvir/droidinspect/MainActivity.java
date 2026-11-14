@@ -16,22 +16,15 @@ import java.util.concurrent.Executors;
 public class MainActivity extends Activity {
     private static final int REQUEST_OPEN_FILE = 4101;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
-    private TextView reportView;
-    private TextView statusView;
+    private TextView reportView, statusView;
     private ProgressBar progressBar;
-    private Button openButton;
-    private Button diagnosticsButton;
-    private Button browseDexButton;
-    private Button browseResourcesButton;
-    private Button browseDotNetButton;
-    private Button apkSigningButton;
+    private Button openButton, diagnosticsButton, browseDexButton, browseResourcesButton;
+    private Button browseDotNetButton, decompileCsharpButton, apkSigningButton;
     private Uri selectedUri;
-    private boolean canBrowseDex;
-    private boolean canBrowseApk;
-    private boolean canBrowseDotNet;
+    private String selectedName = "Selected assembly";
+    private boolean canBrowseDex, canBrowseApk, canBrowseDotNet;
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         reportView = findViewById(R.id.reportView);
@@ -42,10 +35,12 @@ public class MainActivity extends Activity {
         browseDexButton = findViewById(R.id.browseDexButton);
         browseResourcesButton = findViewById(R.id.browseResourcesButton);
         browseDotNetButton = findViewById(R.id.browseDotNetButton);
+        decompileCsharpButton = findViewById(R.id.decompileCsharpButton);
         apkSigningButton = findViewById(R.id.apkSigningButton);
         browseDexButton.setEnabled(false);
         browseResourcesButton.setEnabled(false);
         browseDotNetButton.setEnabled(false);
+        decompileCsharpButton.setEnabled(false);
 
         openButton.setOnClickListener(v -> openDocument());
         diagnosticsButton.setOnClickListener(v -> runDiagnostics());
@@ -68,6 +63,13 @@ public class MainActivity extends Activity {
             intent.putExtra("assembly_uri", selectedUri.toString());
             startActivity(intent);
         });
+        decompileCsharpButton.setOnClickListener(v -> {
+            if (selectedUri == null || !canBrowseDotNet) return;
+            Intent intent = new Intent(this, CSharpDecompileActivity.class);
+            intent.setData(selectedUri);
+            intent.putExtra("assembly_name", selectedName);
+            startActivity(intent);
+        });
         reportView.setText("Choose an APK, DLL, or EXE file to begin.\n\n"
                 + "APK: archive listing, DEX detection, package metadata, manifest/resource analysis and selected manifest editing.\n\n"
                 + ".NET DLL/EXE: PE structure, CLI header, runtime version and metadata inspection.");
@@ -78,34 +80,48 @@ public class MainActivity extends Activity {
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("*/*");
         intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
-                "application/vnd.android.package-archive",
-                "application/octet-stream",
-                "application/x-msdownload",
-                "application/x-msdos-program"
+                "application/vnd.android.package-archive", "application/octet-stream",
+                "application/x-msdownload", "application/x-msdos-program"
         });
         startActivityForResult(intent, REQUEST_OPEN_FILE);
     }
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_OPEN_FILE && resultCode == RESULT_OK && data != null && data.getData() != null) {
             Uri uri = data.getData();
             selectedUri = uri;
-            canBrowseDex = false;
-            canBrowseApk = false;
-            canBrowseDotNet = false;
+            selectedName = queryName(uri);
+            canBrowseDex = canBrowseApk = canBrowseDotNet = false;
             browseDexButton.setEnabled(false);
             browseResourcesButton.setEnabled(false);
             browseDotNetButton.setEnabled(false);
+            decompileCsharpButton.setEnabled(false);
             try {
                 getContentResolver().takePersistableUriPermission(uri,
                         data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION));
             } catch (SecurityException ignored) {
-                // Some document providers grant a temporary read permission only.
+                // Some document providers grant temporary read permission only.
             }
             inspectSelectedFile(uri);
         }
+    }
+
+    private String queryName(Uri uri) {
+        android.database.Cursor cursor = null;
+        try {
+            cursor = getContentResolver().query(uri,
+                    new String[]{android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null);
+            if (cursor != null && cursor.moveToFirst()) {
+                int index = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+                if (index >= 0 && cursor.getString(index) != null) return cursor.getString(index);
+            }
+        } catch (Exception ignored) {
+        } finally {
+            if (cursor != null) cursor.close();
+        }
+        String segment = uri.getLastPathSegment();
+        return segment == null ? "Selected assembly" : segment;
     }
 
     private void inspectSelectedFile(Uri uri) {
@@ -114,7 +130,8 @@ public class MainActivity extends Activity {
             try {
                 String report = FileInspectionEngine.inspect(getApplicationContext(), uri);
                 boolean isApk = report.startsWith("DROIDINSPECT — APK INSPECTION");
-                boolean isManaged = report.startsWith("DROIDINSPECT — PE / .NET INSPECTION") && report.contains(".NET CLI header: PRESENT");
+                boolean isManaged = report.startsWith("DROIDINSPECT — PE / .NET INSPECTION")
+                        && report.contains(".NET CLI header: PRESENT");
                 runOnUiThread(() -> {
                     reportView.setText(report);
                     canBrowseDex = isApk;
@@ -124,9 +141,7 @@ public class MainActivity extends Activity {
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
-                    canBrowseDex = false;
-                    canBrowseApk = false;
-                    canBrowseDotNet = false;
+                    canBrowseDex = canBrowseApk = canBrowseDotNet = false;
                     reportView.setText("INSPECTION FAILED\n\n" + e.getClass().getSimpleName()
                             + ": " + (e.getMessage() == null ? "No additional details." : e.getMessage())
                             + "\n\nThe original selected file was not modified.");
@@ -158,11 +173,11 @@ public class MainActivity extends Activity {
             report.append("External storage permission: not requested (SAF is used)\n");
             report.append("APK ZIP and DEX structural parsers: available\n");
             report.append("ARSCLib manifest/resource engine: packaged in this build\n");
-            report.append("PE/CLI metadata and IL browser: available in this build\n");
-            report.append("Network required for local inspection: NO\n\n");
-            report.append("LIMITS\n");
-            report.append("Input copy cap: 512 MB; DEX per-file cap: 128 MB\n");
-            report.append("Runtime diagnostics do not prove every parser or edit operation works on every file.");
+            report.append("PE/CLI metadata and raw IL browser: available\n");
+            report.append("C# decompiler ABI: ").append(NativeBridge.isArm64Supported() ? "ARM64 supported" : "unsupported device ABI").append('\n');
+            report.append("Network required for local inspection/decompilation: NO\n\n");
+            report.append("LIMITS\nInput copy cap: 512 MB; DEX per-file cap: 128 MB\n");
+            report.append("C# source reconstruction is not assembly execution or guaranteed recompilation.");
             String result = report.toString();
             runOnUiThread(() -> {
                 reportView.setText(result);
@@ -178,11 +193,11 @@ public class MainActivity extends Activity {
         browseDexButton.setEnabled(!busy && canBrowseDex);
         browseResourcesButton.setEnabled(!busy && canBrowseApk);
         browseDotNetButton.setEnabled(!busy && canBrowseDotNet);
+        decompileCsharpButton.setEnabled(!busy && canBrowseDotNet);
         statusView.setText(status);
     }
 
-    @Override
-    protected void onDestroy() {
+    @Override protected void onDestroy() {
         super.onDestroy();
         worker.shutdownNow();
     }
