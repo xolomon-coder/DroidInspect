@@ -2610,10 +2610,11 @@ Assessment: basic production PE structure and .NET CLI-header inspection are con
 
 ### Remaining M11 production acceptance checks
 
-1. Offline decompilation with internet disabled.
-2. Graceful handling of invalid/unsupported input.
-3. Practical responsiveness and memory review during the remaining tests.
+1. Graceful handling of invalid/unsupported input.
+2. Practical responsiveness and memory review during the remaining tests.
 
-M12 remains gated until these essential checks are complete and the user explicitly accepts M11 production integration.
+**Offline decompilation — PASS (confirmed 2026-11-14):** The user confirmed that the installed production APK successfully decompiled `Newtonsoft.Json.dll`. The app does not declare/request Android Internet permission, so this production result confirms the decompilation path works without app network access. No separate airplane-mode retest is needed. Dependency warnings remain expected when required assemblies are not bundled or otherwise available locally; they do not invalidate successful source reconstruction.
 
-**Exact next action:** avoid retesting completed IL, PE inspection, source paging/search/copy, and original-preservation work. Continue with the offline decompilation check only if it is practical for the user, then assess invalid-input handling and responsiveness.
+M12 remains gated until the remaining essential checks are complete and the user explicitly accepts M11 production integration.
+
+**Exact next action:** do not repeat offline decompilation, IL browsing, PE inspection, source paging/search/copy, or original-preservation tests. Continue with graceful invalid/unsupported-input handling, then assess responsiveness and memory.
