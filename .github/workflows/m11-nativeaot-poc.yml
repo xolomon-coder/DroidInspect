@@ -121,12 +121,12 @@ jobs:
           PROD="droidinspect/app/src/main"
           mkdir -p "$PROD/jniLibs/arm64-v8a" "$PROD/assets/reference-assemblies/net11.0"
           cp artifacts/libdroidinspect_engine.so "$PROD/jniLibs/arm64-v8a/"
-          "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang++" \\
-            -std=c++17 -shared -fPIC -nostdlib++ \\
-            -I"$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include" \\
-            "$PROD/cpp/jni_bridge.cpp" \\
-            -L"$PROD/jniLibs/arm64-v8a" -ldroidinspect_engine \\
-            -Wl,-soname,libdroidinspect_jni.so \\
+          "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang++" \
+            -std=c++17 -shared -fPIC -nostdlib++ \
+            -I"$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include" \
+            "$PROD/cpp/jni_bridge.cpp" \
+            -L"$PROD/jniLibs/arm64-v8a" -ldroidinspect_engine \
+            -Wl,-soname,libdroidinspect_jni.so \
             -o "$PROD/jniLibs/arm64-v8a/libdroidinspect_jni.so"
           test -s "$PROD/jniLibs/arm64-v8a/libdroidinspect_jni.so"
           llvm-nm -D --defined-only "$PROD/jniLibs/arm64-v8a/libdroidinspect_jni.so" | grep -q 'Java_com_tanvir_droidinspect_NativeBridge_decompileFile'
