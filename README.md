@@ -2556,16 +2556,64 @@ This is a planned UX enhancement, not a current M11 acceptance failure. The exis
 
 **Confirmed PASS:** production install/startup, managed DLL recognition, real C# source reconstruction for both a DLL and a real-world EXE, dependency warning display, source page navigation, search highlighting and cross-page match navigation, and copy-current-page.
 
-**Still to verify in this production acceptance session:**
-1. Existing raw .NET IL browsing remains functional.
-2. Existing metadata inspection remains functional.
-3. Input originals remain unchanged after decompilation.
-4. Offline decompilation works with internet disabled.
-5. Invalid/unsupported input is handled gracefully in the production app.
-6. Review responsiveness/memory behavior during the production tests as practical.
+**Remaining production acceptance checks after the 2026-11-14 follow-up session:**
+1. Offline decompilation with internet disabled.
+2. Graceful handling of invalid/unsupported input.
+3. Practical responsiveness/memory review during the remaining tests.
 
-Do not claim these remaining checks passed until the user reports the results. Do not start M12 until the consolidated production M11 acceptance is complete and the user explicitly accepts the production integration.
+Original-file preservation has already been verified in earlier M5/M7 device testing for separate-copy edit/export workflows. Do not repeat that test without a specific reason. The read-only production decompilation flow does not intentionally modify its selected input.
 
-No application source was changed by this documentation update. No CodeAssist rebuild is required for these documentation-only changes.
+Do not start M12 until the remaining essential production checks are complete and the user explicitly accepts the production integration.
 
-**Exact stopping point:** the user has completed the production Newtonsoft.Json.dll workflow and confirmed search highlighting/navigation, source-page navigation, and copy/paste. The production FluentCleaner.Classic.exe result returned 31 pages with dependency warnings; the user confirmed paging/search works. The next action is to continue the remaining production regression checks, beginning with existing raw .NET IL browsing and metadata inspection. The search match counter is recorded as a later enhancement.
+No application source was changed by these documentation updates. No CodeAssist rebuild is required for documentation-only changes.
+
+**Exact stopping point:** the user has completed production testing of the C# source viewer for Newtonsoft.Json.dll and FluentCleaner.Classic.exe, including search/highlighting, page navigation, and copy/paste. In the follow-up session, the production .NET IL browser was confirmed working: 4,185 MethodDef rows indexed, 4,064 method bodies decoded, and representative method bodies opened with decoded instructions and metadata-token operands. Production PE/.NET inspection was also confirmed working for Newtonsoft.Json.dll (PE signature PASS, x86/PE32, 3 sections, .NET CLI header PRESENT). These checks close the previously listed production IL-browser and basic PE-inspection regression items. Search match counter remains a later enhancement.
+
+
+## 29. M11 production regression follow-up — IL browser and PE inspection (2026-11-14)
+
+The user continued acceptance testing on the installed production package. These results close the two regression items previously listed in section 28.
+
+### Production raw .NET IL browser — PASS
+
+Input: `Newtonsoft.Json.dll`.
+
+- Assembly identified as `Newtonsoft.Json`.
+- MethodDef rows: 4,185.
+- Methods indexed: 4,185.
+- Method bodies decoded: 4,064.
+- Method list displayed correctly.
+- Opening a selected method displayed its method header, IL byte count, instruction offsets, opcode bytes, decoded instruction names/descriptions, and metadata-token operands.
+- Representative methods tested included a short constructor, a short `JsonConvert.SerializeObject`-related wrapper, and a longer `JsonSerializerInternalWriter` method containing `ldarg.0`, `newobj`, `stfld`, `ldarg.1`, `call`, and `ret`.
+
+Assessment: production IL indexing, method selection, and representative raw IL decoding are confirmed working. Exhaustive opcode coverage was not tested and is not claimed.
+
+### Production PE / .NET inspection — PASS
+
+The user selected `Newtonsoft.Json.dll` through the dashboard's **SELECT APK / DLL / EXE** action. The production inspection report showed:
+
+- File size: 705,296 bytes.
+- PE signature: PASS.
+- Machine: x86 (0x014C).
+- Optional header: PE32.
+- Sections: 3.
+- .NET CLI header: PRESENT.
+
+Assessment: basic production PE structure and .NET CLI-header inspection are confirmed working. This does not represent a fresh exhaustive metadata-table validation; the metadata reader and its host tests, plus earlier M5 device verification, are documented in prior milestone records.
+
+### Avoiding duplicate acceptance tests
+
+- Raw IL browsing and basic PE/.NET inspection are now confirmed in the production package; do not ask the user to repeat them.
+- Original-file preservation was already tested on-device in earlier M5/M7 separate-copy edit/export workflows; do not repeat without a specific reason.
+- Earlier production C# source viewer tests remain valid and are recorded in section 28.
+- The search match counter remains a planned enhancement, not an M11 acceptance blocker.
+
+### Remaining M11 production acceptance checks
+
+1. Offline decompilation with internet disabled.
+2. Graceful handling of invalid/unsupported input.
+3. Practical responsiveness and memory review during the remaining tests.
+
+M12 remains gated until these essential checks are complete and the user explicitly accepts M11 production integration.
+
+**Exact next action:** avoid retesting completed IL, PE inspection, source paging/search/copy, and original-preservation work. Continue with the offline decompilation check only if it is practical for the user, then assess invalid-input handling and responsiveness.
