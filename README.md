@@ -562,6 +562,14 @@ The long-term roadmap has **20 milestones**, grouped into eight phases. M1–M10
    - Compare required assembly identity (name, version, culture, public key/token), public types and member signatures, target framework/runtime, and dependency requirements. Preserve compatibility where required or clearly report differences.
    - Check strong-name signing and other signature implications; a rebuilt assembly may not retain the original signing identity and may be rejected by consumers that require it.
    - Run available structural and behavioral checks; distinguish structural validity from runtime compatibility and behavioral equivalence.
+   - Produce a user-readable **DLL Replacement Compatibility Report** for every rebuilt output. The report must include:
+     - **Assembly identity:** original versus rebuilt name, version, culture, and public-key token; explicitly flag identity changes.
+     - **Public API:** compare public types and externally visible method/property/field signatures; list added, removed, renamed, or changed members where detectable.
+     - **Target framework/runtime:** show the detected original target (or state that it is unknown), the compiler output target, and any framework/API mismatch.
+     - **Dependencies:** list required references with requested and resolved versions/identities, and classify each as resolved, missing, mismatched, or unsupported.
+     - **Signing:** report whether the original is strong-name signed, whether the output is signed, whether the public-key token matches, and whether the original private key is unavailable. Never imply that re-signing with a different key preserves the original identity.
+     - **Overall assessment:** separate statuses for compilation, structural compatibility, and runtime/behavioral compatibility. Use clear outcomes such as PASS, WARNING, FAIL, or NOT VERIFIED, with a short reason for every warning or failure.
+     - **Replacement guidance:** state whether the output is suitable for a controlled test, whether compatibility is unverified, or whether known differences make it unsuitable as a drop-in replacement. Never overwrite or automatically replace the original file.
    - Export the rebuilt DLL as a new file through Android's document picker/SAF. Preserve the edited .cs source and build report as separate exports where practical.
    - Report unsupported inputs, framework limitations, and any dependencies the recipient must provide.
 
