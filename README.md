@@ -2608,13 +2608,24 @@ Assessment: basic production PE structure and .NET CLI-header inspection are con
 - Earlier production C# source viewer tests remain valid and are recorded in section 28.
 - The search match counter remains a planned enhancement, not an M11 acceptance blocker.
 
-### Remaining M11 production acceptance checks
+### Final M11 production acceptance results — 2026-11-14
 
-1. Graceful handling of invalid/unsupported input.
-2. Practical responsiveness and memory review during the remaining tests.
+All listed M11 production acceptance checks have now been confirmed PASS by the user:
 
-**Offline decompilation — PASS (confirmed 2026-11-14):** The user confirmed that the installed production APK successfully decompiled `Newtonsoft.Json.dll`. The app does not declare/request Android Internet permission, so this production result confirms the decompilation path works without app network access. No separate airplane-mode retest is needed. Dependency warnings remain expected when required assemblies are not bundled or otherwise available locally; they do not invalidate successful source reconstruction.
+- Production APK installation and startup.
+- Managed DLL recognition and basic PE/.NET inspection.
+- Real C# source reconstruction for `Newtonsoft.Json.dll` and `FluentCleaner.Classic.exe`.
+- Dependency diagnostic display, including unresolved and version-mismatched references.
+- Source paging, search highlighting, cross-page match navigation, and copy-current-page.
+- Offline decompilation: the installed production APK successfully decompiled `Newtonsoft.Json.dll`; the app does not declare/request Android Internet permission. No separate airplane-mode retest is needed.
+- Production .NET IL browser: 4,185 MethodDef rows indexed, 4,064 method bodies decoded, and representative method bodies opened with decoded instructions and metadata-token operands.
+- Production PE inspection: PE signature PASS, x86/PE32, three sections, and .NET CLI header present.
+- Original-file preservation in earlier M5/M7 separate-copy edit/export testing.
+- Graceful handling of invalid/unsupported input.
+- Practical responsiveness and memory review: user confirmed the app remains responsive while opening and navigating large C# source files.
 
-M12 remains gated until the remaining essential checks are complete and the user explicitly accepts M11 production integration.
+**M11 production acceptance testing is complete.** Dependency warnings remain expected when required assemblies are not bundled or otherwise available locally; they do not invalidate successful source reconstruction. The reconstructed source is not guaranteed to compile or be binary-compatible, and Windows-specific dependencies do not imply Android runtime compatibility.
 
-**Exact next action:** do not repeat offline decompilation, IL browsing, PE inspection, source paging/search/copy, or original-preservation tests. Continue with graceful invalid/unsupported-input handling, then assess responsiveness and memory.
+The search match counter remains a planned UX enhancement, not an M11 acceptance failure.
+
+**Gate:** M12 has not started. Begin M12 only after the user explicitly authorizes the next phase.
