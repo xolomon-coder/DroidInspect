@@ -2285,3 +2285,27 @@ M12 remains approved as a planned scope only. Do not start M12 implementation un
 ### Exact next action
 
 Continue from the current M11 proof app without rebuilding (no app source changed for this documentation update). Find a known ordinary managed .NET EXE fixture and test it through **SELECT ANOTHER MANAGED DLL / EXE**. If it returns source, record its input identity, output status, page count, and dependency diagnostics. If it is another native apphost, record the rejection and use a purpose-built ordinary managed EXE fixture instead.
+
+### FluentCleaner Classic 1.19.269 — managed EXE device test (2026-11-14)
+
+The user selected `FluentCleaner.exe` through the M11 proof app's **SELECT ANOTHER MANAGED DLL / EXE** action. The app returned reconstructed C# source from this real-world managed EXE.
+
+- Input size: 1,164,800 bytes
+- Decompilation time: 4,469 ms
+- Source output: 16 pages
+- Java heap change: 1,146,880 bytes
+- Status: `SOURCE RETURNED — DEPENDENCY WARNINGS`
+- Managed EXE source reconstruction: **PASS**
+- Dependency resolution: **PARTIAL**, not complete.
+
+Diagnostics:
+- `System.Net.Http` requested 4.2.0.0; candidate 11.0.0.0 (identity mismatch).
+- `FluentCleaner.Core, Version=1.0.0.0` unresolved.
+- `System.Text.Json` requested 8.0.0.5; candidate 11.0.0.0 (identity mismatch).
+- `System.Windows.Forms, Version=4.0.0.0` unresolved.
+- `System.Management, Version=4.0.0.0` unresolved.
+
+This closes the previously pending ordinary managed-EXE device decompilation test for this input. It does not prove complete dependency resolution, recompilation, or runtime compatibility. The Windows Forms and Management references indicate Windows-specific dependencies. No app source changed and no CodeAssist rebuild was required for this documentation update.
+
+M11 device validation now includes real-world DLL and EXE source reconstruction. The M11 production-integration decision is still pending and must be made explicitly before M12 implementation begins. See `tools/m11-poc/ANDROID-ACCEPTANCE-LOG.md` for the detailed device acceptance record.
+
