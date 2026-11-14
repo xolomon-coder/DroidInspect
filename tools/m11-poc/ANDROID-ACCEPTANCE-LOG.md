@@ -102,3 +102,70 @@ Source commits:
 Additional search implementation follow-up:
 - `4e5b8da368541955335ceebe9661b20c26679fa7` — avoid duplicating the complete source in memory for case-insensitive matching.
 - `76e75a45fffec14c02b9e3deac23577dc4ed6c37` — correct match-status formatting.
+
+
+---
+
+## Consolidated device verification update — 2026-11-14
+
+This update supersedes the earlier "pending" entries above wherever the same test is now marked complete. All observations below were reported by the user from the installed M11 proof app. No source code was changed as part of these device tests.
+
+### Newly confirmed tests
+
+| Test | Result | Evidence |
+|---|---|---|
+| External Serilog.dll selection and decompilation | PASS with dependency warnings | Input 161,280 bytes; 3,281 ms; Java heap change 790,528 bytes; 11 source pages. C# source returned. .NET 9.0.0.0 references did not match available .NET 11.0.0.0 candidates. |
+| Serilog source paging | PASS | User reached page 11/11; no crash/freeze reported. |
+| NLog 6.2.2 external DLL decompilation | PASS with dependency warning | Input 921,088 bytes; 24,908 ms; Java heap change 4,616,192 bytes; 64 source pages. C# source returned. Requested netstandard 2.0.0.0 did not match candidate 2.1.0.0. |
+| NLog source paging | PASS | User reached page 64/64; no crash/freeze reported. |
+| NLog repeatability | PASS | Initial run plus two repeat runs; user reported the same result on both repeats. Exact repeat-run timings were not provided. |
+| Invalid TXT input | PASS | 17,062-byte TXT input rejected in 2 ms with InvalidDataException: selected DLL/EXE has invalid or corrupted PE/.NET metadata. |
+| JeffBox.exe native/non-managed input rejection | PASS | 454,286-byte PE file rejected in 47 ms: no .NET metadata directory; native executables are not supported. This is a correct rejection, not a managed-EXE decompilation pass. |
+
+### Existing confirmed results retained
+
+- Bundled Newtonsoft.Json 13.0.3 offline source reconstruction: PASS; see the original metrics above.
+- Search highlighting/navigation: PASS; user confirmed working on the phone.
+- Serilog dependency-available test: PARTIAL; source returned but framework/reference mismatches remained.
+- Serilog missing-dependency test: PARTIAL / expected diagnostic; missing Serilog reference reported, and source reconstruction was attempted.
+- The app remained responsive while navigating the tested Serilog and NLog source pages.
+
+### Interpretation and limitations
+
+- "SOURCE RETURNED — DEPENDENCY WARNINGS" means reconstructed source was returned while one or more references remained unresolved or mismatched. It is not a dependency-resolution pass.
+- The .NET 9 versus .NET 11 and netstandard 2.0 versus 2.1 identity mismatches must remain visible in the acceptance record.
+- JeffBox.exe is a PE executable without a .NET metadata directory in the selected file. Its .NET Desktop Runtime requirement does not prove that the EXE itself is an ordinary managed assembly; it may be a native apphost. The phone test only proves correct rejection of this non-managed PE input.
+- A genuine ordinary managed .NET EXE has not yet been selected and successfully decompiled on the phone.
+
+### Verified GitHub Actions
+
+At source commit `42b4b11742a0017bac00b257d817587d6accb38a`:
+
+- M11 ILSpy Native AOT Android Proof, run [43501102992](https://github.com/xolomon-coder/DroidInspect/actions/runs/43501102992): **SUCCESS**. The job's managed fixture, host decompilation, real-world assembly, invalid-input/repeatability, Native AOT ARM64, JNI, Android proof APK build and APK payload verification steps all completed successfully.
+- Production DroidInspect Android CI, run [43501103023](https://github.com/xolomon-coder/DroidInspect/actions/runs/43501103023): **SUCCESS**. Host parser tests, Android compilation, release APK signing/verification, tamper test and artifact checks all completed successfully.
+
+These CI results verify automated checks for the stated commit; they are not a substitute for device acceptance.
+
+### Current acceptance matrix
+
+| Gate | Latest status |
+|---|---|
+| Native engine startup | PASS on device |
+| Bundled Newtonsoft.Json offline decompilation | PASS on device |
+| Search highlighting/navigation | PASS on device |
+| Serilog external DLL decompilation | PASS with dependency warnings |
+| Serilog dependency available/missing diagnostics | PARTIAL; diagnostics observed |
+| NLog external DLL decompilation | PASS with dependency warning |
+| NLog 64-page source navigation | PASS |
+| NLog three-run repeatability | PASS |
+| Invalid TXT rejection | PASS |
+| Native/non-managed PE EXE rejection | PASS |
+| Ordinary managed EXE decompilation on device | PENDING |
+| M11 production-integration decision | PENDING |
+| M12 implementation | NOT STARTED; gated |
+
+### Exact next action
+
+No rebuild is required for this documentation-only update. Continue using the installed M11 app. Test a known ordinary managed .NET EXE (not a native apphost, Native AOT executable, or self-contained native launcher). Record whether C# source is returned, source page count, dependency diagnostics, and responsiveness. Only after this final input-category test should the project record the M11 production-integration decision.
+
+M11 remains isolated in `tools/m11-poc/`. M12 remains gated and has not started.
