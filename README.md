@@ -341,7 +341,7 @@ Build progressively, preserve existing work, verify actual functionality, mainta
 
 # DroidInspect — Product Specification and Development Plan
 
-Last project-plan update: 2026-11-14
+Last project-plan update: 2026-11-14 (M11 device verification update)
 
 ## 1. App Goal
 
@@ -481,7 +481,7 @@ The roadmap has **12 milestones**, grouped into five phases. M1–M10 retain the
 
 ### Phase 4 — Full .NET C# source decompilation
 
-**M11 — Full C# decompilation engine and Android integration (IMPLEMENTATION COMPLETE; AUTOMATED CI VERIFIED; ANDROID-DEVICE ACCEPTANCE PENDING)**
+**M11 — Full C# decompilation engine and Android integration (IMPLEMENTATION COMPLETE; AUTOMATED CI VERIFIED; DEVICE ACCEPTANCE SUBSTANTIALLY PASSED, FINAL EXE GATE PENDING)**
 
 **Objective:** Add genuine C# source decompilation for supported managed .NET DLL/EXE assemblies, directly on the Android device, while preserving the existing Java + native XML application and the current metadata/IL/editing features.
 
@@ -2224,3 +2224,64 @@ This changes only the isolated M11 proof viewer, not the native engine or produc
 M11 search implementation follow-up commits on 2026-11-14:
 - `4e5b8da368541955335ceebe9661b20c26679fa7` — search matching without allocating a second full-size lowercase copy of the decompiled output.
 - `76e75a45fffec14c02b9e3deac23577dc4ed6c37` — correct the match-status line separator.
+
+
+## 25. M11 consolidated Android-device verification update (2026-11-14)
+
+This section records the user's latest direct CodeAssist/Android test observations. These are device observations, separate from host tests and GitHub Actions. M11 remains isolated under `tools/m11-poc/`; production integration has not started.
+
+### Confirmed device results
+
+| Test | Device result | Notes |
+|---|---|---|
+| Native engine startup | PASS | App reported: "Native engine loaded. Offline decompilation ready." |
+| Bundled Newtonsoft.Json 13.0.3 offline decompilation | PASS | 705,296-byte input; approximately 20.3 seconds; 1,182,379 output characters; 50 pages; input SHA-256 unchanged. Dependency diagnostics remained. |
+| Search highlighting and navigation | PASS | User confirmed visible search highlighting/navigation on device. Search is case-insensitive and spans the complete output; page and match navigation are separate. |
+| Serilog.dll selected externally | PASS with dependency warnings | 161,280-byte input; 3,281 ms; 790,528-byte Java heap change; 11 source pages. Source returned. Framework references requested .NET 9.0.0.0 while .NET 11.0.0.0 candidates were found. |
+| Serilog with configured dependencies available | PARTIAL | Source returned, but framework/dependency identity mismatches remained; this is not a dependency-resolution pass. |
+| Serilog with Serilog.dll intentionally missing | PARTIAL / expected diagnostic | Missing Serilog identity was reported and source reconstruction was attempted; unresolved references caused incomplete type information. |
+| NLog 6.2.2 external managed DLL | PASS with dependency warning | 921,088-byte input; 24,908 ms; 4,616,192-byte Java heap change; 64 source pages. C# source returned. Requested netstandard 2.0.0.0 did not match the available 2.1.0.0 candidate. |
+| NLog repeatability | PASS | User repeated the same NLog test twice after the initial run and reported the same result both times (three consistent runs total). |
+| External DLL source paging | PASS | User navigated Serilog's 11 pages and NLog's 64 pages to the final page without a reported crash or freeze. |
+| Invalid TXT input | PASS | 17,062-byte TXT file rejected in 2 ms with InvalidDataException explaining invalid/corrupted PE/.NET metadata. |
+| Native/non-managed EXE rejection | PASS | JeffBox.exe (454,286 bytes) was rejected in 47 ms: PE image had no .NET metadata directory; native executables are not supported by the current managed-assembly input path. |
+| Managed EXE decompilation | NOT YET TESTED | JeffBox's runtime requirement does not establish that its launcher is a directly decompilable managed assembly. No ordinary managed EXE has yet returned C# source on the phone. |
+
+The NLog repeatability checks were user-reported as "Same"; exact repeat-run timings and memory figures were not supplied and are not inferred.
+
+### Dependency-resolution findings
+
+The decompiler can return useful reconstructed C# while also reporting unresolved or mismatched references. These states must remain distinct:
+
+- Newtonsoft.Json: source returned, but framework reference diagnostics were present.
+- Serilog: source returned, but .NET 9 versus .NET 11 framework identity mismatches were reported; the missing-Serilog test also reported the absent Serilog reference.
+- NLog: source returned, but netstandard 2.0 versus 2.1 identity mismatch was reported.
+
+These results establish source reconstruction for the tested inputs, not complete reference resolution or perfect source reconstruction. The planned online-assisted reference/symbol enhancement in section 23 is not implemented.
+
+### CI verification on the tested source commit
+
+Both workflows were inspected at commit `42b4b11742a0017bac00b257d817587d6accb38a` and their jobs/steps reported completed successfully:
+
+- M11 ILSpy Native AOT Android Proof — run [43501102992](https://github.com/xolomon-coder/DroidInspect/actions/runs/43501102992): SUCCESS. Managed fixture compilation, host ILSpy reconstruction, managed EXE test, invalid-input/repeatability tests, real-world assembly tests, Native AOT ARM64 engine, JNI checks, isolated Android proof APK build and payload verification all passed.
+- Production DroidInspect Android CI — run [43501103023](https://github.com/xolomon-coder/DroidInspect/actions/runs/43501103023): SUCCESS. Host metadata/IL/DEX tests, Android debug compilation, unsigned release build, signing verification and tamper test passed.
+
+CI proves the automated host/build/package checks for that commit. It does not replace the user's Android-device acceptance. The documentation-only update in this section does not alter app source and does not require another CodeAssist build.
+
+### Current M11 acceptance decision
+
+**Status: Device validation substantially passed; M11 is not yet fully accepted.**
+
+Remaining acceptance gap:
+1. Obtain a known ordinary managed .NET EXE (not a native apphost, Native AOT binary, or self-contained native launcher) and verify that DroidInspect returns C# source on the phone.
+2. Record the result and then make an explicit M11 production-integration decision.
+
+Do not hold the completed DLL, paging, invalid-input, repeatability, or CI results open while waiting for the EXE test. Do not claim that managed EXE device decompilation passed until a genuine managed EXE has been tested.
+
+### M12 gate
+
+M12 remains approved as a planned scope only. Do not start M12 implementation until M11 device acceptance and the production-integration decision are recorded. No M12 editing/compiler/rebuild implementation is claimed.
+
+### Exact next action
+
+Continue from the current M11 proof app without rebuilding (no app source changed for this documentation update). Find a known ordinary managed .NET EXE fixture and test it through **SELECT ANOTHER MANAGED DLL / EXE**. If it returns source, record its input identity, output status, page count, and dependency diagnostics. If it is another native apphost, record the rejection and use a purpose-built ordinary managed EXE fixture instead.
