@@ -169,3 +169,29 @@ These CI results verify automated checks for the stated commit; they are not a s
 No rebuild is required for this documentation-only update. Continue using the installed M11 app. Test a known ordinary managed .NET EXE (not a native apphost, Native AOT executable, or self-contained native launcher). Record whether C# source is returned, source page count, dependency diagnostics, and responsiveness. Only after this final input-category test should the project record the M11 production-integration decision.
 
 M11 remains isolated in `tools/m11-poc/`. M12 remains gated and has not started.
+
+### FluentCleaner Classic 1.19.269 — managed EXE device test (2026-11-14)
+
+The user selected **`FluentCleaner.exe`** from FluentCleaner Classic 1.19.269 for the M11 **SELECT ANOTHER MANAGED DLL / EXE** test. The installed Android proof app returned reconstructed C# source.
+
+- Input file: `FluentCleaner.exe`
+- Input size: 1,164,800 bytes
+- Decompilation time: 4,469 ms
+- Source pages: 16
+- App status: `SOURCE RETURNED — DEPENDENCY WARNINGS`
+- Source reconstruction from a real-world managed EXE: **PASS**
+- Dependency resolution: **PARTIAL**; do not label dependencies fully resolved.
+- Java heap change: 1,146,880 bytes (as displayed by the app).
+- Process PSS and input hash were not supplied; no values are inferred.
+
+Reported dependency diagnostics:
+- `System.Net.Http, Version=4.2.0.0`: candidate identity mismatch with `System.Net.Http, Version=11.0.0.0`.
+- `FluentCleaner.Core, Version=1.0.0.0`: unresolved.
+- `System.Text.Json, Version=8.0.0.5`: candidate identity mismatch with `System.Text.Json, Version=11.0.0.0`.
+- `System.Windows.Forms, Version=4.0.0.0`: unresolved.
+- `System.Management, Version=4.0.0.0`: unresolved.
+
+Interpretation: this closes the previously documented ordinary managed-EXE device-test gap for this selected input. The app reconstructed source and exposed the unresolved/mismatched references. It does **not** establish complete dependency resolution, source recompilation, or runtime compatibility. In particular, the WinForms and Management references indicate Windows-specific dependencies that are not supplied by the Android proof environment.
+
+This test was performed against the already-installed M11 proof app; no app source change or CodeAssist rebuild was needed. M11 production integration remains a separate explicit decision, and M12 remains gated until that decision is recorded.
+
