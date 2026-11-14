@@ -2382,7 +2382,7 @@ The agreed long-term sequence is the 20-milestone roadmap in section 4:
 
 ### Current gates and status
 
-- **M11:** Real-world DLL and ordinary managed EXE source reconstruction have both been reported working on the user's Android phone. The latest managed EXE test was FluentCleaner.exe (1,164,800 bytes; 4,469 ms; 16 source pages), with dependency warnings. Dependency resolution is still partial. M11 production integration has **not** yet been decided.
+- **M11:** Real-world DLL and ordinary managed EXE source reconstruction have both been reported working on the user's Android phone. The latest managed EXE test was FluentCleaner.exe (1,164,800 bytes; 4,469 ms; 16 source pages), with dependency warnings. Dependency resolution is still partial. M11 production integration is authorized and implemented; production-device acceptance remains pending.
 - **M12:** Approved scope, not started. It remains gated until the user and project record the M11 production-integration decision.
 - **M13–M20:** Planned only; no implementation is claimed.
 - The isolated M11 proof app remains under tools/m11-poc/; do not silently merge it into the production app.
@@ -2390,13 +2390,13 @@ The agreed long-term sequence is the 20-milestone roadmap in section 4:
 
 ### Next decision
 
-The next project decision is whether and how to integrate the proven M11 decompilation engine into the production DroidInspect app. Do not begin M12 or M13 implementation until that decision and its scope are recorded. Continue to preserve all existing production APK and .NET functionality.
+M11 production integration is implemented; use section 27 for the current implementation and CI record. The next action is consolidated production-device acceptance. Do not begin M12 or M13 until the user accepts M11 production behavior. Continue preserving all existing APK and .NET functionality.
 
 
 
 ## 27. M11 production integration — implementation and cloud verification (2026-11-14)
 
-**Status:** Production Java/XML integration has been implemented on `main`. The production Android regression workflow and the expanded M11 Native AOT workflow have passed. The M11 workflow has built a production debug APK containing the ARM64 engine, production JNI bridge, and offline .NET 11 references. Generated production native/assets payload still needs its dedicated publication run to be committed to `main`; user device acceptance remains pending. M12 is not started.
+**Status:** Production Java/XML integration and generated native/reference payload are committed on `main`. The production Android regression workflow and expanded M11 Native AOT workflow passed. A production debug APK containing the ARM64 engine, production JNI bridge, and offline .NET 11 references was built and verified. User device acceptance remains pending. M12 is not started.
 
 ### Production architecture
 
@@ -2442,9 +2442,10 @@ Intentionally unchanged:
 
 - Production Android CI run #251, run ID `43543910838`, on source commit `68642367dee691a015140558333cb02b0ac4af8e`: SUCCESS. All existing metadata, IL, and DEX host tests passed; Android debug and release compilation passed; CI APK signing, v1/v2/v3 verification, tamper rejection, and artifact upload passed.
 - Production Android CI run #253, run ID `43544227605`, on workflow commit `6af43f88a2b3ecfcb95f24994f5821d062a50b5c`: SUCCESS with the same regression checks.
-- M11 Native AOT workflow run #74, run ID `43544227559`, on commit `6af43f88a2b3ecfcb95f24994f5821d062a50b5c`: SUCCESS. Existing M11 managed fixture, real-world assembly, dependency diagnostics, robustness, Native AOT publish, ELF/exports/SONAME, JNI compile, isolated proof APK, and production APK payload checks passed.
+- M11 Native AOT workflow run #75, run ID `43544705781`, on source commit `1fa29a6c7c8faa466ea00d913b687741d7edd315`: SUCCESS. Existing M11 managed fixture, real-world assembly, dependency diagnostics, robustness, Native AOT publish, ELF/exports/SONAME, both JNI builds, isolated proof APK, production APK payload checks, generated asset commit, and artifact upload passed.
 - Production APK payload checks confirmed both ARM64 shared libraries, the production JNI symbol, and `assets/reference-assemblies/net11.0/System.Runtime.dll`; no proof-only `assets/test-assemblies` were present.
-- Production debug APK from M11 run #74: 51 MB; SHA-256 `6039a766ce890529aadd67b5ee4c6207584de139914028cf4af9f0e697da2461`. M11 workflow artifact `DroidInspect-M11-Android-Proof`, artifact ID `14093351898`, contains the isolated proof APK, production debug APK, engine, and verification outputs. Run: https://github.com/xolomon-coder/DroidInspect/actions/runs/43544227559
+- Generated payload commit: `f5e774d04c466ebdcd020363f5f837786adfa8bd` (`[m11-assets] Add generated ARM64 engine and offline assets for CodeAssist`). It adds 176 .NET 11 reference DLLs (6,483,320 bytes), the 45,966,680-byte engine, and the 11,032-byte production JNI bridge. Engine SHA-1 Git blob: `33761b7fbbdde03ed9fd9d8da74a211b25a9731a`; JNI SHA-1 Git blob: `102b105bdc199a773c909e58f40df73ede43b666`.
+- Production debug APK from M11 run #75: approximately 51 MB; SHA-256 `6c3355f6a8020618e0213f9075f3a8520860c7c832cdaea2d4f1342d9eb53cc5`. M11 workflow artifact `DroidInspect-M11-Android-Proof`, artifact ID `14092789745`, contains the isolated proof APK, production debug APK, engine, and verification outputs. Run: https://github.com/xolomon-coder/DroidInspect/actions/runs/43544705781
 - The 46 MB Native AOT engine and 6.48 MB reference pack increase the uncompressed APK payload by approximately 52.45 MB before compression/packaging. Actual APK size is measured by CI.
 
 ### Known limits and remaining acceptance
@@ -2465,10 +2466,10 @@ Intentionally unchanged:
 | Production Java/XML integration | Implemented |
 | Production Android regression CI | PASS |
 | M11 Native AOT + production APK CI | PASS |
-| Generated production engine/JNI/reference payload committed to main | Pending publication workflow |
-| Final main ZIP and production APK handoff | Pending generated-payload commit and final CI |
+| Generated production engine/JNI/reference payload committed to main | PASS — commit `f5e774d` |
+| Final main ZIP and production APK handoff | Pending final regression run against committed payload |
 | Consolidated production Android device acceptance | Pending user test |
 | M12 C# source editing/recompilation | Not started; remains gated on production M11 acceptance |
 | M13–M20 | Planned only |
 
-**Next exact action:** publish the generated production ARM64 engine, JNI bridge, and .NET 11 reference assets to `main`; rerun production CI against the committed payload; then deliver the latest main ZIP and final installable debug APK for one consolidated phone test. Do not start M12.
+**Next exact action:** complete one production Android CI run against the committed generated payload, then deliver the latest main ZIP and final installable debug APK for one consolidated phone test. Do not start M12.
