@@ -396,9 +396,9 @@ Important feasibility constraints:
 - If a preferred engine cannot run reliably on Android 11 / CodeAssist, investigate a smaller native implementation or clearly document a reduced feature scope. Do not silently change the Java/XML preference; discuss a major architecture change first.
 - Check and document each dependency's license and redistribution requirements before packaging it.
 
-## 4. Complete Roadmap — 12 Milestones
+## 4. Complete Roadmap — 20 Milestones
 
-The roadmap has **12 milestones**, grouped into five phases. M1–M10 retain their existing scope and history; M11 adds real on-device C# source decompilation, and M12 adds separate-copy C# source editing and rebuilt DLL export. M12 is gated on M11 Android-device acceptance and a documented production-integration decision. The sequence may be refined only when a verified technical blocker requires it; document the reason and preserve the original goal.
+The long-term roadmap has **20 milestones**, grouped into eight phases. M1–M10 retain their existing scope and completed history. M11 establishes real on-device C# source decompilation; M12 covers separate-copy C# source editing and managed DLL recompilation. M13–M20 extend the product into deeper .NET analysis, advanced source tools, APK analysis/editing, project management, and final reliability/integration. Existing completed capabilities are foundations to extend, not work to restart. M12 remains gated on the explicit M11 production-integration decision. Later milestones must preserve working features, prove Android feasibility before adopting major engines, and keep the offline-first/phone-only development requirements.
 
 ### Phase 1 — Foundation and file understanding
 
@@ -481,7 +481,7 @@ The roadmap has **12 milestones**, grouped into five phases. M1–M10 retain the
 
 ### Phase 4 — Full .NET C# source decompilation
 
-**M11 — Full C# decompilation engine and Android integration (IMPLEMENTATION COMPLETE; AUTOMATED CI VERIFIED; DEVICE ACCEPTANCE SUBSTANTIALLY PASSED, FINAL EXE GATE PENDING)**
+**M11 — Full C# decompilation engine and Android integration (IMPLEMENTATION COMPLETE; AUTOMATED CI VERIFIED; DLL AND MANAGED EXE SOURCE RECONSTRUCTION PASSED ON DEVICE; PRODUCTION-INTEGRATION DECISION PENDING)**
 
 **Objective:** Add genuine C# source decompilation for supported managed .NET DLL/EXE assemblies, directly on the Android device, while preserving the existing Java + native XML application and the current metadata/IL/editing features.
 
@@ -579,6 +579,65 @@ The roadmap has **12 milestones**, grouped into five phases. M1–M10 retain the
 - The workflow is tested on the user's phone, reproducible in CI, and compatible with the established phone-only CodeAssist workflow.
 
 **Architecture and feasibility gate:** Source editing and DLL compilation are separate capabilities. A text editor plus .cs export does not constitute DLL recompilation. If a reliable offline Android compiler/runtime path cannot be proven, deliver source editing/export as a clearly bounded subfeature and document the blocker and alternatives; do not label M12 complete or claim DLL rebuild support.
+
+
+### Phase 6 — .NET dependency intelligence and advanced assembly tools
+
+**M13 — Dependency and framework resolution**
+- Build on M11's observed unresolved/mismatched-reference diagnostics.
+- Identify required framework/reference assemblies and dependency versions using assembly identity, version, culture, public-key token, target framework, and dependency relationships.
+- Support user-provided local dependencies and carefully validated reference packs; keep offline operation as the default.
+- Add opt-in online-assisted retrieval only with explicit consent, trusted sources, integrity/provenance reporting, licensing checks, and no automatic upload of inspected files.
+- Exit criteria: representative dependency graphs resolve accurately or produce precise, actionable unresolved/mismatch reports; no silent incompatible substitutions.
+
+**M14 — Assembly Explorer and advanced IL Viewer**
+- Extend the existing metadata and IL browsing foundations into a navigable assembly tree: assemblies, modules, namespaces, types, fields, properties, events, methods, and references.
+- Improve method navigation, token/RVA display, raw IL inspection, instruction bytes, operands, and cross-reference navigation.
+- Add filters, sorting, bookmarks, and contextual search without removing current inspection/editing behavior.
+- Exit criteria: representative managed assemblies can be explored consistently, and displayed metadata/IL is cross-checked against known fixtures.
+
+**M15 — Advanced C# source editor**
+- Extend the basic separate-copy source editing/rebuild workflow planned in M12 with a phone-usable multi-file editor.
+- Add syntax highlighting, line numbers, find/replace, file tabs or an equivalent lightweight file navigator, unsaved-change indicators, and readable compiler diagnostics.
+- Preserve original assemblies and untouched decompilation output; save edits as separate source files.
+- Exit criteria: multi-file source projects can be edited and saved reliably on the phone, with editor usability and memory behavior tested on-device.
+
+**M16 — Assembly comparison and resource extraction**
+- Compare two assemblies by identity, references, types, members, signatures, metadata, and supported IL changes.
+- Present additions, removals, and modifications without implying semantic equivalence where only structural comparison is available.
+- Browse and extract supported embedded resources to separate user-selected output files; preserve original inputs.
+- Exit criteria: known changed/unchanged assembly pairs produce accurate comparison reports, and resource extraction passes integrity checks.
+
+### Phase 7 — Advanced APK workflows
+
+**M17 — Advanced APK inspection and DEX analysis**
+- Extend the existing M2 APK inspection and M4 DEX browsing foundations; do not recreate completed features.
+- Improve package/component navigation, manifest and permission analysis, multi-DEX handling, resource mapping, global search, and cross-reference navigation.
+- Add robust handling for split APKs, large inputs, malformed structures, and unsupported formats where feasible.
+- Exit criteria: representative APK families are inspected and browsed accurately on-device, with limitations clearly reported.
+
+**M18 — APK editing, rebuilding, and signing workflow**
+- Extend the existing M6 resource/manifest editing and M8 signing foundations into a coherent project-based workflow.
+- Support validated edits to selected resources/manifest/DEX-related representations where the underlying tools permit.
+- Rebuild to a separate APK, sign with supported schemes, verify signatures, and report install/update compatibility constraints.
+- Preserve the original APK and project inputs; never imply that a rebuilt APK can retain another developer's signing identity.
+- Exit criteria: supported edit → rebuild → sign → verify → export flows pass structural checks and agreed real-device install tests.
+
+### Phase 8 — Project workspace, reliability, and final integration
+
+**M19 — Project workspace and professional tools**
+- Add persistent workspaces for APK and .NET analysis, recent projects, file trees, bookmarks, notes, saved searches, and export/report management.
+- Provide clear project state, operation history, and recovery from interrupted work.
+- Keep storage transparent and user-controlled; use SAF and app-private working storage appropriately.
+- Exit criteria: users can close and reopen projects without losing saved work, and workspace data remains isolated and recoverable.
+
+**M20 — Performance, compatibility, and final integration**
+- Profile large APKs and assemblies, reduce memory duplication, improve background processing/cancellation, and handle low-memory conditions safely.
+- Validate supported Android versions, ABIs, CodeAssist build reproducibility, permissions, licensing, and dependency payload sizes.
+- Run full regression suites across APK and .NET workflows; resolve integration conflicts and document unsupported cases.
+- Complete final on-device acceptance, release checks, and user-facing documentation.
+- Exit criteria: the agreed roadmap scope is implemented or explicitly bounded, critical device tests pass, CI is reproducible, originals remain protected, and the release status/limitations are documented accurately.
+
 
 ## 5. Development and Creation Process
 
@@ -2308,4 +2367,28 @@ Diagnostics:
 This closes the previously pending ordinary managed-EXE device decompilation test for this input. It does not prove complete dependency resolution, recompilation, or runtime compatibility. The Windows Forms and Management references indicate Windows-specific dependencies. No app source changed and no CodeAssist rebuild was required for this documentation update.
 
 M11 device validation now includes real-world DLL and EXE source reconstruction. The M11 production-integration decision is still pending and must be made explicitly before M12 implementation begins. See `tools/m11-poc/ANDROID-ACCEPTANCE-LOG.md` for the detailed device acceptance record.
+
+
+## 26. Long-term product direction — Everything gradually (2026-11-14)
+
+The user selected **D — Everything gradually** as the overall product direction. DroidInspect is intended to grow progressively into a broad Android-based APK and .NET inspection, editing, rebuilding, and analysis tool. This is a roadmap decision, not approval to begin all milestones at once.
+
+The agreed long-term sequence is the 20-milestone roadmap in section 4:
+- **M11–M16:** real C# decompilation, separate-copy source editing/recompilation, dependency/framework resolution, advanced Assembly Explorer/IL Viewer, advanced C# editing, assembly comparison, and resource extraction.
+- **M17–M18:** expand the existing APK/DEX inspection foundations and complete the supported APK editing, rebuilding, signing, and verification workflow.
+- **M19–M20:** project workspace/professional tools, performance, compatibility, regression, and final integration.
+
+**Avoid duplicated work:** M2/M4/M6/M8 already establish APK inspection, DEX browsing, resource/manifest editing, and APK signing foundations. M14–M18 must extend and integrate those capabilities rather than restart them. M12 provides the initial separate-source editing and DLL recompilation workflow; M15 is the later advanced multi-file editor experience.
+
+### Current gates and status
+
+- **M11:** Real-world DLL and ordinary managed EXE source reconstruction have both been reported working on the user's Android phone. The latest managed EXE test was FluentCleaner.exe (1,164,800 bytes; 4,469 ms; 16 source pages), with dependency warnings. Dependency resolution is still partial. M11 production integration has **not** yet been decided.
+- **M12:** Approved scope, not started. It remains gated until the user and project record the M11 production-integration decision.
+- **M13–M20:** Planned only; no implementation is claimed.
+- The isolated M11 proof app remains under tools/m11-poc/; do not silently merge it into the production app.
+- The project remains offline-first and phone-developed through CodeAssist, with Java + native Android XML as the preferred application architecture. Any major runtime/compiler/engine change requires demonstrated feasibility and a documented decision.
+
+### Next decision
+
+The next project decision is whether and how to integrate the proven M11 decompilation engine into the production DroidInspect app. Do not begin M12 or M13 implementation until that decision and its scope are recorded. Continue to preserve all existing production APK and .NET functionality.
 
