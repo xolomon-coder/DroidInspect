@@ -1,5 +1,5 @@
 name: M11 ILSpy Native AOT Android Proof
-# [publish-m11-assets] Final source batch: publish the generated ARM64 engine and offline DLL assets for local CodeAssist builds.
+# [publish-m11-assets] This workflow publishes both the isolated proof payload and the production DroidInspect ARM64 payload for CodeAssist.
 # Re-run after the CodeAssist JNI packaging correction so both prebuilt .so files are committed.
 # The JNI loader SONAME is checked to prevent absolute DT_NEEDED paths.
 # The committed CodeAssist payload is also rebuilt and revalidated by normal main-branch runs.

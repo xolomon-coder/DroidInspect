@@ -74,10 +74,6 @@ public class CSharpDecompileActivity extends Activity {
             finishWithError("C# decompilation requires ARM64 (arm64-v8a). Other DroidInspect features remain available.");
             return;
         }
-        if (!NativeBridge.ensureLoaded()) {
-            finishWithError(NativeBridge.getLoadError());
-            return;
-        }
         startDecompilation(uri);
     }
 
@@ -88,7 +84,9 @@ public class CSharpDecompileActivity extends Activity {
         Handler ui = handler;
         worker.execute(() -> {
             String result;
-            try (DecompilationWorkspace workspace = DecompilationWorkspace.prepare(app, uri)) {
+            try {
+                if (!NativeBridge.ensureLoaded()) throw new IllegalStateException(NativeBridge.getLoadError());
+                try (DecompilationWorkspace workspace = DecompilationWorkspace.prepare(app, uri)) {
                 ui.post(() -> {
                     CSharpDecompileActivity activity = reference.get();
                     if (activity != null && !activity.isFinishing())
@@ -97,7 +95,8 @@ public class CSharpDecompileActivity extends Activity {
                 result = NativeBridge.decompileFile(
                         workspace.getAssembly().getAbsolutePath(),
                         workspace.getReferenceDirectory());
-                if (result == null) result = "M11 DECOMPILATION ERROR: Native engine returned no result.";
+                    if (result == null) result = "M11 DECOMPILATION ERROR: Native engine returned no result.";
+                }
             } catch (Throwable error) {
                 result = "M11 DECOMPILATION ERROR: " + error.getClass().getSimpleName()
                         + ": " + (error.getMessage() == null ? "No additional details." : error.getMessage());

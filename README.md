@@ -658,7 +658,7 @@ No milestone is complete solely because code was written or committed. When deli
 
 ## 6. Current Project Status (2026-11-13)
 
-**Current phase: Phase 4 / M11 — isolated Native AOT implementation and automated CI verification are complete. The CodeAssist-ready engine/assets are committed on main; consolidated Android-device acceptance is the remaining gate.** M4–M7 have passed their agreed Android 11 device verification scopes. M8 now includes an on-device APK signing and verification screen; M9 includes raw IL byte/opcode explanations and MethodDef token navigation, while full C# decompilation remains unsupported in the current Java/CodeAssist architecture; M10 regression, signing, tamper, build, and artifact checks pass in GitHub Actions run #131. Phase 3 has not yet received user device-test evidence. M4 large-APK stress and malformed-DEX device edge cases remain untested. Do not confuse CI verification with device verification.
+**Current phase: Phase 4 / M11 — production integration is authorized and implemented; automated production APK verification has passed, and final generated-payload publication plus user device acceptance are the remaining gates.** The isolated proof app remains intact. M4–M7 retain their previously accepted Android 11 device scopes. M8–M10 production foundations and regression CI remain preserved. M11 production integration does not claim complete dependency resolution, recompilation, or target-program execution. Do not confuse cloud APK verification with user device acceptance.
 
 Phase 1 implementation has passed cloud CI and initial Android 11 device smoke checks. The user chose to proceed without the optional native-PE fixture test. Native/non-managed PE rejection therefore remains an explicit unverified limitation; do not claim full M3 classification coverage. M2 has one successful real APK test, and M3 has one successful CLI-bearing mixed-mode .NET DLL test. Phase 2 may begin while this gap remains documented for later regression coverage.
 
@@ -2392,3 +2392,83 @@ The agreed long-term sequence is the 20-milestone roadmap in section 4:
 
 The next project decision is whether and how to integrate the proven M11 decompilation engine into the production DroidInspect app. Do not begin M12 or M13 implementation until that decision and its scope are recorded. Continue to preserve all existing production APK and .NET functionality.
 
+
+
+## 27. M11 production integration — implementation and cloud verification (2026-11-14)
+
+**Status:** Production Java/XML integration has been implemented on `main`. The production Android regression workflow and the expanded M11 Native AOT workflow have passed. The M11 workflow has built a production debug APK containing the ARM64 engine, production JNI bridge, and offline .NET 11 references. Generated production native/assets payload still needs its dedicated publication run to be committed to `main`; user device acceptance remains pending. M12 is not started.
+
+### Production architecture
+
+- Production package remains `com.tanvir.droidinspect`; the isolated proof package remains `com.tanvir.m11poc`.
+- The production app continues to use Java + native Android XML. No new Android runtime library dependency was added.
+- The existing ILSpy 11.2.0.10050 / .NET 11 Native AOT Bionic ARM64 engine is reused. It is not rewritten in Java.
+- Production JNI uses `droidinspect/app/src/main/cpp/jni_bridge.cpp` and the production Java class `NativeBridge`; the proof JNI class and binary remain unchanged.
+- The engine is loaded lazily only when the user opens C# decompilation, and library loading is performed on the background worker. The native load order is engine first, JNI second.
+- Decompilation is exposed as a separate dashboard action. The existing raw .NET IL browser, metadata reader, and IL editing/export code remain separate and unchanged.
+- A managed assembly is reopened through its SAF URI into a unique app-private cache workspace. The original document is never overwritten or deleted. The working copy remains available for the complete native call and is deleted in the workspace close/finally path.
+- The .NET 11 reference pack is extracted from APK assets into app-private persistent storage using a staging directory and completion marker. It is not extracted at app startup.
+- The production source viewer uses 12,000-character pages, case-insensitive next/previous search, visible match highlighting, page navigation, and copy-current-page. Search avoids building a second lowercase copy of the complete output.
+- The Native AOT call is synchronous and cannot be safely interrupted. Leaving the Activity does not interrupt the native call; the worker completes and cleans its private workspace. Immediate cancellation is not claimed.
+- ARM64 is required for C# decompilation. Other DroidInspect features are not coupled to native engine initialization. The app reports unsupported ABI when the decompiler is requested on an unsupported ABI.
+- Dependency diagnostics remain visible. Framework identity mismatches and missing third-party references are not silently substituted or represented as resolved. C# source reconstruction is not proof that the target assembly can run on Android or that a rebuilt DLL can replace the original.
+
+### Exact production integration files
+
+Added:
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/NativeBridge.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/DecompilationWorkspace.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/CSharpDecompileActivity.java`
+- `droidinspect/app/src/main/cpp/jni_bridge.cpp`
+- `droidinspect/app/src/main/res/layout/activity_csharp_decompile.xml`
+- `THIRD-PARTY-NOTICES.md`
+
+Updated:
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/MainActivity.java`
+- `droidinspect/app/src/main/res/layout/activity_main.xml`
+- `droidinspect/app/src/main/AndroidManifest.xml`
+- `.github/workflows/m11-nativeaot-poc.yml`
+
+Generated by CI and intended to be committed to production source for CodeAssist:
+- `droidinspect/app/src/main/jniLibs/arm64-v8a/libdroidinspect_engine.so`
+- `droidinspect/app/src/main/jniLibs/arm64-v8a/libdroidinspect_jni.so`
+- `droidinspect/app/src/main/assets/reference-assemblies/net11.0/*.dll`
+
+Intentionally unchanged:
+- `FileInspectionEngine.java`, `DotNetMetadataReader.java`, `DotNetIlReader.java`, `DotNetIlActivity.java`, APK/DEX activities and parsers, existing Gradle configuration, and all source under `tools/m11-poc/`.
+- No M11 test assemblies or proof-only test buttons are included in the production APK.
+
+### Cloud verification evidence
+
+- Production Android CI run #251, run ID `43543910838`, on source commit `68642367dee691a015140558333cb02b0ac4af8e`: SUCCESS. All existing metadata, IL, and DEX host tests passed; Android debug and release compilation passed; CI APK signing, v1/v2/v3 verification, tamper rejection, and artifact upload passed.
+- Production Android CI run #253, run ID `43544227605`, on workflow commit `6af43f88a2b3ecfcb95f24994f5821d062a50b5c`: SUCCESS with the same regression checks.
+- M11 Native AOT workflow run #74, run ID `43544227559`, on commit `6af43f88a2b3ecfcb95f24994f5821d062a50b5c`: SUCCESS. Existing M11 managed fixture, real-world assembly, dependency diagnostics, robustness, Native AOT publish, ELF/exports/SONAME, JNI compile, isolated proof APK, and production APK payload checks passed.
+- Production APK payload checks confirmed both ARM64 shared libraries, the production JNI symbol, and `assets/reference-assemblies/net11.0/System.Runtime.dll`; no proof-only `assets/test-assemblies` were present.
+- Production debug APK from M11 run #74: 51 MB; SHA-256 `6039a766ce890529aadd67b5ee4c6207584de139914028cf4af9f0e697da2461`. M11 workflow artifact `DroidInspect-M11-Android-Proof`, artifact ID `14093351898`, contains the isolated proof APK, production debug APK, engine, and verification outputs. Run: https://github.com/xolomon-coder/DroidInspect/actions/runs/43544227559
+- The 46 MB Native AOT engine and 6.48 MB reference pack increase the uncompressed APK payload by approximately 52.45 MB before compression/packaging. Actual APK size is measured by CI.
+
+### Known limits and remaining acceptance
+
+- The decompiler is ARM64-only. The Native AOT engine targets Android Bionic API 26+; production minSdk remains 26.
+- The current engine returns the complete reconstructed source through JNI. Display paging reduces rendered UI content but does not make decompilation streaming. The M11 proof's reported Newtonsoft.Json process PSS peak was approximately 130 MB; production-device memory behavior must be retested through the production Activity.
+- Input copy remains capped at 512 MB. Very large source output may still create memory pressure; no universal large-assembly guarantee is made.
+- The reference pack is .NET 11.0. Assemblies targeting other frameworks may show unresolved or identity-mismatch warnings. Dependency resolution remains partial.
+- Cancellation of a synchronous native call is not implemented. The worker retains its private input until native execution finishes, then cleans it.
+- Direct ILSpy and .NET runtime/reference-pack MIT license texts are recorded in `THIRD-PARTY-NOTICES.md`. Recheck the exact transitive NuGet dependency graph and generated notices before public redistribution.
+- No Android device test has yet verified the new production screen, native loading through the production package, SAF workspace cleanup, production source paging/search, or memory behavior. Cloud build success is not device acceptance.
+
+### Current gates
+
+| Item | Status |
+|---|---|
+| Isolated M11 engine and proof app | Implemented and substantially device-validated |
+| Production Java/XML integration | Implemented |
+| Production Android regression CI | PASS |
+| M11 Native AOT + production APK CI | PASS |
+| Generated production engine/JNI/reference payload committed to main | Pending publication workflow |
+| Final main ZIP and production APK handoff | Pending generated-payload commit and final CI |
+| Consolidated production Android device acceptance | Pending user test |
+| M12 C# source editing/recompilation | Not started; remains gated on production M11 acceptance |
+| M13–M20 | Planned only |
+
+**Next exact action:** publish the generated production ARM64 engine, JNI bridge, and .NET 11 reference assets to `main`; rerun production CI against the committed payload; then deliver the latest main ZIP and final installable debug APK for one consolidated phone test. Do not start M12.
