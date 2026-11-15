@@ -92,4 +92,4 @@ The production DroidInspect app now has an initial source workspace/editor imple
 - ZIP export of the edited source project.
 - The M11 C# viewer launches this workspace without modifying the original assembly or M11 source result.
 
-The editor is a source-editing/export subfeature only at this point. The production Roslyn JNI bridge, compile UI, compiler output inspection, and DLL replacement compatibility report are not integrated yet. Production Android CI and Android-device behavior are not verified by the source commit alone.
+The editor is a source-editing/export subfeature only at this point. The last workspace ID is persisted and can be reopened from the production main screen. The production Roslyn JNI bridge, compile UI, compiler output inspection, and DLL replacement compatibility report are not integrated yet. Production Android CI and Android-device behavior are not verified by the source commit alone.
