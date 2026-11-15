@@ -1,7 +1,6 @@
 using System.Reflection;
 using System.Runtime.Loader;
-using System.Reflection.Metadata;
-using System.Reflection.PortableExecutable;
+using System.Security.Cryptography;
 using DroidInspect.M12;
 
 if (args.Length != 3)
@@ -11,9 +10,35 @@ var result = CompilerService.Compile(args[0], args[2], args[1]);
 Console.WriteLine(result);
 if (!result.StartsWith("M12 COMPILATION PASS", StringComparison.Ordinal))
     throw new Exception("Roslyn compiler proof failed.");
+if (!result.Contains("Source files: 2", StringComparison.Ordinal))
+    throw new Exception("Compiler did not compile the complete two-file fixture.");
+if (!result.Contains("Public-key token:", StringComparison.Ordinal)
+    || !result.Contains("Strong-name public key present:", StringComparison.Ordinal))
+    throw new Exception("Assembly identity verification report is incomplete.");
+
+var originalOutput = File.ReadAllBytes(args[2]);
+var originalHash = Convert.ToHexString(SHA256.HashData(originalOutput));
+var invalidDirectory = Path.Combine(Path.GetTempPath(), "droidinspect-m12-invalid-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(invalidDirectory);
+try
+{
+    File.WriteAllText(Path.Combine(invalidDirectory, "Broken.cs"), "public class Broken { this is not valid C# }");
+    var failed = CompilerService.Compile(invalidDirectory, args[2], args[1]);
+    Console.WriteLine(failed);
+    if (!failed.StartsWith("M12 COMPILE FAILED", StringComparison.Ordinal))
+        throw new Exception("Invalid source unexpectedly compiled.");
+    var afterFailureHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(args[2])));
+    if (!StringComparer.Ordinal.Equals(originalHash, afterFailureHash))
+        throw new Exception("A failed compile modified the previous output DLL.");
+    Console.WriteLine("HOST PRESERVATION PASS: failed compilation left the previous DLL unchanged.");
+}
+finally
+{
+    Directory.Delete(invalidDirectory, true);
+}
 
 using (var stream = File.OpenRead(args[2]))
-using (var pe = new PEReader(stream))
+using (var pe = new System.Reflection.PortableExecutable.PEReader(stream))
 {
     if (!pe.HasMetadata) throw new Exception("Output is not a managed PE.");
     var metadata = pe.GetMetadataReader();
@@ -30,4 +55,4 @@ var method = type.GetMethod("GetEditedValue", BindingFlags.Public | BindingFlags
 var value = method.Invoke(instance, null) as string;
 if (value != "M12_EDITED_VALUE")
     throw new Exception("Edited method returned an unexpected value: " + value);
-Console.WriteLine("HOST BEHAVIOR PASS: EditedFixture.GetEditedValue() returned M12_EDITED_VALUE.");
+Console.WriteLine("HOST BEHAVIOR PASS: two-file EditedFixture.GetEditedValue() returned M12_EDITED_VALUE.");
