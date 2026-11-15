@@ -172,7 +172,7 @@ final class DotNetIlReader {
             } catch(Exception e){body="IL body unavailable: "+safe(e.getMessage());codeOffset=0;codeSize=0;codeHex="";}
             result.methods.add(new MethodInfo(i+1,flags,owner,name,rva,nameIndex,codeOffset,codeSize,codeHex,body));
         }
-        result.report="ASSEMBLY: "+result.assembly+"\nMethodDef rows: "+count+"\nMethods indexed: "+limit+(count>limit?" (safety cap reached)":"")+"\nBodies decoded: "+bodies+"\nView: raw ECMA-335 IL; metadata tokens are numeric.\nC# source reconstruction is not implemented.";
+        result.report="ASSEMBLY: "+result.assembly+"\nMethodDef rows: "+count+"\nMethods indexed: "+limit+(count>limit?" (safety cap reached)":"")+"\nBodies decoded: "+bodies+"\nView: raw ECMA-335 IL; metadata tokens are numeric.\nOffline C# source reconstruction is available through the separate decompiler workflow.";
         return result;
         } finally { pe.close(); }
     }
