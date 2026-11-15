@@ -184,8 +184,8 @@ public class DotNetDependencyActivity extends Activity {
                 final String message = result;
                 runOnUiThread(() -> {
                     busy = false;
-                    status.setText(message);
                     showProjectReady();
+                    status.setText(message);
                 });
             });
         } else if (requestCode == REQUEST_EXPORT_REPORT) {
