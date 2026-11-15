@@ -204,7 +204,8 @@ public class CSharpSourceEditorActivity extends Activity {
                     result = com.tanvir.m12poc.NativeBridge.compile(
                             project.getSourceRoot().getAbsolutePath(),
                             output.getAbsolutePath(),
-                            references.getAbsolutePath());
+                            references.getAbsolutePath(),
+                            project.getOriginalAssemblyFile().getAbsolutePath());
                     if (result == null) result = "M12 COMPILER ERROR: No result was returned.";
                     if (result.startsWith("M12 COMPILATION PASS")) {
                         if (!isManagedPe(output)) {
