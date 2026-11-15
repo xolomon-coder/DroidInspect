@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -37,7 +38,7 @@ import java.util.regex.Pattern;
 public final class AssemblyExplorerActivity extends Activity {
     private static final long MAX_INPUT = 512L * 1024L * 1024L;
     private static final String[] CATEGORIES = {
-            "Tree", "All", "Methods", "Fields", "Properties", "Events", "References", "Module references", "Standalone signatures", "Type references", "Member references", "Type specifications", "Method specifications", "Bookmarks"
+            "Tree", "Namespaces", "All", "Methods", "Fields", "Properties", "Events", "References", "Module references", "Standalone signatures", "Type references", "Member references", "Type specifications", "Method specifications", "Bookmarks"
     };
     private static final String[] SORTS = {"Name A-Z", "Metadata token", "Owner"};
 
@@ -53,6 +54,7 @@ public final class AssemblyExplorerActivity extends Activity {
     private Button backButton;
     private File sourceCopy;
     private String currentOwner;
+    private String currentNamespace;
 
     private static final class Entry {
         final String category, token, owner, label, detail;
@@ -96,6 +98,7 @@ public final class AssemblyExplorerActivity extends Activity {
         category.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
                 currentOwner = null;
+                currentNamespace = null;
                 backButton.setEnabled(false);
                 filter();
             }
@@ -160,6 +163,7 @@ public final class AssemblyExplorerActivity extends Activity {
 
         String section = "";
         String owner = "";
+        LinkedHashMap<String, Integer> namespaces = new LinkedHashMap<>();
         String[] lines = metadata == null ? new String[0] : metadata.split("\n");
         Pattern tokenPattern = Pattern.compile("token 0x([0-9A-Fa-f]{8})");
         for (String raw : lines) {
@@ -218,6 +222,8 @@ public final class AssemblyExplorerActivity extends Activity {
                     int marker = line.indexOf(" (TypeDef token");
                     owner = dot >= 0 && marker > dot ? line.substring(dot + 2, marker) : line;
                     if (owner.endsWith(" [interface]")) owner = owner.substring(0, owner.length() - 12);
+                    String namespace = namespaceOf(owner);
+                    if (!namespace.isEmpty()) namespaces.put(namespace, namespaces.getOrDefault(namespace, 0) + 1);
                     allEntries.add(new Entry("Types", token, owner, owner, line, null));
                     continue;
                 }
@@ -246,6 +252,11 @@ public final class AssemblyExplorerActivity extends Activity {
                     owner = line;
                 }
             }
+        }
+
+        for (java.util.Map.Entry<String, Integer> namespace : namespaces.entrySet()) {
+            allEntries.add(new Entry("Namespaces", "", namespace.getKey(), namespace.getKey(),
+                    "Namespace — " + namespace.getValue() + " type(s)", null));
         }
 
         for (DotNetIlReader.MethodInfo method : il.methods) {
@@ -284,8 +295,10 @@ public final class AssemblyExplorerActivity extends Activity {
                 include = entry.owner.equals(currentOwner)
                         && ("Methods".equals(entry.category) || "Fields".equals(entry.category)
                         || "Properties".equals(entry.category) || "Events".equals(entry.category));
+            } else if (currentNamespace != null) {
+                include = "Types".equals(entry.category) && namespaceOf(entry.owner).equals(currentNamespace);
             } else if ("Tree".equals(selected)) {
-                include = "Types".equals(entry.category) || "Assembly".equals(entry.category)
+                include = "Namespaces".equals(entry.category) || "Assembly".equals(entry.category)
                         || "Module".equals(entry.category) || "References".equals(entry.category)
                         || "Module references".equals(entry.category) || "Standalone signatures".equals(entry.category)
                         || "Type references".equals(entry.category) || "Member references".equals(entry.category)
@@ -319,13 +332,20 @@ public final class AssemblyExplorerActivity extends Activity {
         Collections.sort(shownEntries, comparator);
         for (Entry entry : shownEntries) labels.add(entry.label);
         adapter.notifyDataSetChanged();
-        backButton.setEnabled(currentOwner != null);
-        status.setText((currentOwner == null ? selected : currentOwner)
-                + " — showing " + shownEntries.size() + " of " + allEntries.size());
+        backButton.setEnabled(currentOwner != null || currentNamespace != null);
+        String context = currentOwner != null ? currentOwner
+                : currentNamespace != null ? currentNamespace : selected;
+        status.setText(context + " — showing " + shownEntries.size() + " of " + allEntries.size());
     }
 
     private void selectEntry(Entry entry) {
-        if ("Types".equals(entry.category) && "Tree".equals(category.getSelectedItem())) {
+        if ("Namespaces".equals(entry.category)) {
+            currentNamespace = entry.owner;
+            currentOwner = null;
+            filter();
+            return;
+        }
+        if ("Types".equals(entry.category) && currentNamespace != null) {
             currentOwner = entry.owner;
             filter();
             return;
@@ -402,7 +422,12 @@ public final class AssemblyExplorerActivity extends Activity {
     }
 
     private void returnToTree() {
-        currentOwner = null;
+        if (currentOwner != null) {
+            currentOwner = null;
+            filter();
+            return;
+        }
+        currentNamespace = null;
         category.setSelection(0);
         filter();
     }
@@ -429,6 +454,12 @@ public final class AssemblyExplorerActivity extends Activity {
                     }
                     Toast.makeText(this, "Token is not in the current bounded index.", Toast.LENGTH_LONG).show();
                 }).show();
+    }
+
+    private static String namespaceOf(String typeName) {
+        if (typeName == null) return "";
+        int separator = typeName.lastIndexOf('.');
+        return separator <= 0 ? "" : typeName.substring(0, separator);
     }
 
     private long parseToken(String token) {
@@ -466,7 +497,7 @@ public final class AssemblyExplorerActivity extends Activity {
         category.setEnabled(!busy);
         sort.setEnabled(!busy);
         list.setEnabled(!busy);
-        backButton.setEnabled(!busy && currentOwner != null);
+        backButton.setEnabled(!busy && (currentOwner != null || currentNamespace != null));
     }
 
     private void copyUri(Uri uri, File output) throws Exception {
@@ -488,7 +519,7 @@ public final class AssemblyExplorerActivity extends Activity {
     private static String safe(String value) { return value == null ? "unknown" : value; }
 
     @Override public void onBackPressed() {
-        if (currentOwner != null) {
+        if (currentOwner != null || currentNamespace != null) {
             returnToTree();
             return;
         }
