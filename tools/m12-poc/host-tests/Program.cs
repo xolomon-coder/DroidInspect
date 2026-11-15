@@ -44,6 +44,7 @@ if (!result.Contains("LEVEL 1 — COMPILATION: PASS", StringComparison.Ordinal)
 
 var originalOutput = File.ReadAllBytes(args[2]);
 var originalHash = Convert.ToHexString(SHA256.HashData(originalOutput));
+var preservedOriginalHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(originalPath)));
 
 // Explicitly attempt the dangerous case: output path equals the preserved original.
 // The compiler must reject it before emitting or replacing any bytes.
@@ -51,7 +52,7 @@ var overwriteAttempt = CompilerService.Compile(args[0], originalPath, args[1], o
 if (!overwriteAttempt.StartsWith("M12 COMPILE FAILED: Output path resolves to the preserved original assembly.", StringComparison.Ordinal))
     throw new Exception("Compiler did not reject an output path that targets the original assembly.");
 var originalAfterOverwriteAttempt = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(originalPath)));
-if (!StringComparer.Ordinal.Equals(originalHash, originalAfterOverwriteAttempt))
+if (!StringComparer.Ordinal.Equals(preservedOriginalHash, originalAfterOverwriteAttempt))
     throw new Exception("An overwrite attempt changed the preserved original assembly.");
 Console.WriteLine("ORIGINAL IMMUTABILITY PASS: compiler rejected an output path targeting the original assembly.");
 
