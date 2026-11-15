@@ -12,6 +12,7 @@
 
         <activity android:name=".CSharpDecompileActivity" android:exported="false" />
         <activity android:name=".CSharpSourceEditorActivity" android:exported="false" />
+        <activity android:name=".DotNetDependencyActivity" android:exported="false" />
         <activity android:name=".ApkSigningActivity" android:exported="false" />
         <activity android:name=".DotNetIlActivity" android:exported="false" />
         <activity android:name=".ApkResourceActivity" android:exported="false" />
