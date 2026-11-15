@@ -78,5 +78,5 @@
         android:background="#191F27"
         android:padding="10dp"
         android:hint="C# source"
-        android:hintTextColor="#9AA6B2" />
+        android:textColorHint="#9AA6B2" />
 </LinearLayout>
