@@ -37,7 +37,7 @@ import java.util.regex.Pattern;
 public final class AssemblyExplorerActivity extends Activity {
     private static final long MAX_INPUT = 512L * 1024L * 1024L;
     private static final String[] CATEGORIES = {
-            "Tree", "All", "Methods", "Fields", "Properties", "Events", "References", "Type references", "Member references", "Type specifications", "Method specifications", "Bookmarks"
+            "Tree", "All", "Methods", "Fields", "Properties", "Events", "References", "Module references", "Standalone signatures", "Type references", "Member references", "Type specifications", "Method specifications", "Bookmarks"
     };
     private static final String[] SORTS = {"Name A-Z", "Metadata token", "Owner"};
 
@@ -169,6 +169,8 @@ public final class AssemblyExplorerActivity extends Activity {
                 owner = "";
                 continue;
             }
+            if (line.startsWith("MODULE REFERENCES (")) { section = "Module references"; owner = ""; continue; }
+            if (line.startsWith("STANDALONE SIGNATURES (")) { section = "Standalone signatures"; owner = ""; continue; }
             if (line.equals("TYPE REFERENCES (") || line.startsWith("TYPE REFERENCES (")) { section = "Type references"; owner = ""; continue; }
             if (line.startsWith("MEMBER REFERENCES (")) { section = "Member references"; owner = ""; continue; }
             if (line.startsWith("TYPE SPECIFICATIONS (")) { section = "Type specifications"; owner = ""; continue; }
@@ -178,6 +180,14 @@ public final class AssemblyExplorerActivity extends Activity {
             if (line.equals("EVENTS")) { section = "Events"; owner = ""; continue; }
             if (line.startsWith("Decode status:") || line.startsWith("PHASE 1 SCOPE")) { section = ""; continue; }
 
+            if ("Module references".equals(section) && line.matches("^\\d+\\..*ModuleRef token 0x[0-9A-Fa-f]{8}.*$")) {
+                allEntries.add(new Entry("Module references", token(line, tokenPattern), "", line, line, null));
+                continue;
+            }
+            if ("Standalone signatures".equals(section) && line.matches("^\\d+\\..*StandAloneSig token 0x[0-9A-Fa-f]{8}.*$")) {
+                allEntries.add(new Entry("Standalone signatures", token(line, tokenPattern), "", line, line, null));
+                continue;
+            }
             if ("Type references".equals(section) && line.matches("^\\d+\\..*TypeRef token 0x[0-9A-Fa-f]{8}.*$")) {
                 allEntries.add(new Entry("Type references", token(line, tokenPattern), "", line, line, null));
                 continue;
@@ -277,6 +287,7 @@ public final class AssemblyExplorerActivity extends Activity {
             } else if ("Tree".equals(selected)) {
                 include = "Types".equals(entry.category) || "Assembly".equals(entry.category)
                         || "Module".equals(entry.category) || "References".equals(entry.category)
+                        || "Module references".equals(entry.category) || "Standalone signatures".equals(entry.category)
                         || "Type references".equals(entry.category) || "Member references".equals(entry.category)
                         || "Type specifications".equals(entry.category) || "Method specifications".equals(entry.category);
             } else if ("All".equals(selected)) {
