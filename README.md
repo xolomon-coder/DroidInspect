@@ -2730,7 +2730,7 @@ Build configuration: Gradle 8.13, Android Gradle Plugin 8.13.0, Java 17, compile
 
 ### Current stopping point and next action
 
-**Current main HEAD before this README refresh:** `fd40df408b6b6433ceff153f04517c86efbd64be`. The generated Roslyn ARM64 library and JNI bridge are committed under `tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/`.
+**Latest main HEAD before this README refresh:** `9be344aa983fb9bc1e326cf50db4b1380b0df173` (verified native compiler payload publication). Normal DroidInspect Android CI run #289 also passed. The generated Roslyn ARM64 library and JNI bridge are committed under `tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/`.
 
 The cloud compiler feasibility gates are complete. The next required gate is a real run of the isolated proof on the user's Android 11 / ARM64 phone. Do not integrate Roslyn into the production app or claim production DLL recompilation support until the device test passes and the Native AOT trimming warnings have been evaluated. If the device test fails, inspect the exact diagnostics and determine whether to preserve Native AOT with corrected roots/annotations or evaluate the separate CoreCLR/Mono fallback.
 
