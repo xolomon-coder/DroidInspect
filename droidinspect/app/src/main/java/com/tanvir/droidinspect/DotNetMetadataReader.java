@@ -214,6 +214,58 @@ final class DotNetMetadataReader {
         }
     }
 
+
+    private void decodeEvents(StringBuilder o) throws Exception {
+        o.append("\nEVENTS\n");
+        o.append("EventMap rows: ").append(rows[18]).append("; Event rows: ").append(rows[20]).append('\n');
+        if (rows[18] == 0 || rows[20] == 0) {
+            o.append("No event metadata rows were found.\n");
+            return;
+        }
+        int mapLimit = (int) Math.min(rows[18], 300);
+        long mapSize = rowSize(18);
+        long eventSize = rowSize(20);
+        for (int i = 0; i < mapLimit; i++) {
+            long p = tableBase[18] + i * mapSize;
+            long parentType = tableIndex(p, 2);
+            long first = tableIndex(p + tableWidth(2), 20);
+            long next = i + 1 < rows[18]
+                    ? tableIndex(p + mapSize + tableWidth(2), 20)
+                    : rows[20] + 1;
+            if (parentType < 1 || parentType > rows[2] || first < 1
+                    || next < first || first > rows[20] + 1) {
+                o.append("EventMap ").append(i + 1).append(": invalid parent/list indices; omitted.\n");
+                continue;
+            }
+            long typeRow = tableBase[2] + (parentType - 1) * rowSize(2);
+            String typeName = str(indexString(typeRow + 4));
+            String namespace = str(indexString(typeRow + 4 + stringWidth()));
+            o.append("\n").append(namespace.isEmpty() ? typeName : namespace + "." + typeName).append('\n');
+            int shown = (int) Math.min(Math.min(next - first, 200), rows[20] + 1 - first);
+            for (int j = 0; j < shown; j++) {
+                long eventRow = first + j;
+                long eventPos = tableBase[20] + (eventRow - 1) * eventSize;
+                String eventName = str(indexString(eventPos + 2));
+                long codedType = codedIndex(eventPos + 2 + stringWidth(), 1);
+                o.append("   Event: ").append(eventName)
+                        .append(" (Event token 0x").append(hex(0x14000000L | eventRow))
+                        .append("; event type token 0x").append(hex(decodeTypeDefOrRefToken(codedType))).append(')')
+                        .append('\n');
+            }
+            if (next - first > shown) o.append("   … additional events omitted by display cap.\n");
+        }
+        if (rows[18] > mapLimit) o.append("… ").append(rows[18] - mapLimit).append(" additional EventMap rows omitted.\n");
+    }
+
+    private long decodeTypeDefOrRefToken(long coded) {
+        int tag = (int) (coded & 3L);
+        long row = coded >>> 2;
+        if (row <= 0 || tag < 0 || tag >= 3) return 0;
+        int table = CODED_TABLES[1][tag];
+        long prefix = table == 2 ? 0x02000000L : table == 1 ? 0x01000000L : 0x1B000000L;
+        return prefix | row;
+    }
+
     private void appendMembers(StringBuilder o,String label,long first,long next,int table,long size,int cap)throws Exception{
         if(first<1||next<first||first>rows[table]+1)return;
         int count=(int)Math.min(Math.min(next-first,cap),rows[table]+1-first);
@@ -288,9 +340,51 @@ final class DotNetMetadataReader {
         int max=0; for(int t:CODED_TABLES[c]) if(t>=0&&t<rows.length)max=Math.max(max,(int)Math.min(rows[t],Integer.MAX_VALUE));
         return max < (1 << (16-CODED_BITS[c])) ? 2 : 4;
     }
+    private long codedIndex(long p, int c) throws Exception {
+        return codedWidth(c) == 2 ? u16(p) : u32(p);
+    }
     private long tableIndex(long p,int t)throws Exception{return tableWidth(t)==2?u16(p):u32(p);}
     private int indexString(long p)throws Exception{return stringWidth()==2?u16(p):(int)u32(p);}
     private int indexBlob(long p)throws Exception{return blobWidth()==2?u16(p):(int)u32(p);}
+
+    private byte[] blobBytes(int index) throws Exception {
+        int length = blobLength(index);
+        if (length <= 0) return new byte[0];
+        long p = blobBase + index;
+        int first = b(p++);
+        if ((first & 0x80) == 0) {
+            // One-byte compressed length.
+        } else if ((first & 0xC0) == 0x80) {
+            p++;
+        } else if ((first & 0xE0) == 0xC0) {
+            p += 3;
+        } else {
+            return new byte[0];
+        }
+        if (!fileBounds(p, length)) return new byte[0];
+        byte[] bytes = new byte[length];
+        r.seek(p);
+        r.readFully(bytes);
+        return bytes;
+    }
+
+    private String publicKeyToken(byte[] value, boolean fullPublicKey) {
+        if (value == null || value.length == 0) return "null";
+        try {
+            byte[] token = value;
+            if (fullPublicKey) {
+                byte[] hash = java.security.MessageDigest.getInstance("SHA-1").digest(value);
+                token = new byte[8];
+                for (int i = 0; i < token.length; i++) token[i] = hash[hash.length - 1 - i];
+            }
+            StringBuilder text = new StringBuilder();
+            for (byte b : token) text.append(String.format(Locale.ROOT, "%02x", b & 0xff));
+            return text.toString();
+        } catch (Exception error) {
+            return "unavailable";
+        }
+    }
+
     private int blobLength(int index)throws Exception {
         if(index<=0||blobBase==0||index>=blobSize)return 0;
         long p=blobBase+index; int first=b(p++); long length;
