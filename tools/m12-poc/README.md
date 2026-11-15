@@ -65,3 +65,21 @@ Peak RAM and device storage use have not yet been measured.
 ## Boundary
 
 This prototype proves only a small edited C# source compilation path if the Android-device test passes. It does not yet prove compilation of large decompiled projects, support for every .NET target framework, dependency resolution, strong-name preservation, drop-in DLL replacement, or runtime/behavioral compatibility. No production integration is authorized by this proof alone.
+
+## Compiler hardening update — 2026-11-16
+
+The shared `CompilerService` is no longer tied to the original proof fixture's type or method names.
+
+- It verifies that output is a managed PE/CLI assembly and reports identity/version/culture/public-key token/type count/method count/strong-name public-key presence.
+- It emits to a unique temporary file in the destination directory and replaces an existing output only after successful compilation and metadata verification.
+- An invalid compile must leave an existing output DLL byte-for-byte unchanged.
+- The host fixture now consists of two C# files, and the primary fixture calls a helper in the second file.
+
+The updated host test asserts:
+1. Two source files were compiled.
+2. Generic assembly identity/metadata fields are reported.
+3. The output is loadable and the edited method returns `M12_EDITED_VALUE`.
+4. An intentionally invalid source fails compilation.
+5. The previously existing output DLL remains byte-for-byte unchanged after that failure.
+
+**This update is not yet a production Android integration.** The Actions run for this change must pass before cloud verification is recorded. Android execution remains pending for the final consolidated device session. Native AOT warnings IL2091, IL2050, and IL2072 remain open and unsuppressed.
