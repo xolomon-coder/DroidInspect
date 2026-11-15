@@ -18,6 +18,8 @@ public final class DotNetIlReaderSelfTest {
         require(IlOpcodeExplainer.explain("not-a-real-opcode", "").startsWith("No verified explanation"), "unknown opcode explanation");
         String operand = DotNetIlReader.disassembleForTest(new byte[]{0x0e, 0x02, 0x2a});
         require(operand.contains("0E 02 | ldarg.s 2"), "operand bytes and operand");
+        String tokenOperand = DotNetIlReader.disassembleForTest(new byte[]{0x28, 0x01, 0x00, 0x00, 0x06, 0x2a});
+        require(tokenOperand.contains("token 0x06000001"), "metadata-token operand decoding for cross-reference navigation");
         String unknown = DotNetIlReader.disassembleForTest(new byte[]{(byte)0xff});
         require(unknown.contains("FF | FF | No verified explanation"), "unknown opcode bytes");
         boolean truncatedRejected = false;
