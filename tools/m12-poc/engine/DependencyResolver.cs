@@ -162,7 +162,7 @@ public static class DependencyResolver
             foreach (var invalid in ignoredFramework.Take(8)) report.AppendLine("  Invalid reference candidate: " + invalid);
             foreach (var warning in frameworkWarnings) report.AppendLine("FRAMEWORK WARNING: " + warning);
 
-            var incomplete = missing > 0 || mismatched > 0 || ambiguous > 0 || queue.Count > 0;
+            var incomplete = missing > 0 || mismatched > 0 || ambiguous > 0 || queue.Count > 0 || frameworkWarnings.Count > 0;
             report.AppendLine();
             report.AppendLine("RESOLUTION RESULT: " + (incomplete ? "INCOMPLETE — DO NOT ASSUME COMPATIBILITY" : "ALL DISCOVERED REFERENCES RESOLVED EXACTLY"));
             report.AppendLine("Resolution does not prove runtime loadability or behavioral compatibility. No incompatible version was silently substituted.");
