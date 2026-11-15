@@ -2686,17 +2686,52 @@ The proof compiles a small C# fixture with a deliberately edited `EditedFixture.
 
 ### CI history and current gate
 
-- Initial M12 workflow run #1 failed during host test compilation because `EmitResult`'s namespace import was missing. The Actions log identified the exact compiler error.
-- Corrected `CompilerService.cs` by importing `Microsoft.CodeAnalysis.Emit` in commit `37b48c1047cefcf05457440d518ce37d286c02ef`.
-- The corrected workflow rerun is in progress; no host compiler PASS, Native AOT PASS, Android APK PASS, or device PASS is claimed yet.
-- The normal Android regression workflow was also triggered by the main-branch commits; preserve and verify its result.
+**Cloud feasibility proof: PASS. Android-device proof: PENDING.**
 
-### M12 feasibility acceptance gates
+- Initial M12 workflow run #1 failed during host compilation because the `EmitResult` namespace import was missing. The Actions log identified the error; the import was added and the corrected build passed.
+- M12 workflow run #2 completed successfully: Roslyn host compile, PE/CLI output verification, Bionic ARM64 Native AOT publish, JNI bridge build, isolated Android proof APK build, APK integrity, ARM64 payload presence, bundled offline references, and no Internet permission.
+- M12 workflow run #3 added an executable behavior test. The host loaded the emitted DLL, invoked `EditedFixture.GetEditedValue()`, and verified the exact result `M12_EDITED_VALUE`. The full Native AOT/JNI/APK workflow passed again.
+- The Android proof host now checks the emitted output's actual `MZ` signature rather than inferring it from file size.
+- An early workflow run failed because a shell continuation contained two backslashes; corrected.
+- A concurrent native-payload publication attempt encountered a rebase conflict. The workflow was changed to serialize M12 proof runs and publish by fetching/resetting to the latest `main`, then copying, comparing, and pushing the verified payload with bounded retries. The corrected publication passed.
+- Latest full M12 proof workflow run #8 completed **SUCCESS** on 2026-11-15. It repeated host compilation/behavior verification, ARM64 Native AOT, JNI, APK build and offline payload checks, then successfully published the generated native payload to `main`.
+- Normal DroidInspect Android CI passed on the M12 source commits. No production application source or M11 engine was modified by this compiler prototype.
 
-1. Host Roslyn compile emits a managed DLL and PE/CLI metadata verifies the expected edited symbol.
-2. Roslyn Native AOT publish succeeds for Bionic ARM64 and exports the expected compiler entry points.
-3. JNI bridge and isolated Android proof APK build successfully; APK contains only ARM64 proof libraries and the production offline references, with no Internet permission.
-4. On the user's Android 11 / ARM64 phone, the proof app compiles the fixture offline and verifies the emitted managed assembly.
-5. Measure compiler library size, APK size, compile time, peak memory, storage use, and cold-start behavior before deciding whether production packaging is acceptable.
+### Compiler output and resource measurements
 
-**No M12 compiler feasibility PASS is claimed until the Android-device gate passes.** Production M11 source and native engine remain unchanged. Source editing and DLL recompilation remain separate capabilities; production integration must wait for this proof.
+- Roslyn package: `Microsoft.CodeAnalysis.CSharp 5.12.0`, MIT license; NuGet package download size reported as 11.82 MB.
+- Host test output: 2,560-byte managed DLL fixture; PE/CLI metadata verified; assembly identity `DroidInspect.M12.EditedFixture`; edited method invocation returned `M12_EDITED_VALUE`.
+- Native compiler: 35,227,344 bytes.
+- JNI bridge: 10,704 bytes.
+- Isolated Android proof APK: 38,365,488 bytes.
+- Existing production .NET 11 reference assets are reused (approximately 6.5 MB); no duplicate reference pack was added.
+- Compiler and APK sizes are cloud build measurements. Device compile time, peak RAM, thermal behavior, and installed storage remain unmeasured.
+
+### Native AOT trimming warnings — OPEN
+
+The detailed Native AOT diagnostic run used `TrimmerSingleWarn=false` and exposed Roslyn warnings that were hidden behind the aggregate `IL2104` warning:
+
+- `IL2091`: generic-parameter annotation warnings in `RoslynLazyInitializer` and Roslyn pooled-delegate helpers.
+- `IL2050`: COM-marshalling warnings in `Microsoft.DiaSymReader.SymUnmanagedFactory` for Windows symbol-reader/writer paths.
+- `IL2072`: reflection/constructor-preservation warning in the same COM symbol factory path.
+
+These are warnings, not build errors. The Bionic ARM64 Native AOT library still builds and the Android APK packages successfully. The Windows COM paths are not expected to be used by the Android compilation path, but that assumption is not treated as proof. The generic warnings may affect code paths that require runtime generic initialization or reflection. Do not suppress or ignore these warnings. The Android-device test must establish whether the selected compiler path works; any runtime failure must be fixed or the Native AOT approach rejected.
+
+### Isolated Android proof — CodeAssist test instructions
+
+1. Download the latest repository `main.zip` and extract it without changing the folder structure.
+2. In CodeAssist, open the separate Gradle project at `tools/m12-poc/android-host`. Do not open it as a replacement for the production `droidinspect` project.
+3. Build the proof project's Debug APK and install it. Its package is `com.tanvir.m12poc`, so it installs separately from production DroidInspect.
+4. Open **DroidInspect M12 Compiler Proof** and tap **COMPILE EDITED C# FIXTURE**.
+5. Wait for the result. A successful run should show `M12 COMPILATION PASS`, PE/CLI metadata verification for `EditedFixture.GetEditedValue`, and `JAVA VERIFY PASS: MZ signature`.
+6. Send the complete result text and approximate compile duration. Also report any crash, app closure, or device slowdown.
+
+Build configuration: Gradle 8.13, Android Gradle Plugin 8.13.0, Java 17, compile SDK 36, minSdk 26, ARM64 only. The prebuilt ARM64 native libraries are already committed; CodeAssist does not need to compile the native engine or install an NDK for this proof. The app declares no Internet permission and runs the compilation offline. It uses only its private app files directory; it does not overwrite a selected DLL or any production data.
+
+### Current stopping point and next action
+
+**Current main HEAD before this README refresh:** `fd40df408b6b6433ceff153f04517c86efbd64be`. The generated Roslyn ARM64 library and JNI bridge are committed under `tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/`.
+
+The cloud compiler feasibility gates are complete. The next required gate is a real run of the isolated proof on the user's Android 11 / ARM64 phone. Do not integrate Roslyn into the production app or claim production DLL recompilation support until the device test passes and the Native AOT trimming warnings have been evaluated. If the device test fails, inspect the exact diagnostics and determine whether to preserve Native AOT with corrected roots/annotations or evaluate the separate CoreCLR/Mono fallback.
+
+Production M11 source, native engine, APK/DEX tools, IL browser, and existing workflows remain preserved. M12 source editing/export and DLL replacement compatibility reporting remain future production implementation work after the compiler feasibility decision.
