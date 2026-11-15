@@ -132,7 +132,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           for attempt in 1 2 3; do
             git fetch origin main
-            git checkout -B main origin/main
+            git reset --hard origin/main
             cp artifacts/libdroidinspect_m12_compiler.so tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_compiler.so
             cp artifacts/libdroidinspect_m12_jni.so tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_jni.so
             git add tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_compiler.so
