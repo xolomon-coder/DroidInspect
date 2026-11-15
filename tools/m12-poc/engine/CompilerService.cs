@@ -19,6 +19,16 @@ public static class CompilerService
             if (!Directory.Exists(referenceDirectory))
                 return "M12 COMPILE FAILED: Reference directory does not exist.";
 
+            // A rebuild must never target the preserved input assembly, even if a caller
+            // accidentally supplies the original path as the output destination.
+            if (!string.IsNullOrWhiteSpace(originalAssemblyPath) && File.Exists(originalAssemblyPath))
+            {
+                var originalFullPath = Path.GetFullPath(originalAssemblyPath);
+                var outputFullPath = Path.GetFullPath(outputPath);
+                if (StringComparer.OrdinalIgnoreCase.Equals(originalFullPath, outputFullPath))
+                    return "M12 COMPILE FAILED: Output path resolves to the preserved original assembly. Choose a separate output file.";
+            }
+
             var sources = Directory.GetFiles(sourceDirectory, "*.cs", SearchOption.AllDirectories)
                 .OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray();
             if (sources.Length == 0)
