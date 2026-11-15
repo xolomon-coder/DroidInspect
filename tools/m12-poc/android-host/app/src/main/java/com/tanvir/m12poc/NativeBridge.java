@@ -6,5 +6,5 @@ final class NativeBridge {
         System.loadLibrary("droidinspect_m12_jni");
     }
     private NativeBridge() { }
-    static native String compile(String sourceDirectory, String outputPath, String referenceDirectory);
+    static native String compile(String sourceDirectory, String outputPath, String referenceDirectory, String originalAssemblyPath);
 }
