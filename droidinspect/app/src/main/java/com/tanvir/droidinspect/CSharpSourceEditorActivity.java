@@ -308,7 +308,7 @@ public class CSharpSourceEditorActivity extends Activity {
         compileButton.setEnabled(enabled && !compiling);
     }
 
-    @Override protected void onBackPressed() {
+    @Override public void onBackPressed() {
         if (compiling) {
             new AlertDialog.Builder(this)
                     .setMessage("Compilation is running. Leave this screen?")
