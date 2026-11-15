@@ -2809,3 +2809,9 @@ Remaining M12 work:
 Verification limitation at this update: the connected GitHub commit-status query returned no status contexts for the latest main commit, and the available workflow-run lookup does not expose push-triggered runs. Therefore no new CI PASS is claimed here. The production Android build and device behavior remain pending.
 
 The production manifest was rechecked and still does not declare `android.permission.INTERNET`. The repository branch listing contains only `main`.
+
+### M12 Android CI regression found and corrected — 2026-11-16
+
+The first production Android CI run after adding the source editor failed at Android resource linking. The exact cause was an invalid XML attribute in `activity_csharp_source_editor.xml`: `android:hintTextColor` is not a framework attribute. It has been corrected to `android:textColorHint` in commit `842febe8d29a5a14966d3292eb62904524a3c274`.
+
+The host parser tests in that failed run all passed; Android resource linking failed before APK compilation, so no APK artifact was produced. A new push-triggered Android CI run is required to verify the correction. No PASS is claimed until that run completes successfully.
