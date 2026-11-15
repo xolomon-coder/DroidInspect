@@ -93,3 +93,15 @@ The production DroidInspect app now has an initial source workspace/editor imple
 - The M11 C# viewer launches this workspace without modifying the original assembly or M11 source result.
 
 The editor is a source-editing/export subfeature only at this point. The last workspace ID is persisted and can be reopened from the production main screen. The production Roslyn JNI bridge, compile UI, compiler output inspection, and DLL replacement compatibility report are not integrated yet. Production Android CI and Android-device behavior are not verified by the source commit alone.
+
+## Production compiler wiring update — 2026-11-16
+
+M12 workflow run `43769751887` passed. It built the Native AOT compiler for Bionic ARM64, linked the JNI bridge, packaged and verified the isolated proof APK, and copied both verified shared libraries into:
+- `droidinspect/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_compiler.so`
+- `droidinspect/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_jni.so`
+
+Production Java source now calls the JNI entry point through `com.tanvir.m12poc.NativeBridge`. The C# source editor has an offline compile action, writes to a separate project build folder, verifies the resulting managed PE file, and exports the rebuilt DLL separately. The original selected assembly is copied to the project `original/` folder (512 MB cap).
+
+Verified payload sizes: compiler 35,239,464 bytes; JNI bridge 10,704 bytes. ARM64 only.
+
+The production integration still requires full Android CI after all integration changes, and actual device execution remains pending. Compatibility comparison and the three-level DLL replacement report are not implemented yet. The only compiler reference profile currently bundled is .NET 11.0. The Native AOT warnings IL2091, IL2050, and IL2072 remain unsuppressed.
