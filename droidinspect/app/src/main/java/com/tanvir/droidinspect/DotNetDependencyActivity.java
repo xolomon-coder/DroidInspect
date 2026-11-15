@@ -96,9 +96,14 @@ public class DotNetDependencyActivity extends Activity {
             if (project.getReportFile().isFile()) {
                 try (FileInputStream input = new FileInputStream(project.getReportFile())) {
                     byte[] saved = new byte[(int) Math.min(project.getReportFile().length(), 2L * 1024L * 1024L)];
-                    int count = input.read(saved);
-                    report.setText(count <= 0 ? text.toString()
-                            : new String(saved, 0, count, java.nio.charset.StandardCharsets.UTF_8));
+                    int offset = 0;
+                    while (offset < saved.length) {
+                        int count = input.read(saved, offset, saved.length - offset);
+                        if (count < 0) break;
+                        offset += count;
+                    }
+                    report.setText(offset == 0 ? text.toString()
+                            : new String(saved, 0, offset, java.nio.charset.StandardCharsets.UTF_8));
                 }
                 status.setText("Saved dependency report reopened. Local dependencies: " + files.size() + ".");
             } else {
