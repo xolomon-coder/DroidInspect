@@ -90,6 +90,13 @@
         android:text="Open Last Dependency Project"
         android:enabled="false" />
 
+    <Button
+        android:id="@+id/assemblyExplorerButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Advanced .NET Assembly Explorer"
+        android:enabled="false" />
+
     <ProgressBar
         android:id="@+id/progressBar"
         style="?android:attr/progressBarStyleHorizontal"
