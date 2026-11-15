@@ -25,6 +25,7 @@ import java.util.zip.ZipOutputStream;
 final class CSharpSourceWorkspace {
     private static final long MAX_SOURCE_FILE = 32L * 1024L * 1024L;
     private static final long MAX_PROJECT_IMPORT = 128L * 1024L * 1024L;
+    private static final long MAX_ORIGINAL_ASSEMBLY = 512L * 1024L * 1024L;
     private final File root;
     private final File sourceRoot;
     private final File originalRoot;
@@ -39,7 +40,7 @@ final class CSharpSourceWorkspace {
         this.displayName = displayName;
     }
 
-    static CSharpSourceWorkspace create(Context context, String name, String decompiledSource) throws IOException {
+    static CSharpSourceWorkspace create(Context context, String name, String decompiledSource, Uri originalAssemblyUri) throws IOException {
         File base = new File(context.getFilesDir(), "csharp-projects");
         if (!base.exists() && !base.mkdirs()) throw new IOException("Cannot create source project storage.");
         String id = "project_" + UUID.randomUUID().toString().replace("-", "");
@@ -52,6 +53,8 @@ final class CSharpSourceWorkspace {
         try {
             project.write(new File(original, "Decompiled.cs"), decompiledSource == null ? "" : decompiledSource);
             project.write(new File(src, "Decompiled.cs"), decompiledSource == null ? "" : decompiledSource);
+            if (originalAssemblyUri == null) throw new IOException("Original assembly URI is unavailable; a safe rebuild project cannot be created.");
+            copyOriginalAssembly(context, originalAssemblyUri, new File(original, "OriginalAssembly.bin"));
             project.write(new File(root, ".droidinspect-project"), safeDisplay + "\nformat=1\n");
             remember(context, id);
             return project;
@@ -94,6 +97,12 @@ final class CSharpSourceWorkspace {
     String getId() { return id; }
     String getDisplayName() { return displayName; }
     File getSourceRoot() { return sourceRoot; }
+    File getOriginalAssemblyFile() { return new File(originalRoot, "OriginalAssembly.bin"); }
+    File getBuildOutputFile() throws IOException {
+        File build = new File(root, "build");
+        if (!build.exists() && !build.mkdirs()) throw new IOException("Cannot create build output directory.");
+        return new File(build, "DroidInspect.Rebuilt.dll");
+    }
 
     List<File> listSourceFiles() throws IOException {
         ArrayList<File> files = new ArrayList<>();
@@ -231,6 +240,33 @@ final class CSharpSourceWorkspace {
         }
         String segment = uri.getLastPathSegment();
         return segment == null ? "Source.cs" : segment;
+    }
+
+
+    private static void copyOriginalAssembly(Context context, Uri uri, File target) throws IOException {
+        File temporary = new File(target.getParentFile(), target.getName() + ".tmp-" + UUID.randomUUID());
+        long total = 0;
+        try (InputStream input = context.getContentResolver().openInputStream(uri);
+             FileOutputStream output = new FileOutputStream(temporary)) {
+            if (input == null) throw new IOException("Cannot reopen the selected original assembly.");
+            byte[] buffer = new byte[32768];
+            int count;
+            while ((count = input.read(buffer)) != -1) {
+                total += count;
+                if (total > MAX_ORIGINAL_ASSEMBLY)
+                    throw new IOException("Original assembly exceeds the 512 MB project safety limit.");
+                output.write(buffer, 0, count);
+            }
+            output.flush();
+            output.getFD().sync();
+        } catch (IOException error) {
+            temporary.delete();
+            throw error;
+        }
+        if (total == 0 || !temporary.renameTo(target)) {
+            temporary.delete();
+            throw new IOException(total == 0 ? "The selected original assembly is empty." : "Cannot preserve the original assembly in the project.");
+        }
     }
 
     private static void write(File target, String text) throws IOException {
