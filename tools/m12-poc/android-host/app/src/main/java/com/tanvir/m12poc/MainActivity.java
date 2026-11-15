@@ -10,6 +10,7 @@ import android.widget.TextView;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 
@@ -60,8 +61,18 @@ public final class MainActivity extends Activity {
                 File output = new File(base, "DroidInspect.M12.EditedFixture.dll");
                 result = NativeBridge.compile(source.getAbsolutePath(), output.getAbsolutePath(), refs.getAbsolutePath());
                 if (result.startsWith("M12 COMPILATION PASS")) {
-                    if (!output.isFile() || output.length() < 512) result += "\nJAVA VERIFY FAIL: output file missing or too small.";
-                    else result += "\nJAVA VERIFY PASS: MZ PE file; " + output.length() + " bytes.";
+                    if (!output.isFile() || output.length() < 512) {
+                        result += "\nJAVA VERIFY FAIL: output file missing or too small.";
+                    } else {
+                        try (FileInputStream check = new FileInputStream(output)) {
+                            int first = check.read();
+                            int second = check.read();
+                            if (first != 'M' || second != 'Z')
+                                result += "\nJAVA VERIFY FAIL: output does not begin with the MZ signature.";
+                            else
+                                result += "\nJAVA VERIFY PASS: MZ signature; " + output.length() + " bytes.";
+                        }
+                    }
                 }
             } catch (Throwable ex) {
                 result = "M12 DEVICE PROOF ERROR: " + ex.getClass().getSimpleName() + ": " + ex.getMessage();
