@@ -64,7 +64,8 @@ jobs:
           LD: ld.lld
         run: |
           set -euo pipefail
-          dotnet publish tools/m12-poc/engine/DroidInspect.M12.Compiler.csproj             -c Release -r linux-bionic-arm64             -p:DisableUnsupportedError=true             -p:PublishAotUsingRuntimePack=true             -p:StripSymbols=true
+          dotnet publish tools/m12-poc/engine/DroidInspect.M12.Compiler.csproj             -c Release -r linux-bionic-arm64             -p:DisableUnsupportedError=true             -p:PublishAotUsingRuntimePack=true             -p:StripSymbols=true \\
+            -p:TrimmerSingleWarn=false
           LIB="$(find tools/m12-poc/engine/bin/Release/net11.0/linux-bionic-arm64/publish -maxdepth 1 -name '*.so' -print -quit)"
           test -s "$LIB"
           file "$LIB"
