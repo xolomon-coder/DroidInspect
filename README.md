@@ -2908,3 +2908,23 @@ Host tests added for:
 The M13 host test step completed successfully in workflow run `43771727050` through the Roslyn compiler host-test stage. Full Native AOT/JNI republishing and production Android CI for the new dependency activity are still running and must complete before cloud verification is recorded. Device verification remains pending for the final consolidated session.
 
 M13 remains IN PROGRESS until the full native publish, production APK checks and final device acceptance are complete. The resolver currently uses the bundled .NET 11.0 reference profile; other framework packs are not yet bundled.
+
+### M13 native resolver proof and payload publication — 2026-11-16
+
+The M13 dependency resolver host regression suite passed in M12/M13 workflow run `43771727050`:
+- Exact local dependency and bundled framework references resolved.
+- Wrong version for the same assembly name was identified as an identity mismatch.
+- Missing dependency remained explicitly unresolved.
+- The report included identity/version/culture/public-key-token matching and framework warnings.
+
+The same workflow run successfully:
+- Published the updated Roslyn Native AOT ARM64 library with `DroidInspect_M12_ResolveDependencies`.
+- Built the JNI bridge and verified the `NativeBridge.resolveDependencies` JNI export.
+- Built and verified the isolated offline proof APK.
+- Published both updated native libraries into the production app's ARM64 `jniLibs`.
+
+Generated payload commit: `5a01fa56c51bb7762d8e6267cd890ef694828457`.
+
+Production M13 Java/XML screen and main-screen navigation passed the Android debug/release build and existing APK signing/tamper CI in runs `43771678762` and `43771727048`. Those runs predate the workflow-generated native payload commit. A fresh production Android CI run against the exact `5a01fa56` native payload is required; this README update triggers that verification.
+
+M13 remains IN PROGRESS until that production CI completes and the consolidated Android device session verifies dependency resolution. No device PASS is claimed.
