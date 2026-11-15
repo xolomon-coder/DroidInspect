@@ -21,4 +21,5 @@ public final class NativeBridge {
     }
 
     public static native String compile(String sourceDirectory, String outputPath, String referenceDirectory, String originalAssemblyPath);
+    public static native String resolveDependencies(String rootAssemblyPath, String localDependencyDirectory, String referenceDirectory);
 }
