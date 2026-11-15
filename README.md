@@ -2735,3 +2735,37 @@ Build configuration: Gradle 8.13, Android Gradle Plugin 8.13.0, Java 17, compile
 The cloud compiler feasibility gates are complete. The next required gate is a real run of the isolated proof on the user's Android 11 / ARM64 phone. Do not integrate Roslyn into the production app or claim production DLL recompilation support until the device test passes and the Native AOT trimming warnings have been evaluated. If the device test fails, inspect the exact diagnostics and determine whether to preserve Native AOT with corrected roots/annotations or evaluate the separate CoreCLR/Mono fallback.
 
 Production M11 source, native engine, APK/DEX tools, IL browser, and existing workflows remain preserved. M12 source editing/export and DLL replacement compatibility reporting remain future production implementation work after the compiler feasibility decision.
+
+## M12 continued engineering — compiler safety and multi-file host coverage (2026-11-16)
+
+**Status remains IN PROGRESS.** This work improves the isolated compiler foundation; it does not claim production Android compilation or device acceptance.
+
+Verified starting commit for this development batch: `43b8cb14e9f3681e444e66d337925f2bb7c72e7b`. All changes were made directly on `main`.
+
+### Compiler service hardening
+
+Updated:
+- `tools/m12-poc/engine/CompilerService.cs`
+- `tools/m12-poc/host-tests/Program.cs`
+- `tools/m12-poc/fixture/EditedFixture.cs`
+- Added `tools/m12-poc/fixture/FixtureSupport.cs`
+
+Changes:
+- Removed the compiler's test-specific requirement that every output contain a type named `EditedFixture` and a method named `GetEditedValue`.
+- Managed output verification now accepts general managed assemblies and reports assembly name, version, culture, public-key token, public type count, method count, and whether a strong-name public key is present.
+- Compiler output is emitted to a unique temporary file in the destination directory. The requested output is replaced only after Roslyn succeeds and PE/CLI verification passes.
+- Failed compilation or failed output verification leaves any previous destination DLL untouched; temporary output is cleaned up.
+- The host fixture now spans two C# source files and the edited method calls a helper defined in the second file.
+- Host regression coverage checks multi-file compilation, metadata report fields, successful method invocation, and preservation of a pre-existing output DLL after an intentionally invalid compile.
+
+### Verification state
+
+- The changes above are committed on `main`.
+- GitHub Actions verification for the new compiler-hardening batch is required and must be checked before this work is called cloud-verified.
+- Android-device execution remains PENDING and is intentionally deferred to the consolidated final device-testing session.
+- Native AOT warnings IL2091, IL2050, and IL2072 remain OPEN; they have not been suppressed.
+- Production Android source editing, persistent multi-file source workspace, JNI integration into the production APK, dependency-aware reference resolution, and the three-level DLL replacement compatibility report remain unfinished.
+
+### Current engineering boundary
+
+The isolated compiler still uses the supplied reference directory, currently populated with the .NET 11 reference profile. This is not yet target-framework resolution and does not establish compatibility with the original assembly's target framework or dependencies. Compilation success is not proof of structural or runtime compatibility.
