@@ -22,6 +22,23 @@ public static class NativeExports
         }
     }
 
+
+    [UnmanagedCallersOnly(EntryPoint = "DroidInspect_M12_ResolveDependencies", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr ResolveDependencies(IntPtr rootAssemblyPath, IntPtr localDependencyDirectory, IntPtr referenceDirectory)
+    {
+        try
+        {
+            var root = Marshal.PtrToStringUTF8(rootAssemblyPath) ?? string.Empty;
+            var local = Marshal.PtrToStringUTF8(localDependencyDirectory) ?? string.Empty;
+            var references = Marshal.PtrToStringUTF8(referenceDirectory) ?? string.Empty;
+            return Marshal.StringToCoTaskMemUTF8(DependencyResolver.Resolve(root, local, references));
+        }
+        catch (Exception ex)
+        {
+            return Marshal.StringToCoTaskMemUTF8("M13 DEPENDENCY RESOLVER ERROR: " + ex.GetType().Name + ": " + ex.Message);
+        }
+    }
+
     [UnmanagedCallersOnly(EntryPoint = "DroidInspect_M12_FreeResult", CallConvs = new[] { typeof(CallConvCdecl) })]
     public static void FreeResult(IntPtr result)
     {
