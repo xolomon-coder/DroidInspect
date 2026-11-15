@@ -398,7 +398,7 @@ Important feasibility constraints:
 
 ## 4. Complete Roadmap — 20 Milestones
 
-The long-term roadmap has **20 milestones**, grouped into eight phases. M1–M10 retain their existing scope and completed history. M11 establishes real on-device C# source decompilation; M12 covers separate-copy C# source editing and managed DLL recompilation. M13–M20 extend the product into deeper .NET analysis, advanced source tools, APK analysis/editing, project management, and final reliability/integration. Existing completed capabilities are foundations to extend, not work to restart. M12 remains gated until the integrated production M11 workflow passes consolidated user device acceptance. Later milestones must preserve working features, prove Android feasibility before adopting major engines, and keep the offline-first/phone-only development requirements.
+The long-term roadmap has **20 milestones**, grouped into eight phases. M1–M10 retain their existing scope and completed history. M11 establishes real on-device C# source decompilation; M12 covers separate-copy C# source editing and managed DLL recompilation. M13–M20 extend the product into deeper .NET analysis, advanced source tools, APK analysis/editing, project management, and final reliability/integration. Existing completed capabilities are foundations to extend, not work to restart. M12 is active following consolidated production M11 device acceptance on 2026-11-14; its first gate is a proven offline Android ARM64 compiler. Later milestones must preserve working features, prove Android feasibility before adopting major engines, and keep the offline-first/phone-only development requirements.
 
 ### Phase 1 — Foundation and file understanding
 
@@ -527,11 +527,11 @@ The long-term roadmap has **20 milestones**, grouped into eight phases. M1–M10
 
 ### Phase 5 — C# source editing and managed assembly rebuilding
 
-**M12 — C# Source Editing & DLL Recompilation (APPROVED; NOT STARTED)**
+**M12 — C# Source Editing & DLL Recompilation (IN PROGRESS — COMPILER FEASIBILITY FIRST)**
 
 **Objective:** Let the user edit reconstructed C# source as a separate working copy and, where technically supported, compile that edited source into a new managed DLL without modifying the original assembly or the original decompilation result.
 
-**Start gate:** Do not begin M12 implementation until the integrated production M11 workflow has passed consolidated Android-device acceptance. The production architecture is now established; M12 must build on it without bypassing or destabilizing M11.
+**Start gate:** SATISFIED. The user accepted the integrated production M11 workflow on 2026-11-14. M12 began on 2026-11-15. The first deliverable is an isolated offline compiler feasibility proof; no compiler is integrated into production until CI and Android-device verification pass.
 
 **Required work, in order:**
 
@@ -666,11 +666,11 @@ No milestone is complete solely because code was written or committed. When deli
 
 ## 6. Current Project Status (2026-11-13)
 
-**Current phase: Phase 4 / M11 — production integration and generated native payload are committed on `main`; final production CI run #256 passed; production-device acceptance remains pending.** The isolated proof app remains intact. M4–M7 retain their previously accepted Android 11 device scopes. M8–M10 production foundations and regression CI remain preserved. M11 production integration does not claim complete dependency resolution, recompilation, or target-program execution. Do not confuse cloud APK verification with user device acceptance.
+**Current phase: Phase 5 / M12 — offline compiler feasibility prototype in progress on `main`. M11 production integration and Android-device acceptance are complete.** The isolated proof app remains intact. M4–M7 retain their previously accepted Android 11 device scopes. M8–M10 production foundations and regression CI remain preserved. M11 production integration does not claim complete dependency resolution, recompilation, or target-program execution. Do not confuse cloud APK verification with user device acceptance.
 
 Phase 1 implementation has passed cloud CI and initial Android 11 device smoke checks. The user chose to proceed without the optional native-PE fixture test. Native/non-managed PE rejection therefore remains an explicit unverified limitation; do not claim full M3 classification coverage. M2 has one successful real APK test, and M3 has one successful CLI-bearing mixed-mode .NET DLL test. Phase 2 may begin while this gap remains documented for later regression coverage.
 
-The project remains the existing Java + native XML Android application. The roadmap contains 20 milestones across eight phases. M11 production C# decompilation is integrated and cloud-verified; user device acceptance remains pending. M12 is the approved next scope for separate-copy C# editing and DLL recompilation, but it remains gated until production M11 device acceptance. M13–M20 remain planned only. Development branch: `main`.
+The project remains the existing Java + native XML Android application. The roadmap contains 20 milestones across eight phases. M11 production C# decompilation is integrated and accepted on the user's device. M12 is active for separate-copy C# editing and DLL recompilation; compiler feasibility is the first implementation gate. M13–M20 remain planned only. Development branch: `main`.
 
 ### M1 — Foundation and file identification
 
@@ -2637,3 +2637,66 @@ All listed M11 production acceptance checks have now been confirmed PASS by the 
 The search match counter remains a planned UX enhancement, not an M11 acceptance failure.
 
 **Gate:** M12 has not started. Begin M12 only after the user explicitly authorizes the next phase.
+
+## 30. M12 start — offline compiler feasibility prototype (2026-11-15)
+
+**Status:** M12 is active. The M11 production acceptance gate was satisfied by the user's explicit PASS results on 2026-11-14. No M11 acceptance tests are being repeated.
+
+### Repository and production architecture inspection
+
+- Starting main HEAD: `c476e6778fa592ef724ad1b39f0d67b17548a9cf`.
+- Production app remains Java + native Android XML, package `com.tanvir.droidinspect`, minSdk 26, Java 8 source/target.
+- Existing production ILSpy Native AOT engine and JNI bridge are preserved; native engine binary is approximately 45.97 MB.
+- Existing production .NET 11 reference-assembly bundle is approximately 6.5 MB (the full CI reference pack is approximately 39 MB).
+- Production manifest does not declare Android Internet permission.
+- Existing `CSharpDecompileActivity`, `DecompilationWorkspace`, `NativeBridge`, `jni_bridge.cpp`, and `DotNetMetadataReader` were inspected before M12 changes.
+- The M12 proof reuses the production reference-assembly asset directory instead of duplicating the reference pack.
+
+### Compiler candidate decision
+
+First candidate: **Microsoft.CodeAnalysis.CSharp (Roslyn) 5.12.0**, MIT license, NuGet package size reported as 11.82 MB. Roslyn exposes the C# compiler API and emits PE assemblies; this is a real compiler route, not a decompiler feature or file-extension rename.
+
+Proposed hosting route: .NET 11 Native AOT shared library targeting `linux-bionic-arm64`, called through a separate JNI bridge. The existing M11 architecture proves that this Native AOT/JNI pattern can host native code on the target device, but it does not prove that Roslyn itself is Native AOT-compatible or performant. Native AOT restrictions, including dynamic loading and runtime code generation, remain explicit feasibility risks.
+
+Alternatives assessed:
+- Full .NET SDK/compiler bundled into the app: rejected as the first mobile candidate due to large SDK payload and command-line/toolchain complexity.
+- A separate Mono/CoreCLR runtime hosting Roslyn: retained as a fallback only; it adds another runtime, Android integration complexity, and a larger packaging/performance burden.
+- Roslyn in a Native AOT library: selected for isolated proof only, not production integration.
+
+### Isolated proof files added
+
+- `tools/m12-poc/README.md`
+- `tools/m12-poc/engine/DroidInspect.M12.Compiler.csproj`
+- `tools/m12-poc/engine/CompilerService.cs`
+- `tools/m12-poc/engine/NativeExports.cs`
+- `tools/m12-poc/fixture/EditedFixture.cs`
+- `tools/m12-poc/host-tests/HostTests.csproj`
+- `tools/m12-poc/host-tests/Program.cs`
+- `tools/m12-poc/android-host/settings.gradle`
+- `tools/m12-poc/android-host/build.gradle`
+- `tools/m12-poc/android-host/app/build.gradle`
+- `tools/m12-poc/android-host/app/src/main/AndroidManifest.xml`
+- `tools/m12-poc/android-host/app/src/main/java/com/tanvir/m12poc/NativeBridge.java`
+- `tools/m12-poc/android-host/app/src/main/java/com/tanvir/m12poc/MainActivity.java`
+- `tools/m12-poc/android-host/app/src/main/cpp/jni_bridge.cpp`
+- `tools/m12-poc/android-host/app/src/main/assets/fixture/EditedFixture.cs`
+- `.github/workflows/m12-roslyn-compiler-poc.yml`
+
+The proof compiles a small C# fixture with a deliberately edited `EditedFixture.GetEditedValue()` method. It must emit a genuine managed DLL and verify PE/CLI metadata, assembly identity, and the edited symbol. The Android proof writes only to its private app files directory and requests no Internet or storage permissions.
+
+### CI history and current gate
+
+- Initial M12 workflow run #1 failed during host test compilation because `EmitResult`'s namespace import was missing. The Actions log identified the exact compiler error.
+- Corrected `CompilerService.cs` by importing `Microsoft.CodeAnalysis.Emit` in commit `37b48c1047cefcf05457440d518ce37d286c02ef`.
+- The corrected workflow rerun is in progress; no host compiler PASS, Native AOT PASS, Android APK PASS, or device PASS is claimed yet.
+- The normal Android regression workflow was also triggered by the main-branch commits; preserve and verify its result.
+
+### M12 feasibility acceptance gates
+
+1. Host Roslyn compile emits a managed DLL and PE/CLI metadata verifies the expected edited symbol.
+2. Roslyn Native AOT publish succeeds for Bionic ARM64 and exports the expected compiler entry points.
+3. JNI bridge and isolated Android proof APK build successfully; APK contains only ARM64 proof libraries and the production offline references, with no Internet permission.
+4. On the user's Android 11 / ARM64 phone, the proof app compiles the fixture offline and verifies the emitted managed assembly.
+5. Measure compiler library size, APK size, compile time, peak memory, storage use, and cold-start behavior before deciding whether production packaging is acceptable.
+
+**No M12 compiler feasibility PASS is claimed until the Android-device gate passes.** Production M11 source and native engine remain unchanged. Source editing and DLL recompilation remain separate capabilities; production integration must wait for this proof.
