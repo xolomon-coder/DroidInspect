@@ -93,8 +93,18 @@ public class DotNetDependencyActivity extends Activity {
             text.append("Root assembly preserved in private project storage.\n");
             text.append("Local dependencies: ").append(files.size()).append('\n');
             for (java.io.File file : files) text.append(" • ").append(file.getName()).append('\n');
-            report.setText(text.toString());
-            status.setText("Offline dependency project ready. Import local DLL/EXE dependencies, then resolve.");
+            if (project.getReportFile().isFile()) {
+                try (FileInputStream input = new FileInputStream(project.getReportFile())) {
+                    byte[] saved = new byte[(int) Math.min(project.getReportFile().length(), 2L * 1024L * 1024L)];
+                    int count = input.read(saved);
+                    report.setText(count <= 0 ? text.toString()
+                            : new String(saved, 0, count, java.nio.charset.StandardCharsets.UTF_8));
+                }
+                status.setText("Saved dependency report reopened. Local dependencies: " + files.size() + ".");
+            } else {
+                report.setText(text.toString());
+                status.setText("Offline dependency project ready. Import local DLL/EXE dependencies, then resolve.");
+            }
             exportButton.setEnabled(project.getReportFile().isFile());
             setControls(true);
         } catch (Exception error) {
