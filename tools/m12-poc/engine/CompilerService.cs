@@ -9,7 +9,7 @@ namespace DroidInspect.M12;
 
 public static class CompilerService
 {
-    public static string Compile(string sourceDirectory, string outputPath, string referenceDirectory)
+    public static string Compile(string sourceDirectory, string outputPath, string referenceDirectory, string? originalAssemblyPath = null)
     {
         string? temporaryOutput = null;
         try
@@ -37,7 +37,9 @@ public static class CompilerService
                 new CSharpParseOptions(LanguageVersion.Latest),
                 x)).ToArray();
 
-            var assemblyName = Path.GetFileNameWithoutExtension(outputPath);
+            var assemblyName = !string.IsNullOrWhiteSpace(originalAssemblyPath) && File.Exists(originalAssemblyPath)
+                ? AssemblyCompatibilityReporter.GetAssemblyName(originalAssemblyPath)
+                : Path.GetFileNameWithoutExtension(outputPath);
             if (string.IsNullOrWhiteSpace(assemblyName))
                 return "M12 COMPILE FAILED: Output assembly name is invalid.";
 
@@ -93,7 +95,10 @@ public static class CompilerService
                 + "Output bytes: " + new FileInfo(fullOutput).Length + "\n"
                 + verification + "\n"
                 + "Warnings: " + warnings.Length + "\n"
-                + string.Join("\n", warnings);
+                + string.Join("\n", warnings) + "\n\n"
+                + (string.IsNullOrWhiteSpace(originalAssemblyPath)
+                    ? "M12 DLL REPLACEMENT COMPATIBILITY REPORT\nLEVEL 1 — COMPILATION: PASS\nLEVEL 2 — STRUCTURAL COMPATIBILITY: NOT VERIFIED (no original assembly path was supplied)\nLEVEL 3 — RUNTIME / BEHAVIORAL COMPATIBILITY: NOT VERIFIED."
+                    : AssemblyCompatibilityReporter.Compare(originalAssemblyPath, fullOutput));
         }
         catch (Exception ex)
         {
