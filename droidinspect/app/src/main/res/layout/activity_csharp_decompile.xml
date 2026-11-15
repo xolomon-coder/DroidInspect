@@ -102,6 +102,13 @@
         android:layout_height="wrap_content"
         android:text="COPY CURRENT SOURCE PAGE" />
 
+    <Button
+        android:id="@+id/csharpEditSource"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:enabled="false"
+        android:text="CREATE / OPEN EDITABLE C# WORKSPACE" />
+
     <ScrollView
         android:id="@+id/csharpSourceScroll"
         android:layout_width="match_parent"
