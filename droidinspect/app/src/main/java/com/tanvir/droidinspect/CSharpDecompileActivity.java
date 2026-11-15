@@ -41,6 +41,7 @@ public class CSharpDecompileActivity extends Activity {
     private String lastQuery = "";
     private int currentPage, searchCursor, currentMatch = -1;
     private boolean loading = true;
+    private Uri selectedAssemblyUri;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -67,6 +68,7 @@ public class CSharpDecompileActivity extends Activity {
         editSource.setOnClickListener(v -> openSourceEditor());
 
         Uri uri = getIntent().getData();
+        selectedAssemblyUri = uri;
         String name = getIntent().getStringExtra("assembly_name");
         title.setText(name == null ? "C# source" : name);
         if (uri == null) {
@@ -269,7 +271,7 @@ public class CSharpDecompileActivity extends Activity {
         if (loading || completeSource.isEmpty() || completeSource.startsWith("M11 DECOMPILATION ERROR:")) return;
         try {
             CSharpSourceWorkspace project = CSharpSourceWorkspace.create(
-                    this, title.getText().toString(), completeSource);
+                    this, title.getText().toString(), completeSource, selectedAssemblyUri);
             Intent intent = new Intent(this, CSharpSourceEditorActivity.class);
             intent.putExtra("project_id", project.getId());
             startActivity(intent);
