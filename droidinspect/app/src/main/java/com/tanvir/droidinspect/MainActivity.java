@@ -235,7 +235,11 @@ public class MainActivity extends Activity {
             report.append("ARSCLib manifest/resource engine: packaged in this build\n");
             report.append("PE/CLI metadata and raw IL browser: available\n");
             report.append("C# decompiler ABI: ").append(NativeBridge.isArm64Supported() ? "ARM64 supported" : "unsupported device ABI").append('\n');
-            report.append("Network required for local inspection/decompilation: NO\n\n");
+            String compilerLoadError = com.tanvir.m12poc.NativeBridge.getLoadError();
+            report.append("Offline Roslyn compiler / dependency resolver: ")
+                    .append(compilerLoadError == null ? "ARM64 native payload loaded" : "unavailable — " + compilerLoadError)
+                    .append('\n');
+            report.append("Network required for local inspection/decompilation/dependency analysis: NO\n\n");
             report.append("LIMITS\nInput copy cap: 512 MB; DEX per-file cap: 128 MB\n");
             report.append("C# source reconstruction is not assembly execution or guaranteed recompilation.");
             String result = report.toString();
