@@ -107,23 +107,29 @@ final class DotNetDependencyWorkspace {
     List<File> importDependencies(Context context, List<Uri> uris) throws IOException {
         ArrayList<File> imported = new ArrayList<>();
         long batchBytes = 0;
-        for (Uri uri : uris) {
-            if (uri == null) continue;
-            String name = safeName(queryName(context, uri));
-            String lower = name.toLowerCase(java.util.Locale.ROOT);
-            if (!lower.endsWith(".dll") && !lower.endsWith(".exe")) continue;
-            File target = uniqueTarget(name);
-            long copied = copyDocument(context, uri, target, MAX_DEPENDENCY_FILE);
-            batchBytes += copied;
-            if (batchBytes > MAX_IMPORT_BATCH) {
-                target.delete();
-                throw new IOException("Dependency import batch exceeds the 512 MB safety limit.");
+        try {
+            for (Uri uri : uris) {
+                if (uri == null) continue;
+                String name = safeName(queryName(context, uri));
+                String lower = name.toLowerCase(java.util.Locale.ROOT);
+                if (!lower.endsWith(".dll") && !lower.endsWith(".exe")) continue;
+                File target = uniqueTarget(name);
+                long copied = copyDocument(context, uri, target, MAX_DEPENDENCY_FILE);
+                batchBytes += copied;
+                if (batchBytes > MAX_IMPORT_BATCH) {
+                    target.delete();
+                    throw new IOException("Dependency import batch exceeds the 512 MB safety limit.");
+                }
+                imported.add(target);
             }
-            imported.add(target);
+            if (imported.isEmpty()) throw new IOException("No .dll or .exe dependency files were selected.");
+            if (getReportFile().exists() && !getReportFile().delete())
+                throw new IOException("Cannot invalidate the previous dependency report.");
+            return imported;
+        } catch (IOException error) {
+            for (File file : imported) file.delete();
+            throw error;
         }
-        if (imported.isEmpty()) throw new IOException("No .dll or .exe dependency files were selected.");
-        getReportFile().delete();
-        return imported;
     }
 
     void saveReport(String report) throws IOException {
