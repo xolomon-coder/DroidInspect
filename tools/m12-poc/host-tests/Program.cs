@@ -146,8 +146,8 @@ try
     if (!exact.Contains("RESOLVED LOCAL: M13.DependencyFixture", StringComparison.Ordinal)
         || !exact.Contains("Target framework: .NETCoreApp,Version=v8.0", StringComparison.Ordinal)
         || !exact.Contains("FRAMEWORK WARNING:", StringComparison.Ordinal)
-        || !exact.Contains("RESOLUTION RESULT: ALL DISCOVERED REFERENCES RESOLVED EXACTLY", StringComparison.Ordinal))
-        throw new Exception("M13 resolver did not resolve an exact local dependency and framework references.");
+        || !exact.Contains("RESOLUTION RESULT: INCOMPLETE — DO NOT ASSUME COMPATIBILITY", StringComparison.Ordinal))
+        throw new Exception("M13 resolver did not distinguish exact dependency resolution from an incompatible target framework.");
 
     var mismatchSource = Path.Combine(m13Root, "mismatch-source");
     Directory.CreateDirectory(mismatchSource);
