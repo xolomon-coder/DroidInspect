@@ -53,6 +53,7 @@ final class CSharpSourceWorkspace {
             project.write(new File(original, "Decompiled.cs"), decompiledSource == null ? "" : decompiledSource);
             project.write(new File(src, "Decompiled.cs"), decompiledSource == null ? "" : decompiledSource);
             project.write(new File(root, ".droidinspect-project"), safeDisplay + "\nformat=1\n");
+            remember(context, id);
             return project;
         } catch (IOException error) {
             deleteTree(root);
@@ -73,7 +74,21 @@ final class CSharpSourceWorkspace {
             String line = reader.readLine();
             if (line != null && !line.trim().isEmpty()) name = line.trim();
         }
+        remember(context, id);
         return new CSharpSourceWorkspace(root, id, name);
+    }
+
+    static String getLastProjectId(Context context) {
+        String id = context.getSharedPreferences("csharp_source_workspace", Context.MODE_PRIVATE)
+                .getString("last_project_id", null);
+        if (id == null || !id.matches("project_[A-Fa-f0-9]{32}")) return null;
+        File root = new File(new File(context.getFilesDir(), "csharp-projects"), id);
+        return new File(root, ".droidinspect-project").isFile() ? id : null;
+    }
+
+    private static void remember(Context context, String id) {
+        context.getSharedPreferences("csharp_source_workspace", Context.MODE_PRIVATE)
+                .edit().putString("last_project_id", id).apply();
     }
 
     String getId() { return id; }
