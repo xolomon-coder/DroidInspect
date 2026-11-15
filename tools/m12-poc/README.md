@@ -83,3 +83,13 @@ The updated host test asserts:
 5. The previously existing output DLL remains byte-for-byte unchanged after that failure.
 
 **This update is not yet a production Android integration.** The Actions run for this change must pass before cloud verification is recorded. Android execution remains pending for the final consolidated device session. Native AOT warnings IL2091, IL2050, and IL2072 remain open and unsuppressed.
+
+## Production-side source workspace progress — 2026-11-16
+
+The production DroidInspect app now has an initial source workspace/editor implementation in Java/XML:
+- Persistent app-private project storage with a separate untouched decompilation copy.
+- Editable source files, file switching, new-file creation, and multi-select SAF import of `.cs` files.
+- ZIP export of the edited source project.
+- The M11 C# viewer launches this workspace without modifying the original assembly or M11 source result.
+
+The editor is a source-editing/export subfeature only at this point. The production Roslyn JNI bridge, compile UI, compiler output inspection, and DLL replacement compatibility report are not integrated yet. Production Android CI and Android-device behavior are not verified by the source commit alone.
