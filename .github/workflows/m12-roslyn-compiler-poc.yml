@@ -1,0 +1,153 @@
+name: M12 Roslyn Offline Android Compiler Proof
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'tools/m12-poc/**'
+      - 'droidinspect/app/src/main/assets/reference-assemblies/**'
+      - '.github/workflows/m12-roslyn-compiler-poc.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  compiler-proof:
+    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[m12-assets]')
+    name: Roslyn host compile, Bionic ARM64 AOT, JNI and Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '11.0.100'
+
+      - name: Verify production .NET 11 reference pack
+        run: |
+          set -euo pipefail
+          REF="$DOTNET_ROOT/packs/Microsoft.NETCore.App.Ref/11.0.0/ref/net11.0"
+          test -s "$REF/System.Runtime.dll"
+          test -s droidinspect/app/src/main/assets/reference-assemblies/net11.0/System.Runtime.dll
+          echo "SDK reference pack: $(du -sh "$REF" | cut -f1)"
+          echo "Production bundled reference pack: $(du -sh droidinspect/app/src/main/assets/reference-assemblies/net11.0 | cut -f1)"
+
+      - name: Compile edited C# source with Roslyn on host
+        run: |
+          set -euo pipefail
+          REF="$DOTNET_ROOT/packs/Microsoft.NETCore.App.Ref/11.0.0/ref/net11.0"
+          mkdir -p artifacts
+          dotnet run --project tools/m12-poc/host-tests/HostTests.csproj -c Release --             "$GITHUB_WORKSPACE/tools/m12-poc/fixture" "$REF"             "$GITHUB_WORKSPACE/artifacts/DroidInspect.M12.EditedFixture.dll"
+          file artifacts/DroidInspect.M12.EditedFixture.dll
+          sha256sum artifacts/DroidInspect.M12.EditedFixture.dll
+
+      - name: Set up Android NDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
+      - name: Install Android SDK and NDK
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;30.0.16248370"
+          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/30.0.16248370" >> "$GITHUB_ENV"
+          echo "$ANDROID_HOME/ndk/30.0.16248370/toolchains/llvm/prebuilt/linux-x86_64/bin" >> "$GITHUB_PATH"
+
+      - name: Publish Roslyn compiler as Native AOT Bionic ARM64
+        env:
+          CC: clang
+          CXX: clang++
+          AR: llvm-ar
+          LD: ld.lld
+        run: |
+          set -euo pipefail
+          dotnet publish tools/m12-poc/engine/DroidInspect.M12.Compiler.csproj             -c Release -r linux-bionic-arm64             -p:DisableUnsupportedError=true             -p:PublishAotUsingRuntimePack=true             -p:StripSymbols=true
+          LIB="$(find tools/m12-poc/engine/bin/Release/net11.0/linux-bionic-arm64/publish -maxdepth 1 -name '*.so' -print -quit)"
+          test -s "$LIB"
+          file "$LIB"
+          readelf -h "$LIB" | tee /tmp/m12-elf-header.txt
+          grep -q AArch64 /tmp/m12-elf-header.txt
+          readelf -d "$LIB" | tee /tmp/m12-engine-needed.txt
+          grep -Fq 'Library soname: [libdroidinspect_m12_compiler.so]' /tmp/m12-engine-needed.txt
+          llvm-nm -D --defined-only "$LIB" | tee /tmp/m12-exports.txt
+          grep -q DroidInspect_M12_Compile /tmp/m12-exports.txt
+          grep -q DroidInspect_M12_FreeResult /tmp/m12-exports.txt
+          mkdir -p tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a
+          cp "$LIB" tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_compiler.so
+          cp "$LIB" artifacts/libdroidinspect_m12_compiler.so
+
+      - name: Build JNI bridge for Android API 26+
+        run: |
+          set -euo pipefail
+          NDK="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          "$NDK/aarch64-linux-android26-clang++"             -std=c++17 -shared -fPIC -nostdlib++             -I"$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include"             tools/m12-poc/android-host/app/src/main/cpp/jni_bridge.cpp             -Ltools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a             -ldroidinspect_m12_compiler             -Wl,-soname,libdroidinspect_m12_jni.so             -o tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_jni.so
+          test -s tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_jni.so
+          readelf -h tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_jni.so | grep -q AArch64
+          readelf -d tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_jni.so | tee /tmp/m12-jni-needed.txt
+          grep -Fq 'Shared library: [libdroidinspect_m12_compiler.so]' /tmp/m12-jni-needed.txt
+          cp tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_jni.so artifacts/
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Build isolated Android compiler proof APK
+        working-directory: tools/m12-poc/android-host
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
+
+      - name: Verify isolated proof APK payload and manifest permissions
+        run: |
+          set -euo pipefail
+          APK="tools/m12-poc/android-host/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          unzip -t "$APK"
+          unzip -l "$APK" | tee /tmp/m12-apk-list.txt
+          grep -q 'lib/arm64-v8a/libdroidinspect_m12_compiler.so' /tmp/m12-apk-list.txt
+          grep -q 'lib/arm64-v8a/libdroidinspect_m12_jni.so' /tmp/m12-apk-list.txt
+          grep -q 'assets/reference-assemblies/net11.0/System.Runtime.dll' /tmp/m12-apk-list.txt
+          if unzip -p "$APK" AndroidManifest.xml | strings | grep -q 'android.permission.INTERNET'; then
+            echo 'ERROR: M12 proof must remain offline.'
+            exit 1
+          fi
+          cp "$APK" artifacts/DroidInspect-M12-Roslyn-Android-Proof.apk
+          sha256sum artifacts/*
+
+      - name: Commit verified native compiler payload for CodeAssist proof build
+        if: github.event_name == 'push' && !contains(github.event.head_commit.message, '[m12-assets]')
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_compiler.so
+          git add tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_jni.so
+          if git diff --cached --quiet; then
+            echo "M12 native compiler payload already current."
+            exit 0
+          fi
+          git commit -m "[m12-assets] Add verified ARM64 Roslyn compiler proof payload"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DroidInspect-M12-Roslyn-Compiler-Proof
+          path: |
+            artifacts/DroidInspect.M12.EditedFixture.dll
+            artifacts/libdroidinspect_m12_compiler.so
+            artifacts/libdroidinspect_m12_jni.so
+            artifacts/DroidInspect-M12-Roslyn-Android-Proof.apk
+            /tmp/m12-elf-header.txt
+            /tmp/m12-engine-needed.txt
+            /tmp/m12-exports.txt
+            /tmp/m12-jni-needed.txt
+            /tmp/m12-apk-list.txt
+          if-no-files-found: error
+          retention-days: 14
