@@ -15,23 +15,29 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
 public class CSharpSourceEditorActivity extends Activity {
     private static final int REQUEST_IMPORT = 7101;
-    private static final int REQUEST_EXPORT = 7102;
+    private static final int REQUEST_EXPORT_SOURCE = 7102;
+    private static final int REQUEST_EXPORT_DLL = 7103;
 
     private CSharpSourceWorkspace project;
     private Spinner filesSpinner;
     private EditText editor;
     private TextView title, status;
-    private Button saveButton;
-    private List<java.io.File> sourceFiles = new ArrayList<>();
-    private java.io.File currentFile;
+    private Button saveButton, compileButton, exportDllButton;
+    private List<File> sourceFiles = new ArrayList<>();
+    private File currentFile;
+    private File lastBuildFile;
     private boolean loadingText;
     private boolean dirty;
+    private boolean compiling;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -41,10 +47,15 @@ public class CSharpSourceEditorActivity extends Activity {
         filesSpinner = findViewById(R.id.sourceEditorFiles);
         editor = findViewById(R.id.sourceEditorText);
         saveButton = findViewById(R.id.sourceEditorSave);
+        compileButton = findViewById(R.id.sourceEditorCompile);
+        exportDllButton = findViewById(R.id.sourceEditorExportDll);
+
         findViewById(R.id.sourceEditorAdd).setOnClickListener(v -> addFile());
         findViewById(R.id.sourceEditorImport).setOnClickListener(v -> importFiles());
         findViewById(R.id.sourceEditorExport).setOnClickListener(v -> exportProject());
         saveButton.setOnClickListener(v -> saveCurrent());
+        compileButton.setOnClickListener(v -> compileProject());
+        exportDllButton.setOnClickListener(v -> exportRebuiltDll());
 
         editor.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
@@ -62,11 +73,14 @@ public class CSharpSourceEditorActivity extends Activity {
             project = CSharpSourceWorkspace.open(this, id);
             title.setText(project.getDisplayName());
             refreshFiles(null);
-            status.setText("Saved in private app storage. Original decompilation is preserved separately.");
+            lastBuildFile = project.getBuildOutputFile();
+            exportDllButton.setEnabled(isManagedPe(lastBuildFile));
+            status.setText("Private source workspace. Original assembly and untouched decompilation are preserved.");
         } catch (Exception error) {
             status.setText("SOURCE PROJECT ERROR: " + error.getMessage());
             setEditorEnabled(false);
         }
+
         filesSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long rowId) {
                 if (position >= 0 && position < sourceFiles.size()) switchFile(sourceFiles.get(position));
@@ -76,12 +90,12 @@ public class CSharpSourceEditorActivity extends Activity {
         if (currentFile == null && !sourceFiles.isEmpty()) switchFile(sourceFiles.get(0));
     }
 
-    private void refreshFiles(java.io.File select) throws IOException {
+    private void refreshFiles(File select) throws IOException {
         sourceFiles = project.listSourceFiles();
         ArrayList<String> labels = new ArrayList<>();
         int selected = 0;
         for (int i = 0; i < sourceFiles.size(); i++) {
-            java.io.File file = sourceFiles.get(i);
+            File file = sourceFiles.get(i);
             labels.add(file.getName());
             if (select != null && file.equals(select)) selected = i;
         }
@@ -93,7 +107,7 @@ public class CSharpSourceEditorActivity extends Activity {
         setEditorEnabled(!sourceFiles.isEmpty());
     }
 
-    private void switchFile(java.io.File file) {
+    private void switchFile(File file) {
         if (currentFile != null && dirty && !saveCurrent()) return;
         try {
             currentFile = file;
@@ -135,7 +149,7 @@ public class CSharpSourceEditorActivity extends Activity {
                 .setPositiveButton("CREATE", (dialog, which) -> {
                     try {
                         if (currentFile != null && dirty && !saveCurrent()) return;
-                        java.io.File created = project.createSourceFile(input.getText().toString());
+                        File created = project.createSourceFile(input.getText().toString());
                         refreshFiles(created);
                         switchFile(created);
                     } catch (Exception error) {
@@ -159,7 +173,83 @@ public class CSharpSourceEditorActivity extends Activity {
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("application/zip");
         intent.putExtra(Intent.EXTRA_TITLE, "DroidInspect-CSharp-Source.zip");
-        startActivityForResult(intent, REQUEST_EXPORT);
+        startActivityForResult(intent, REQUEST_EXPORT_SOURCE);
+    }
+
+    private void compileProject() {
+        if (compiling) return;
+        if (currentFile != null && dirty && !saveCurrent()) return;
+        if (project == null || !project.getOriginalAssemblyFile().isFile()) {
+            status.setText("The original assembly copy is missing. Recreate this project from the C# decompiler.");
+            return;
+        }
+        if (sourceFiles.isEmpty()) {
+            status.setText("There are no C# source files to compile.");
+            return;
+        }
+        compiling = true;
+        compileButton.setEnabled(false);
+        exportDllButton.setEnabled(false);
+        status.setText("Compiling all project .cs files offline with Roslyn. This may take time on the first run…");
+        new Thread(() -> {
+            String result;
+            File output = null;
+            try {
+                File references = DecompilationWorkspace.ensureReferences(getApplicationContext());
+                output = project.getBuildOutputFile();
+                String loadError = com.tanvir.m12poc.NativeBridge.getLoadError();
+                if (loadError != null) {
+                    result = "M12 COMPILER UNAVAILABLE\n" + loadError;
+                } else {
+                    result = com.tanvir.m12poc.NativeBridge.compile(
+                            project.getSourceRoot().getAbsolutePath(),
+                            output.getAbsolutePath(),
+                            references.getAbsolutePath());
+                    if (result == null) result = "M12 COMPILER ERROR: No result was returned.";
+                    if (result.startsWith("M12 COMPILATION PASS")) {
+                        if (!isManagedPe(output)) {
+                            result += "\nJAVA OUTPUT VERIFICATION FAIL: output is not a valid managed PE file.";
+                        } else {
+                            result += "\nJAVA OUTPUT VERIFICATION PASS: managed PE file exists; "
+                                    + output.length() + " bytes.";
+                        }
+                    }
+                }
+            } catch (Throwable error) {
+                result = "M12 COMPILER ERROR: " + error.getClass().getSimpleName() + ": "
+                        + (error.getMessage() == null ? "No additional details." : error.getMessage());
+            }
+            final String report = result;
+            final File built = output;
+            runOnUiThread(() -> {
+                compiling = false;
+                compileButton.setEnabled(true);
+                lastBuildFile = built;
+                exportDllButton.setEnabled(isManagedPe(lastBuildFile));
+                status.setText(report);
+            });
+        }, "DroidInspect-M12-Compiler").start();
+    }
+
+    private static boolean isManagedPe(File file) {
+        if (file == null || !file.isFile() || file.length() < 512) return false;
+        try (FileInputStream input = new FileInputStream(file)) {
+            return input.read() == 'M' && input.read() == 'Z';
+        } catch (IOException error) {
+            return false;
+        }
+    }
+
+    private void exportRebuiltDll() {
+        if (!isManagedPe(lastBuildFile)) {
+            status.setText("No verified rebuilt DLL is available to export.");
+            return;
+        }
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/octet-stream");
+        intent.putExtra(Intent.EXTRA_TITLE, "DroidInspect.Rebuilt.dll");
+        startActivityForResult(intent, REQUEST_EXPORT_DLL);
     }
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -172,22 +262,36 @@ public class CSharpSourceEditorActivity extends Activity {
                     uris.add(data.getClipData().getItemAt(i).getUri());
             } else if (data.getData() != null) uris.add(data.getData());
             try {
-                List<java.io.File> imported = project.importFiles(this, uris);
+                List<File> imported = project.importFiles(this, uris);
                 refreshFiles(imported.get(0));
                 switchFile(imported.get(0));
                 status.setText("Imported " + imported.size() + " C# source file(s).");
             } catch (Exception error) {
                 status.setText("IMPORT FAILED: " + error.getMessage());
             }
-        } else if (requestCode == REQUEST_EXPORT) {
+        } else if (requestCode == REQUEST_EXPORT_SOURCE) {
             Uri destination = data.getData();
             if (destination == null) return;
-            try (java.io.OutputStream output = getContentResolver().openOutputStream(destination)) {
+            try (OutputStream output = getContentResolver().openOutputStream(destination)) {
                 if (output == null) throw new IOException("Cannot open export destination.");
                 project.exportZip(output);
                 Toast.makeText(this, "Source project ZIP exported.", Toast.LENGTH_LONG).show();
             } catch (Exception error) {
                 status.setText("EXPORT FAILED: " + error.getMessage());
+            }
+        } else if (requestCode == REQUEST_EXPORT_DLL) {
+            Uri destination = data.getData();
+            if (destination == null || !isManagedPe(lastBuildFile)) return;
+            try (FileInputStream input = new FileInputStream(lastBuildFile);
+                 OutputStream output = getContentResolver().openOutputStream(destination)) {
+                if (output == null) throw new IOException("Cannot open DLL export destination.");
+                byte[] buffer = new byte[32768];
+                int count;
+                while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+                output.flush();
+                Toast.makeText(this, "Rebuilt DLL exported separately. Original assembly remains unchanged.", Toast.LENGTH_LONG).show();
+            } catch (Exception error) {
+                status.setText("DLL EXPORT FAILED: " + error.getMessage());
             }
         }
     }
@@ -201,9 +305,18 @@ public class CSharpSourceEditorActivity extends Activity {
     private void setEditorEnabled(boolean enabled) {
         editor.setEnabled(enabled);
         saveButton.setEnabled(false);
+        compileButton.setEnabled(enabled && !compiling);
     }
 
-    @Override public void onBackPressed() {
+    @Override protected void onBackPressed() {
+        if (compiling) {
+            new AlertDialog.Builder(this)
+                    .setMessage("Compilation is running. Leave this screen?")
+                    .setNegativeButton("STAY", null)
+                    .setPositiveButton("LEAVE", (d, w) -> finish())
+                    .show();
+            return;
+        }
         if (dirty && !saveCurrent()) {
             new AlertDialog.Builder(this)
                     .setMessage("Changes could not be saved. Leave this editor?")
