@@ -67,7 +67,7 @@ final class DecompilationWorkspace implements AutoCloseable {
         }
     }
 
-    private static File ensureReferences(Context context) throws IOException {
+    static File ensureReferences(Context context) throws IOException {
         File base = new File(context.getFilesDir(), "reference-assemblies");
         File ready = new File(base, "net11.0");
         if (new File(ready, ".droidinspect-ready").isFile()) return ready;
