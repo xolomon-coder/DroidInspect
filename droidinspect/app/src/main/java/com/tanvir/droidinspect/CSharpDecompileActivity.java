@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
@@ -35,7 +36,7 @@ public class CSharpDecompileActivity extends Activity {
     private ProgressBar progress;
     private ScrollView sourceScroll;
     private EditText search;
-    private Button previousPage, nextPage, findPrevious, findNext, copyPage;
+    private Button previousPage, nextPage, findPrevious, findNext, copyPage, editSource;
     private String completeSource = "";
     private String lastQuery = "";
     private int currentPage, searchCursor, currentMatch = -1;
@@ -56,12 +57,14 @@ public class CSharpDecompileActivity extends Activity {
         findPrevious = findViewById(R.id.csharpFindPrevious);
         findNext = findViewById(R.id.csharpFindNext);
         copyPage = findViewById(R.id.csharpCopyPage);
+        editSource = findViewById(R.id.csharpEditSource);
 
         previousPage.setOnClickListener(v -> showPage(currentPage - 1));
         nextPage.setOnClickListener(v -> showPage(currentPage + 1));
         findPrevious.setOnClickListener(v -> findMatch(false));
         findNext.setOnClickListener(v -> findMatch(true));
         copyPage.setOnClickListener(v -> copyCurrentPage());
+        editSource.setOnClickListener(v -> openSourceEditor());
 
         Uri uri = getIntent().getData();
         String name = getIntent().getStringExtra("assembly_name");
@@ -258,6 +261,21 @@ public class CSharpDecompileActivity extends Activity {
         findPrevious.setEnabled(!loading && count > 0);
         findNext.setEnabled(!loading && count > 0);
         copyPage.setEnabled(!loading && count > 0);
+        editSource.setEnabled(!loading && count > 0 && !completeSource.startsWith("M11 DECOMPILATION ERROR:"));
+    }
+
+
+    private void openSourceEditor() {
+        if (loading || completeSource.isEmpty() || completeSource.startsWith("M11 DECOMPILATION ERROR:")) return;
+        try {
+            CSharpSourceWorkspace project = CSharpSourceWorkspace.create(
+                    this, title.getText().toString(), completeSource);
+            Intent intent = new Intent(this, CSharpSourceEditorActivity.class);
+            intent.putExtra("project_id", project.getId());
+            startActivity(intent);
+        } catch (Exception error) {
+            status.setText("Could not create editable source workspace: " + error.getMessage());
+        }
     }
 
     @Override protected void onDestroy() {
