@@ -2777,6 +2777,7 @@ Added the first production-side C# source editing workspace, while retaining the
 - `droidinspect/app/src/main/java/com/tanvir/droidinspect/CSharpSourceEditorActivity.java`
 - `droidinspect/app/src/main/res/layout/activity_csharp_source_editor.xml`
 - Updated `CSharpDecompileActivity.java` and `activity_csharp_decompile.xml` to launch the editor from returned decompilation.
+- Updated `MainActivity.java` and `activity_main.xml` with an **Open Last C# Source Workspace** entry; the last project ID is persisted in app preferences.
 - Updated `AndroidManifest.xml` to register the non-exported editor activity.
 
 Current source-workspace behavior implemented in source:
@@ -2786,6 +2787,6 @@ Current source-workspace behavior implemented in source:
 - Supports file switching, edit/save state, and ZIP export of the source project.
 - Applies source import bounds (32 MB per file, 128 MB per import operation).
 - Uses app-private storage and SAF; no broad storage or Internet permission was added.
-- Source project files are kept after the editor closes and can be reopened when the project ID is retained by the caller. A recent-project picker is a later workspace milestone item.
+- Source project files are kept after the editor closes and the last project ID is persisted so the user can reopen the last saved C# source workspace from the DroidInspect main screen. A full recent-project picker remains a later workspace milestone item.
 
 **Verification:** source changes are committed on `main`; production Android compilation/CI and actual device usability have not yet been verified. Do not mark M12 complete. Compiler-to-editor integration, Android Roslyn invocation, rebuilt DLL inspection, and the three-level replacement compatibility report remain pending. The isolated Native AOT warning set remains open.
