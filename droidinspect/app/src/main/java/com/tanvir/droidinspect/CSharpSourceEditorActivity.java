@@ -73,6 +73,7 @@ public class CSharpSourceEditorActivity extends Activity {
             }
             @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
         });
+        if (currentFile == null && !sourceFiles.isEmpty()) switchFile(sourceFiles.get(0));
     }
 
     private void refreshFiles(java.io.File select) throws IOException {
