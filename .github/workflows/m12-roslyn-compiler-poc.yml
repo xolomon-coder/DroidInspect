@@ -79,6 +79,7 @@ jobs:
           grep -Fq 'Library soname: [libdroidinspect_m12_compiler.so]' /tmp/m12-engine-needed.txt
           llvm-nm -D --defined-only "$LIB" | tee /tmp/m12-exports.txt
           grep -q DroidInspect_M12_Compile /tmp/m12-exports.txt
+          grep -q DroidInspect_M12_ResolveDependencies /tmp/m12-exports.txt
           grep -q DroidInspect_M12_FreeResult /tmp/m12-exports.txt
           mkdir -p tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a
           cp "$LIB" tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_compiler.so
@@ -93,6 +94,8 @@ jobs:
           readelf -h tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_jni.so | grep -q AArch64
           readelf -d tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_jni.so | tee /tmp/m12-jni-needed.txt
           grep -Fq 'Shared library: [libdroidinspect_m12_compiler.so]' /tmp/m12-jni-needed.txt
+          llvm-nm -D --defined-only tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_jni.so | tee /tmp/m12-jni-exports.txt
+          grep -q Java_com_tanvir_m12poc_NativeBridge_resolveDependencies /tmp/m12-jni-exports.txt
           cp tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_jni.so artifacts/
 
       - uses: actions/setup-java@v4
