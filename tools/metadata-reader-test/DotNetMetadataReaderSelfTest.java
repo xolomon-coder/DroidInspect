@@ -46,6 +46,12 @@ public final class DotNetMetadataReaderSelfTest {
                 require(report, "Event token 0x14000001");
                 require(report, "AssemblyRef token 0x23000001");
                 require(report, "Public-key token: null");
+                require(report, "TypeRef token 0x01000001");
+                require(report, "MemberRef token 0x0A000001");
+                require(report, "TypeSpec token 0x1B000001");
+                require(report, "MethodSpec token 0x2B000001");
+                require(report, "ModuleRef token 0x1A000001");
+                require(report, "StandAloneSig token 0x11000001");
                 if (report.contains("Metadata decoding: INCOMPLETE")) {
                     throw new AssertionError(report);
                 }
@@ -68,6 +74,9 @@ public final class DotNetMetadataReaderSelfTest {
         int property = strings.add("DisplayName");
         int reference = strings.add("mscorlib");
         int eventName = strings.add("Changed");
+        int typeRefName = strings.add("ExternalType");
+        int memberRefName = strings.add("Call");
+        int moduleRefName = strings.add("native.dll");
         byte[] stringHeap = strings.bytes();
         byte[] blobHeap = new byte[]{0};
         byte[] guidHeap = new byte[16];
@@ -76,20 +85,27 @@ public final class DotNetMetadataReaderSelfTest {
         ByteArrayOutputStream tableBytes = new ByteArrayOutputStream();
         DataOutputStream t = new DataOutputStream(tableBytes);
         le32(t, 0); t.writeByte(2); t.writeByte(0); t.writeByte(0); t.writeByte(1);
-        long valid = (1L << 0) | (1L << 2) | (1L << 4) | (1L << 6)
-                | (1L << 18) | (1L << 20) | (1L << 21) | (1L << 23)
-                | (1L << 32) | (1L << 35);
+        long valid = (1L << 0) | (1L << 1) | (1L << 2) | (1L << 4) | (1L << 6)
+                | (1L << 10) | (1L << 17) | (1L << 18) | (1L << 20)
+                | (1L << 21) | (1L << 23) | (1L << 26) | (1L << 27)
+                | (1L << 32) | (1L << 35) | (1L << 43);
         le64(t, valid); le64(t, 0);
-        for (int i = 0; i < 10; i++) le32(t, 1);
+        for (int i = 0; i < 16; i++) le32(t, 1);
 
         // Module: generation, name, MVID, EncId, EncBaseId.
         le16(t, 0); le16(t, module); le16(t, 1); le16(t, 0); le16(t, 0);
+        // TypeRef: ResolutionScope (Module row 1), name, namespace.
+        le16(t, 4); le16(t, typeRefName); le16(t, namespace);
         // TypeDef: flags, name, namespace, extends, FieldList, MethodList.
         le32(t, 1); le16(t, type); le16(t, namespace); le16(t, 0); le16(t, 1); le16(t, 1);
         // Field: flags, name, signature.
         le16(t, 6); le16(t, field); le16(t, 0);
         // MethodDef: RVA, ImplFlags, Flags, Name, Signature, ParamList.
         le32(t, 0); le16(t, 0); le16(t, 6); le16(t, method); le16(t, 0); le16(t, 1);
+        // MemberRef: parent TypeDef row 1, name, signature blob.
+        le16(t, 4); le16(t, memberRefName); le16(t, 0);
+        // StandAloneSig: signature blob.
+        le16(t, 0);
         // EventMap: parent TypeDef row, first Event row.
         le16(t, 1); le16(t, 1);
         // Event: flags, name, EventType coded TypeDefOrRef index (TypeDef row 1).
@@ -98,12 +114,18 @@ public final class DotNetMetadataReaderSelfTest {
         le16(t, 1); le16(t, 1);
         // Property: flags, name, type signature blob.
         le16(t, 0); le16(t, property); le16(t, 0);
+        // ModuleRef: name.
+        le16(t, moduleRefName);
+        // TypeSpec: signature blob.
+        le16(t, 0);
         // Assembly: HashAlgId, version, flags, public key, name, culture.
         le32(t, 0x8004); le16(t, 1); le16(t, 2); le16(t, 3); le16(t, 4);
         le32(t, 0); le16(t, 0); le16(t, assembly); le16(t, 0);
         // AssemblyRef: version, flags, key/token, name, culture, hash.
         le16(t, 4); le16(t, 0); le16(t, 0); le16(t, 0); le32(t, 0);
         le16(t, 0); le16(t, reference); le16(t, 0); le16(t, 0);
+        // MethodSpec: MethodDef row 1 encoded with tag 0, instantiation blob.
+        le16(t, 2); le16(t, 0);
 
         byte[] tables = tableBytes.toByteArray();
         int headerSize = 24 + streamDescriptorSize("#~") + streamDescriptorSize("#Strings")
