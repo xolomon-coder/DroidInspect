@@ -82,6 +82,8 @@ final class DotNetMetadataReader {
         decodeModule(out);
         decodeAssembly(out);
         decodeReferences(out);
+        decodeModuleReferences(out);
+        decodeStandAloneSignatures(out);
         decodeTypeReferences(out);
         decodeMemberReferences(out);
         decodeTypeSpecifications(out);
@@ -149,6 +151,31 @@ final class DotNetMetadataReader {
         if(rows[35]>limit)o.append("… ").append(rows[35]-limit).append(" more references not displayed.\n");
     }
 
+
+
+    private void decodeModuleReferences(StringBuilder o) throws Exception {
+        o.append("\nMODULE REFERENCES (").append(rows[26]).append(")\n");
+        int limit = (int) Math.min(rows[26], 500);
+        for (int i = 0; i < limit; i++) {
+            long p = tableBase[26] + i * rowSize(26);
+            int name = indexString(p);
+            o.append(i + 1).append(". ").append(str(name))
+                    .append(" (ModuleRef token 0x").append(hex(0x1A000000L | (i + 1))).append(')')
+                    .append('\n');
+        }
+    }
+
+    private void decodeStandAloneSignatures(StringBuilder o) throws Exception {
+        o.append("\nSTANDALONE SIGNATURES (").append(rows[17]).append(")\n");
+        int limit = (int) Math.min(rows[17], 1000);
+        for (int i = 0; i < limit; i++) {
+            long p = tableBase[17] + i * rowSize(17);
+            int signature = indexBlob(p);
+            o.append(i + 1).append(". Signature bytes ").append(blobLength(signature))
+                    .append(" (StandAloneSig token 0x").append(hex(0x11000000L | (i + 1))).append(')')
+                    .append('\n');
+        }
+    }
 
     private void decodeTypeReferences(StringBuilder o) throws Exception {
         o.append("\nTYPE REFERENCES (").append(rows[1]).append(")\n");
