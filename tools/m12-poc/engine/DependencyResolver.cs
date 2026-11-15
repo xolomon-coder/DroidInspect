@@ -44,8 +44,10 @@ public static class DependencyResolver
                 return "OFFLINE DEPENDENCY RESOLUTION\nRESULT: FAIL\nFramework reference directory does not exist.";
 
             var root = ReadAssembly(rootAssemblyPath);
-            var local = IndexDirectory(localDependencyDirectory);
-            var framework = IndexDirectory(referenceDirectory);
+            var ignoredLocal = new List<string>();
+            var ignoredFramework = new List<string>();
+            var local = IndexDirectory(localDependencyDirectory, ignoredLocal);
+            var framework = IndexDirectory(referenceDirectory, ignoredFramework);
             var queue = new Queue<AssemblyInfo>();
             var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var report = new System.Text.StringBuilder();
@@ -78,6 +80,7 @@ public static class DependencyResolver
                 processed++;
                 report.AppendLine();
                 report.AppendLine((current.Path == root.Path ? "[ROOT] " : "[LOCAL DEPENDENCY] ") + current.Identity);
+                report.AppendLine("  Target framework: " + current.TargetFramework);
                 if (current.References.Count == 0)
                 {
                     report.AppendLine("  No AssemblyRef rows.");
@@ -146,6 +149,10 @@ public static class DependencyResolver
             report.AppendLine("Missing references: " + missing);
             report.AppendLine("Identity/version mismatches: " + mismatched);
             report.AppendLine("Ambiguous exact matches: " + ambiguous);
+            report.AppendLine("Ignored malformed/non-managed local files: " + ignoredLocal.Count);
+            report.AppendLine("Ignored malformed/non-managed reference-pack files: " + ignoredFramework.Count);
+            foreach (var invalid in ignoredLocal.Take(8)) report.AppendLine("  Invalid local candidate: " + invalid);
+            foreach (var invalid in ignoredFramework.Take(8)) report.AppendLine("  Invalid reference candidate: " + invalid);
             foreach (var warning in frameworkWarnings) report.AppendLine("FRAMEWORK WARNING: " + warning);
 
             var incomplete = missing > 0 || mismatched > 0 || ambiguous > 0 || queue.Count > 0;
@@ -162,7 +169,7 @@ public static class DependencyResolver
         }
     }
 
-    private static Dictionary<string, List<AssemblyInfo>> IndexDirectory(string directory)
+    private static Dictionary<string, List<AssemblyInfo>> IndexDirectory(string directory, List<string> ignored)
     {
         var index = new Dictionary<string, List<AssemblyInfo>>(StringComparer.OrdinalIgnoreCase);
         foreach (var path in Directory.EnumerateFiles(directory, "*", SearchOption.TopDirectoryOnly)
@@ -179,6 +186,7 @@ public static class DependencyResolver
             catch
             {
                 // Non-managed and malformed candidates are ignored, never treated as a resolution.
+                ignored.Add(Path.GetFileName(path));
             }
         }
         return index;
