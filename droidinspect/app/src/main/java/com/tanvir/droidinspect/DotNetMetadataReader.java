@@ -84,6 +84,7 @@ final class DotNetMetadataReader {
         decodeReferences(out);
         decodeTypes(out);
         decodeProperties(out);
+        decodeEvents(out);
         out.append("\nDecode status: ").append(stringsBase!=0 ? "core identity/type/member tables decoded where present" : "string heap unavailable").append('\n');
         out.append("Note: This is metadata inspection, not C# decompilation or IL editing.\n");
         return out.toString();
@@ -121,7 +122,9 @@ final class DotNetMetadataReader {
         o.append("Version: ").append(major).append('.').append(minor).append('.').append(build).append('.').append(revision).append('\n');
         o.append("Culture: ").append(empty(str(culture))).append('\n');
         o.append("Flags: 0x").append(hex(flags)).append('\n');
+        o.append("Assembly metadata token: 0x20000001\n");
         o.append("Public key blob index: ").append(blob).append("; payload: ").append(blobLength(blob)).append(" bytes\n");
+        o.append("Public-key token: ").append(publicKeyToken(blobBytes(blob), true)).append('\n');
     }
 
     private void decodeReferences(StringBuilder o) throws Exception {
@@ -130,9 +133,14 @@ final class DotNetMetadataReader {
         for(int i=0;i<limit;i++){
             long p=tableBase[35]+i*rowSize(35);
             int ma=u16(p),mi=u16(p+2),bu=u16(p+4),re=u16(p+6);
+            long flags=u32(p+8);
+            int keyBlob=indexBlob(p+12);
             int name=indexString(p+12+blobWidth()), culture=indexString(p+12+blobWidth()+stringWidth());
             o.append(i+1).append(". ").append(str(name)).append(", Version=").append(ma).append('.').append(mi).append('.').append(bu).append('.').append(re);
-            String c=str(culture); if(!c.isEmpty())o.append(", Culture=").append(c); o.append('\n');
+            String c=str(culture); if(!c.isEmpty())o.append(", Culture=").append(c);
+            o.append(", PublicKeyToken=").append(publicKeyToken(blobBytes(keyBlob), (flags & 1L) != 0));
+            o.append(" (AssemblyRef token 0x").append(hex(0x23000000L | (i + 1))).append(')');
+            o.append('\n');
         }
         if(rows[35]>limit)o.append("… ").append(rows[35]-limit).append(" more references not displayed.\n");
     }
@@ -154,7 +162,8 @@ final class DotNetMetadataReader {
                 nextMethod=tableIndex(np+4+2L*stringWidth()+codedWidth(1)+tableWidth(4),6);
             }
             String typeName=str(name), namespace=str(ns);
-            o.append("\n").append(i+1).append(". ").append(namespace.isEmpty()?typeName:namespace+"."+typeName);
+            o.append("\n").append(i+1).append(". ").append(namespace.isEmpty()?typeName:namespace+"."+typeName)
+                    .append(" (TypeDef token 0x").append(hex(0x02000000L | (i + 1))).append(')');
             if((flags&0x20)!=0)o.append(" [interface]");
             o.append('\n');
             appendMembers(o,"Field",firstField,nextField,4,fieldSize,200);
@@ -192,7 +201,9 @@ final class DotNetMetadataReader {
             int shown = (int) Math.min(Math.min(next - first, 200), rows[23] + 1 - first);
             for (int j = 0; j < shown; j++) {
                 long propertyRow = tableBase[23] + (first - 1 + j) * propertySize;
-                o.append("   Property: ").append(str(indexString(propertyRow + 2))).append('\n');
+                o.append("   Property: ").append(str(indexString(propertyRow + 2)))
+                        .append(" (Property token 0x").append(hex(0x17000000L | (first + j))).append(')')
+                        .append('\n');
             }
             if (next - first > shown) {
                 o.append("   … additional properties omitted by display cap.\n");
@@ -209,7 +220,11 @@ final class DotNetMetadataReader {
         for(int j=0;j<count;j++){
             long p=tableBase[table]+(first-1+j)*size;
             int name= table==4 ? indexString(p+2) : indexString(p+8);
-            o.append("   ").append(label).append(": ").append(str(name)).append('\n');
+            long row = first + j;
+            long token = (table == 4 ? 0x04000000L : 0x06000000L) | row;
+            o.append("   ").append(label).append(": ").append(str(name))
+                    .append(" (").append(label).append(table == 4 ? " token 0x" : "Def token 0x")
+                    .append(hex(token)).append(')').append('\n');
         }
         if(next-first>count)o.append("   … additional ").append(label.toLowerCase(Locale.ROOT)).append(" entries omitted\n");
     }
