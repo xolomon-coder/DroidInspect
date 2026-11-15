@@ -38,6 +38,14 @@ public final class DotNetMetadataReaderSelfTest {
                 require(report, "Field: fieldOne");
                 require(report, "Method: Run");
                 require(report, "Property: DisplayName");
+                require(report, "Event: Changed");
+                require(report, "TypeDef token 0x02000001");
+                require(report, "Field token 0x04000001");
+                require(report, "MethodDef token 0x06000001");
+                require(report, "Property token 0x17000001");
+                require(report, "Event token 0x14000001");
+                require(report, "AssemblyRef token 0x23000001");
+                require(report, "Public-key token: null");
                 if (report.contains("Metadata decoding: INCOMPLETE")) {
                     throw new AssertionError(report);
                 }
@@ -59,6 +67,7 @@ public final class DotNetMetadataReaderSelfTest {
         int method = strings.add("Run");
         int property = strings.add("DisplayName");
         int reference = strings.add("mscorlib");
+        int eventName = strings.add("Changed");
         byte[] stringHeap = strings.bytes();
         byte[] blobHeap = new byte[]{0};
         byte[] guidHeap = new byte[16];
@@ -68,9 +77,10 @@ public final class DotNetMetadataReaderSelfTest {
         DataOutputStream t = new DataOutputStream(tableBytes);
         le32(t, 0); t.writeByte(2); t.writeByte(0); t.writeByte(0); t.writeByte(1);
         long valid = (1L << 0) | (1L << 2) | (1L << 4) | (1L << 6)
-                | (1L << 21) | (1L << 23) | (1L << 32) | (1L << 35);
+                | (1L << 18) | (1L << 20) | (1L << 21) | (1L << 23)
+                | (1L << 32) | (1L << 35);
         le64(t, valid); le64(t, 0);
-        for (int i = 0; i < 8; i++) le32(t, 1);
+        for (int i = 0; i < 10; i++) le32(t, 1);
 
         // Module: generation, name, MVID, EncId, EncBaseId.
         le16(t, 0); le16(t, module); le16(t, 1); le16(t, 0); le16(t, 0);
@@ -80,6 +90,10 @@ public final class DotNetMetadataReaderSelfTest {
         le16(t, 6); le16(t, field); le16(t, 0);
         // MethodDef: RVA, ImplFlags, Flags, Name, Signature, ParamList.
         le32(t, 0); le16(t, 0); le16(t, 6); le16(t, method); le16(t, 0); le16(t, 1);
+        // EventMap: parent TypeDef row, first Event row.
+        le16(t, 1); le16(t, 1);
+        // Event: flags, name, EventType coded TypeDefOrRef index (TypeDef row 1).
+        le16(t, 0); le16(t, eventName); le16(t, 4);
         // PropertyMap: parent TypeDef row, first Property row.
         le16(t, 1); le16(t, 1);
         // Property: flags, name, type signature blob.
