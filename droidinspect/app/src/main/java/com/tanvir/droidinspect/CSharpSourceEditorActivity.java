@@ -33,7 +33,7 @@ public class CSharpSourceEditorActivity extends Activity {
     private Spinner filesSpinner;
     private EditText editor;
     private TextView title, status;
-    private Button saveButton, compileButton, exportDllButton;
+    private Button saveButton, compileButton, exportDllButton, exportReportButton;
     private List<File> sourceFiles = new ArrayList<>();
     private File currentFile;
     private File lastBuildFile;
@@ -52,7 +52,7 @@ public class CSharpSourceEditorActivity extends Activity {
         saveButton = findViewById(R.id.sourceEditorSave);
         compileButton = findViewById(R.id.sourceEditorCompile);
         exportDllButton = findViewById(R.id.sourceEditorExportDll);
-        Button exportReportButton = findViewById(R.id.sourceEditorExportReport);
+        exportReportButton = findViewById(R.id.sourceEditorExportReport);
         exportReportButton.setOnClickListener(v -> exportCompatibilityReport());
 
         findViewById(R.id.sourceEditorAdd).setOnClickListener(v -> addFile());
