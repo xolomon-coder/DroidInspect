@@ -178,7 +178,7 @@ final class FileInspectionEngine {
         return out.toString();
     }
 
-    private static String inspectPe(File file, String name) throws Exception {
+    static String inspectPe(File file, String name) throws Exception {
         StringBuilder out = new StringBuilder();
         out.append("DROIDINSPECT — PE / .NET INSPECTION\n\n");
         out.append("File: ").append(name).append('\n');
