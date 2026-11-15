@@ -20,5 +20,5 @@ public final class NativeBridge {
         return loadError;
     }
 
-    public static native String compile(String sourceDirectory, String outputPath, String referenceDirectory);
+    public static native String compile(String sourceDirectory, String outputPath, String referenceDirectory, String originalAssemblyPath);
 }
