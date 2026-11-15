@@ -82,3 +82,84 @@ var value = method.Invoke(instance, null) as string;
 if (value != "M12_EDITED_VALUE")
     throw new Exception("Edited method returned an unexpected value: " + value);
 Console.WriteLine("HOST BEHAVIOR PASS: two-file EditedFixture.GetEditedValue() returned M12_EDITED_VALUE.");
+
+// M13 dependency resolver regression fixtures: exact local match, version mismatch, and missing dependency.
+var m13Root = Path.Combine(Path.GetTempPath(), "droidinspect-m13-" + Guid.NewGuid().ToString("N"));
+var depSource = Path.Combine(m13Root, "dep-source");
+var rootSource = Path.Combine(m13Root, "root-source");
+var localExact = Path.Combine(m13Root, "local-exact");
+var localMismatch = Path.Combine(m13Root, "local-mismatch");
+var localMissing = Path.Combine(m13Root, "local-missing");
+var combinedReferences = Path.Combine(m13Root, "root-references");
+Directory.CreateDirectory(depSource);
+Directory.CreateDirectory(rootSource);
+Directory.CreateDirectory(localExact);
+Directory.CreateDirectory(localMismatch);
+Directory.CreateDirectory(localMissing);
+Directory.CreateDirectory(combinedReferences);
+try
+{
+    foreach (var reference in Directory.GetFiles(args[1], "*.dll"))
+        File.Copy(reference, Path.Combine(combinedReferences, Path.GetFileName(reference)), true);
+
+    File.WriteAllText(Path.Combine(depSource, "Dependency.cs"), """
+        [assembly: System.Reflection.AssemblyVersion("1.0.0.0")]
+        namespace M13.DependencyFixture;
+        public sealed class FixtureDependency
+        {
+            public string Value => "dependency-ok";
+        }
+        """);
+    var depPath = Path.Combine(localExact, "M13.DependencyFixture.dll");
+    var depBuild = CompilerService.Compile(depSource, depPath, args[1]);
+    if (!depBuild.StartsWith("M12 COMPILATION PASS", StringComparison.Ordinal))
+        throw new Exception("M13 exact dependency fixture did not compile.");
+    File.Copy(depPath, Path.Combine(combinedReferences, Path.GetFileName(depPath)), true);
+
+    File.WriteAllText(Path.Combine(rootSource, "Root.cs"), """
+        using M13.DependencyFixture;
+        public sealed class RootFixture
+        {
+            public string Read() => new FixtureDependency().Value;
+        }
+        """);
+    var rootPath = Path.Combine(m13Root, "RootFixture.dll");
+    var rootBuild = CompilerService.Compile(rootSource, rootPath, combinedReferences);
+    if (!rootBuild.StartsWith("M12 COMPILATION PASS", StringComparison.Ordinal))
+        throw new Exception("M13 root dependency fixture did not compile.");
+
+    var exact = DependencyResolver.Resolve(rootPath, localExact, args[1]);
+    Console.WriteLine(exact);
+    if (!exact.Contains("RESOLVED LOCAL: M13.DependencyFixture", StringComparison.Ordinal)
+        || !exact.Contains("RESOLUTION RESULT: ALL DISCOVERED REFERENCES RESOLVED EXACTLY", StringComparison.Ordinal))
+        throw new Exception("M13 resolver did not resolve an exact local dependency and framework references.");
+
+    var mismatchSource = Path.Combine(m13Root, "mismatch-source");
+    Directory.CreateDirectory(mismatchSource);
+    File.WriteAllText(Path.Combine(mismatchSource, "Dependency.cs"), """
+        [assembly: System.Reflection.AssemblyVersion("2.0.0.0")]
+        namespace M13.DependencyFixture;
+        public sealed class FixtureDependency
+        {
+            public string Value => "wrong-version";
+        }
+        """);
+    var mismatchPath = Path.Combine(localMismatch, "M13.DependencyFixture.dll");
+    var mismatchBuild = CompilerService.Compile(mismatchSource, mismatchPath, args[1]);
+    if (!mismatchBuild.StartsWith("M12 COMPILATION PASS", StringComparison.Ordinal))
+        throw new Exception("M13 mismatched dependency fixture did not compile.");
+    var mismatch = DependencyResolver.Resolve(rootPath, localMismatch, args[1]);
+    if (!mismatch.Contains("IDENTITY MISMATCH:", StringComparison.Ordinal)
+        || !mismatch.Contains("Identity/version mismatches: 1", StringComparison.Ordinal))
+        throw new Exception("M13 resolver silently accepted or failed to identify a mismatched dependency version.");
+
+    var missing = DependencyResolver.Resolve(rootPath, localMissing, args[1]);
+    if (!missing.Contains("UNRESOLVED:", StringComparison.Ordinal)
+        || !missing.Contains("Missing references: 1", StringComparison.Ordinal))
+        throw new Exception("M13 resolver failed to report a missing dependency.");
+    Console.WriteLine("M13 HOST RESOLUTION PASS: exact local dependency, version mismatch, and missing dependency were distinguished.");
+}
+finally
+{
+    Directory.Delete(m13Root, true);
+}
