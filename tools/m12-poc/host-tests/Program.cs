@@ -118,6 +118,7 @@ try
 
     File.WriteAllText(Path.Combine(rootSource, "Root.cs"), """
         using M13.DependencyFixture;
+        [assembly: System.Runtime.Versioning.TargetFramework(".NETCoreApp,Version=v8.0")]
         public sealed class RootFixture
         {
             public string Read() => new FixtureDependency().Value;
@@ -131,6 +132,8 @@ try
     var exact = DependencyResolver.Resolve(rootPath, localExact, args[1]);
     Console.WriteLine(exact);
     if (!exact.Contains("RESOLVED LOCAL: M13.DependencyFixture", StringComparison.Ordinal)
+        || !exact.Contains("Target framework: .NETCoreApp,Version=v8.0", StringComparison.Ordinal)
+        || !exact.Contains("FRAMEWORK WARNING:", StringComparison.Ordinal)
         || !exact.Contains("RESOLUTION RESULT: ALL DISCOVERED REFERENCES RESOLVED EXACTLY", StringComparison.Ordinal))
         throw new Exception("M13 resolver did not resolve an exact local dependency and framework references.");
 
