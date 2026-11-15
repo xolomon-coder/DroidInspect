@@ -2880,3 +2880,31 @@ The same workflow run initially failed only while packaging the isolated proof A
 The verified four-argument JNI/compiler payload was published to production `jniLibs` in commit `e6af8c879488d3568db7594ac177287259624c59`. A new production Android CI run against that exact payload is still required. Android-device compiler execution remains pending for the final consolidated session.
 
 M12 remains IN PROGRESS. Target framework resolution, dependency-aware compilation beyond the bundled .NET 11 reference profile, signing-key support for strong-name assemblies, and actual runtime replacement testing remain bounded or pending.
+
+### M13 offline dependency resolver implementation — 2026-11-16
+
+Added the first offline dependency graph resolver in `tools/m12-poc/engine/DependencyResolver.cs`, exposed through the existing ARM64 Native AOT compiler library and JNI bridge.
+
+Resolver behavior:
+- Reads managed assembly identity and AssemblyRef identities, including requested version, culture and public-key token.
+- Reads TargetFrameworkAttribute where present and reports when the target framework is unknown or does not exactly match the bundled profile.
+- Indexes user-provided local DLL/EXE dependencies and the bundled `.NET 11.0` reference pack.
+- Resolves exact identity matches only; it does not silently substitute a different version, culture or public-key token.
+- Traverses local dependency references recursively, with cycle protection and a 500-assembly safety cap.
+- Reports missing, mismatched, ambiguous and malformed/non-managed candidates.
+- Keeps resolution offline; no Internet permission or automatic upload was added.
+
+Production UI/workspace added:
+- `DotNetDependencyWorkspace.java`: private persistent root-assembly and local-dependency storage, with bounded SAF imports.
+- `DotNetDependencyActivity.java` and `activity_dotnet_dependency.xml`: import local dependencies, resolve offline, display and export the report.
+- Main screen entries to analyze the selected managed assembly and reopen the last dependency project.
+- Manifest registration for the non-exported dependency activity.
+
+Host tests added for:
+1. Exact local dependency plus framework reference resolution.
+2. Same-name dependency with wrong version, which must be reported as an identity mismatch.
+3. Missing dependency, which must remain unresolved.
+
+The M13 host test step completed successfully in workflow run `43771727050` through the Roslyn compiler host-test stage. Full Native AOT/JNI republishing and production Android CI for the new dependency activity are still running and must complete before cloud verification is recorded. Device verification remains pending for the final consolidated session.
+
+M13 remains IN PROGRESS until the full native publish, production APK checks and final device acceptance are complete. The resolver currently uses the bundled .NET 11.0 reference profile; other framework packs are not yet bundled.
