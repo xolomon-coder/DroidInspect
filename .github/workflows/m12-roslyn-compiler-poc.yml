@@ -12,6 +12,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: m12-roslyn-poc-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   compiler-proof:
     if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[m12-assets]')
@@ -120,22 +124,31 @@ jobs:
           cp "$APK" artifacts/DroidInspect-M12-Roslyn-Android-Proof.apk
           sha256sum artifacts/*
 
-      - name: Commit verified native compiler payload for CodeAssist proof build
+      - name: Publish verified native compiler payload to main
         if: github.event_name == 'push' && !contains(github.event.head_commit.message, '[m12-assets]')
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_compiler.so
-          git add tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_jni.so
-          if git diff --cached --quiet; then
-            echo "M12 native compiler payload already current."
-            exit 0
-          fi
-          git commit -m "[m12-assets] Add verified ARM64 Roslyn compiler proof payload"
-          git fetch origin main
-          git rebase origin/main
-          git push origin HEAD:main
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git checkout -B main origin/main
+            cp artifacts/libdroidinspect_m12_compiler.so tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_compiler.so
+            cp artifacts/libdroidinspect_m12_jni.so tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_jni.so
+            git add tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_compiler.so
+            git add tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_jni.so
+            if git diff --cached --quiet; then
+              echo "M12 native compiler payload already matches main."
+              exit 0
+            fi
+            git commit -m "[m12-assets] Update verified ARM64 Roslyn compiler proof payload"
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "Main advanced during payload publication; retrying against latest main (attempt $attempt)."
+          done
+          echo "Could not publish M12 payload after three attempts."
+          exit 1
 
       - uses: actions/upload-artifact@v4
         with:
