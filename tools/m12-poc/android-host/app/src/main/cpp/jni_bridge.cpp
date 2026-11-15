@@ -3,6 +3,7 @@
 #include <climits>
 
 extern "C" void* DroidInspect_M12_Compile(const char*, const char*, const char*, const char*);
+extern "C" void* DroidInspect_M12_ResolveDependencies(const char*, const char*, const char*);
 extern "C" void DroidInspect_M12_FreeResult(void*);
 
 static jstring toJava(JNIEnv* env, const char* value) {
@@ -21,6 +22,30 @@ static jstring toJava(JNIEnv* env, const char* value) {
     jstring result = static_cast<jstring>(env->NewObject(cls, ctor, bytes, charset));
     env->DeleteLocalRef(charset); env->DeleteLocalRef(cls); env->DeleteLocalRef(bytes);
     return result;
+}
+
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_tanvir_m12poc_NativeBridge_resolveDependencies(JNIEnv* env, jclass, jstring root, jstring local, jstring refs) {
+    if (env == nullptr || root == nullptr || local == nullptr || refs == nullptr)
+        return toJava(env, "M13 JNI ERROR: Missing dependency resolver path.");
+    const char* r = env->GetStringUTFChars(root, nullptr);
+    const char* l = env->GetStringUTFChars(local, nullptr);
+    const char* f = env->GetStringUTFChars(refs, nullptr);
+    if (r == nullptr || l == nullptr || f == nullptr) {
+        if (f != nullptr) env->ReleaseStringUTFChars(refs, f);
+        if (l != nullptr) env->ReleaseStringUTFChars(local, l);
+        if (r != nullptr) env->ReleaseStringUTFChars(root, r);
+        return toJava(env, "M13 JNI ERROR: Cannot read dependency resolver path.");
+    }
+    void* result = DroidInspect_M12_ResolveDependencies(r, l, f);
+    env->ReleaseStringUTFChars(refs, f);
+    env->ReleaseStringUTFChars(local, l);
+    env->ReleaseStringUTFChars(root, r);
+    if (result == nullptr) return toJava(env, "M13 native dependency resolver returned no result.");
+    jstring text = toJava(env, static_cast<const char*>(result));
+    DroidInspect_M12_FreeResult(result);
+    return text;
 }
 
 extern "C" JNIEXPORT jstring JNICALL
