@@ -2928,3 +2928,19 @@ Generated payload commit: `5a01fa56c51bb7762d8e6267cd890ef694828457`.
 Production M13 Java/XML screen and main-screen navigation passed the Android debug/release build and existing APK signing/tamper CI in runs `43771678762` and `43771727048`. Those runs predate the workflow-generated native payload commit. A fresh production Android CI run against the exact `5a01fa56` native payload is required; this README update triggers that verification.
 
 M13 remains IN PROGRESS until that production CI completes and the consolidated Android device session verifies dependency resolution. No device PASS is claimed.
+
+### M13 final automated implementation gates — 2026-11-16
+
+M13 dependency resolver now also reports target-framework requirements for transitive local dependencies, including missing TargetFrameworkAttribute and framework/profile mismatches. Host fixtures explicitly declare `.NETCoreApp,Version=v8.0` against the bundled .NET 11.0 profile and assert a framework warning rather than a false compatibility PASS.
+
+M12/M13 workflow run `43772390454` (run #37) completed successfully:
+- Host compilation and M12 regression tests: PASS.
+- M13 exact local dependency, mismatched version, missing reference and target-framework warning tests: PASS.
+- Native AOT Bionic ARM64 publish: PASS.
+- JNI bridge link and dependency-resolver export symbol verification: PASS.
+- Isolated proof APK packaging and offline/ABI checks: PASS.
+- Native payload publication and artifact upload: PASS.
+
+Latest workflow-generated native payload commit: `29ea824cc26467f6eaa41dc206198334476956c2`. A fresh production Android CI run against this exact payload is still required; this documentation commit triggers that run.
+
+M13 code and automated host/CI coverage are implemented. Device acceptance remains pending for the consolidated final session. The resolver is offline-only and uses the bundled .NET 11.0 reference profile; other framework packs are not yet bundled.
