@@ -282,7 +282,7 @@ final class FileInspectionEngine {
             out.append("AssemblyRef table rows: ").append(findTableRows(raf, metadataOffset, metadataSize, file.length(), 0x23)).append('\n');
             out.append(DotNetMetadataReader.inspect(raf, metadataOffset, metadataSize, file.length()));
             out.append("\nPHASE 1 SCOPE\n");
-            out.append("This build performs bounded assembly identity, reference, type, field, and method metadata decoding. C# decompilation, IL editing, and assembly rewriting are not implemented.");
+            out.append("This screen performs bounded PE/CLI metadata inspection. Raw IL browsing, constrained IL editing, and offline C# decompilation are available through separate DroidInspect tools. Metadata inspection does not prove Android runtime compatibility.");
         }
         return out.toString();
     }
