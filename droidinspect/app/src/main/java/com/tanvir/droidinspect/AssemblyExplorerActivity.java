@@ -37,7 +37,7 @@ import java.util.regex.Pattern;
 public final class AssemblyExplorerActivity extends Activity {
     private static final long MAX_INPUT = 512L * 1024L * 1024L;
     private static final String[] CATEGORIES = {
-            "Tree", "All", "Methods", "Fields", "Properties", "Events", "References", "Bookmarks"
+            "Tree", "All", "Methods", "Fields", "Properties", "Events", "References", "Type references", "Member references", "Type specifications", "Method specifications", "Bookmarks"
     };
     private static final String[] SORTS = {"Name A-Z", "Metadata token", "Owner"};
 
@@ -169,11 +169,31 @@ public final class AssemblyExplorerActivity extends Activity {
                 owner = "";
                 continue;
             }
+            if (line.equals("TYPE REFERENCES (") || line.startsWith("TYPE REFERENCES (")) { section = "Type references"; owner = ""; continue; }
+            if (line.startsWith("MEMBER REFERENCES (")) { section = "Member references"; owner = ""; continue; }
+            if (line.startsWith("TYPE SPECIFICATIONS (")) { section = "Type specifications"; owner = ""; continue; }
+            if (line.startsWith("METHOD SPECIFICATIONS (")) { section = "Method specifications"; owner = ""; continue; }
             if (line.equals("TYPES AND MEMBERS")) { section = "Types"; owner = ""; continue; }
             if (line.equals("PROPERTIES")) { section = "Properties"; owner = ""; continue; }
             if (line.equals("EVENTS")) { section = "Events"; owner = ""; continue; }
             if (line.startsWith("Decode status:") || line.startsWith("PHASE 1 SCOPE")) { section = ""; continue; }
 
+            if ("Type references".equals(section) && line.matches("^\\d+\\..*TypeRef token 0x[0-9A-Fa-f]{8}.*$")) {
+                allEntries.add(new Entry("Type references", token(line, tokenPattern), "", line, line, null));
+                continue;
+            }
+            if ("Member references".equals(section) && line.matches("^\\d+\\..*MemberRef token 0x[0-9A-Fa-f]{8}.*$")) {
+                allEntries.add(new Entry("Member references", token(line, tokenPattern), "", line, line, null));
+                continue;
+            }
+            if ("Type specifications".equals(section) && line.matches("^\\d+\\..*TypeSpec token 0x[0-9A-Fa-f]{8}.*$")) {
+                allEntries.add(new Entry("Type specifications", token(line, tokenPattern), "", line, line, null));
+                continue;
+            }
+            if ("Method specifications".equals(section) && line.matches("^\\d+\\..*MethodSpec token 0x[0-9A-Fa-f]{8}.*$")) {
+                allEntries.add(new Entry("Method specifications", token(line, tokenPattern), "", line, line, null));
+                continue;
+            }
             if ("References".equals(section)) {
                 if (!line.matches("^\\d+\\..*AssemblyRef token 0x[0-9A-Fa-f]{8}.*$")) continue;
                 String token = token(line, tokenPattern);
@@ -256,7 +276,9 @@ public final class AssemblyExplorerActivity extends Activity {
                         || "Properties".equals(entry.category) || "Events".equals(entry.category));
             } else if ("Tree".equals(selected)) {
                 include = "Types".equals(entry.category) || "Assembly".equals(entry.category)
-                        || "Module".equals(entry.category) || "References".equals(entry.category);
+                        || "Module".equals(entry.category) || "References".equals(entry.category)
+                        || "Type references".equals(entry.category) || "Member references".equals(entry.category)
+                        || "Type specifications".equals(entry.category) || "Method specifications".equals(entry.category);
             } else if ("All".equals(selected)) {
                 include = true;
             } else if ("Bookmarks".equals(selected)) {
@@ -297,7 +319,60 @@ public final class AssemblyExplorerActivity extends Activity {
             filter();
             return;
         }
+        if (entry.method != null) {
+            showMethodEntry(entry);
+            return;
+        }
         showEntry(entry);
+    }
+
+    private void showMethodEntry(Entry entry) {
+        Set<String> referenced = referencedTokens(entry.method.body);
+        String message = "Category: Methods\\nMetadata token: " + entry.token + "\\nOwner: " + entry.owner
+                + "\\nRVA: 0x" + String.format(Locale.ROOT, "%08X", entry.method.rva)
+                + "\\nReferenced metadata tokens: " + referenced.size() + "\\n\\n" + entry.detail;
+        boolean bookmarked = getBookmarks().contains(entry.token);
+        new AlertDialog.Builder(this)
+                .setTitle(entry.label)
+                .setMessage(message)
+                .setNegativeButton("CLOSE", null)
+                .setNeutralButton("REFERENCES", (dialog, which) -> showReferencedTokens(entry.method))
+                .setPositiveButton(bookmarked ? "REMOVE BOOKMARK" : "BOOKMARK",
+                        (dialog, which) -> toggleBookmark(entry.token))
+                .show();
+    }
+
+    private Set<String> referencedTokens(String body) {
+        Set<String> values = new java.util.LinkedHashSet<>();
+        Matcher matcher = Pattern.compile("token 0x([0-9A-Fa-f]{8})").matcher(body == null ? "" : body);
+        while (matcher.find()) values.add("0x" + matcher.group(1).toUpperCase(Locale.ROOT));
+        return values;
+    }
+
+    private void showReferencedTokens(DotNetIlReader.MethodInfo method) {
+        ArrayList<String> tokens = new ArrayList<>(referencedTokens(method.body));
+        if (tokens.isEmpty()) {
+            Toast.makeText(this, "This method has no decoded metadata-token operands.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        ArrayList<String> labels = new ArrayList<>();
+        ArrayList<Entry> targets = new ArrayList<>();
+        for (String token : tokens) {
+            Entry found = null;
+            for (Entry candidate : allEntries) if (token.equals(candidate.token)) { found = candidate; break; }
+            targets.add(found);
+            labels.add(found == null ? token + " — not present in the bounded index"
+                    : token + " — " + found.label);
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("Metadata references — " + method.name)
+                .setItems(labels.toArray(new String[0]), (dialog, which) -> {
+                    Entry target = targets.get(which);
+                    if (target != null) showEntry(target);
+                    else Toast.makeText(this, "Referenced token is outside the current index or display cap.", Toast.LENGTH_LONG).show();
+                })
+                .setNegativeButton("CLOSE", null)
+                .show();
     }
 
     private void showEntry(Entry entry) {
