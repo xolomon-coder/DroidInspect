@@ -341,7 +341,7 @@ Build progressively, preserve existing work, verify actual functionality, mainta
 
 # DroidInspect — Product Specification and Development Plan
 
-Last project-plan update: 2026-11-14 (M11 device verification update)
+Last project-plan update: 2026-11-16 (M12–M15 implementation and CI update)
 
 ## 1. App Goal
 
@@ -527,11 +527,11 @@ The long-term roadmap has **20 milestones**, grouped into eight phases. M1–M10
 
 ### Phase 5 — C# source editing and managed assembly rebuilding
 
-**M12 — C# Source Editing & DLL Recompilation (IN PROGRESS — COMPILER FEASIBILITY FIRST)**
+**M12 — C# Source Editing & DLL Recompilation (IN PROGRESS — PRODUCTION INTEGRATION PRESENT; DEVICE ACCEPTANCE PENDING)**
 
 **Objective:** Let the user edit reconstructed C# source as a separate working copy and, where technically supported, compile that edited source into a new managed DLL without modifying the original assembly or the original decompilation result.
 
-**Start gate:** SATISFIED. The user accepted the integrated production M11 workflow on 2026-11-14. M12 began on 2026-11-15. The first deliverable is an isolated offline compiler feasibility proof; no compiler is integrated into production until CI and Android-device verification pass.
+**Current status (2026-11-16):** Production Java/XML source workspace and compile/export UI are integrated with the offline Roslyn Native AOT ARM64 compiler through JNI. Host tests, two-file compilation, managed PE/CLI verification, behavioral invocation, invalid-source output preservation, and explicit original-assembly overwrite rejection pass in GitHub Actions. The ARM64 Bionic compiler, JNI bridge, isolated proof APK, and production native payload checks also pass CI. Android execution/compilation on the user's phone remains pending for the consolidated M20 device-testing session. Native AOT trim-analysis warnings IL2091, IL2050, and IL2072 remain visible and unresolved; they must not be described as harmless or as proof of complete runtime safety.
 
 **Required work, in order:**
 
@@ -591,20 +591,20 @@ The long-term roadmap has **20 milestones**, grouped into eight phases. M1–M10
 
 ### Phase 6 — .NET dependency intelligence and advanced assembly tools
 
-**M13 — Dependency and framework resolution**
+**M13 — Dependency and framework resolution (IN PROGRESS — HOST REGRESSION PASS; DEVICE ACCEPTANCE PENDING)**
 - Build on M11's observed unresolved/mismatched-reference diagnostics.
 - Identify required framework/reference assemblies and dependency versions using assembly identity, version, culture, public-key token, target framework, and dependency relationships.
 - Support user-provided local dependencies and carefully validated reference packs; keep offline operation as the default.
 - Add opt-in online-assisted retrieval only with explicit consent, trusted sources, integrity/provenance reporting, licensing checks, and no automatic upload of inspected files.
 - Exit criteria: representative dependency graphs resolve accurately or produce precise, actionable unresolved/mismatch reports; no silent incompatible substitutions.
 
-**M14 — Assembly Explorer and advanced IL Viewer**
+**M14 — Assembly Explorer and advanced IL Viewer (IN PROGRESS — NAMESPACE TREE ADDED; LATEST CI PENDING)**
 - Extend the existing metadata and IL browsing foundations into a navigable assembly tree: assemblies, modules, namespaces, types, fields, properties, events, methods, and references.
 - Improve method navigation, token/RVA display, raw IL inspection, instruction bytes, operands, and cross-reference navigation.
 - Add filters, sorting, bookmarks, and contextual search without removing current inspection/editing behavior.
 - Exit criteria: representative managed assemblies can be explored consistently, and displayed metadata/IL is cross-checked against known fixtures.
 
-**M15 — Advanced C# source editor**
+**M15 — Advanced C# source editor (IN PROGRESS — INITIAL PHONE-ORIENTED EDITOR FEATURES ADDED)**
 - Extend the basic separate-copy source editing/rebuild workflow planned in M12 with a phone-usable multi-file editor.
 - Add syntax highlighting, line numbers, find/replace, file tabs or an equivalent lightweight file navigator, unsaved-change indicators, and readable compiler diagnostics.
 - Preserve original assemblies and untouched decompilation output; save edits as separate source files.
@@ -646,6 +646,27 @@ The long-term roadmap has **20 milestones**, grouped into eight phases. M1–M10
 - Complete final on-device acceptance, release checks, and user-facing documentation.
 - Exit criteria: the agreed roadmap scope is implemented or explicitly bounded, critical device tests pass, CI is reproducible, originals remain protected, and the release status/limitations are documented accurately.
 
+
+## 4.1 Development Log — 2026-11-16
+
+Latest inspected repository branch: `main`.
+Latest inspected HEAD at this documentation update: `687d994eda328a1ca6b32e7f40d1f46fd9f9df86`.
+
+### M12/M13 verification evidence
+- Commit `7922a821cc5a4a5912b75e61ae64a281bbd9202c`: reject compiler output paths that equal the preserved original assembly.
+- Commit `51cf334b170d7417a78ba99c6b7e2ee4daae596d`: add original-assembly overwrite regression; the first test attempt exposed an incorrect hash baseline, corrected in `af2b143636b45d287e8117112cafc3d9ce7599ae`.
+- Commit `c315888bb116aad026b5c8fb0ec52ccbb480c3ab`: framework mismatch warnings now force an incomplete dependency-resolution result.
+- Commit `e4c2a95e4c009066acf73a5889f5d65396855627`: M12/M13 host regression suite and Android debug/release CI passed.
+- M12 compiler workflow run [43777372639](https://github.com/xolomon-coder/DroidInspect/actions/runs/43777372639): all steps passed, including Roslyn host compile, original immutability checks, failed-build preservation, host behavioral invocation, M13 exact/mismatched/missing dependency tests, Bionic ARM64 Native AOT publish, JNI link/export checks, isolated Android proof APK packaging, offline permission check, and native payload publication.
+- M12 workflow artifact: `DroidInspect-M12-Roslyn-Compiler-Proof` (cloud verification only; not the user's normal delivery method).
+- Remaining M12 limitations: Android device execution is pending; only the bundled .NET 11.0 reference pack is currently supplied; strong-name identity preservation and broad decompiled-project recompilation are not proven; Native AOT trim-analysis warnings IL2091, IL2050 and IL2072 remain unresolved.
+- M13 host tests now distinguish exact local resolution from framework compatibility. A .NET 8 target against the bundled .NET 11 reference profile is reported as INCOMPLETE even when its discovered dependency resolves exactly.
+
+### M14/M15 implementation
+- Commit `687d994eda328a1ca6b32e7f40d1f46fd9f9df86`: add namespace entries and namespace-to-type navigation in Assembly Explorer; Android CI is running for this latest change.
+- Commits `33123c8b6437b80766da0a9df39f1326afd9e2a8`, `b4fc6c5a8bf000950c8d3b327afa4b42f51636c2`, and `be80028b884cf509c1c5b2814de81b79f77f4481`: add lightweight offline C# syntax highlighting, line numbers, current-file find/replace, and retain the existing source-file selector as the lightweight file navigator.
+- Android CI run [43777281953](https://github.com/xolomon-coder/DroidInspect/actions/runs/43777281953) passed for the M15 editor build. A later full Android CI run for the namespace-navigation change is pending at the time of this update.
+- No M12–M15 device acceptance is claimed. Device-only usability, performance, compiler execution, and integration tests remain reserved for the consolidated final device session.
 
 ## 5. Development and Creation Process
 
