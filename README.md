@@ -2844,3 +2844,39 @@ Production-side M12 source now:
 Native AOT warnings IL2091, IL2050, and IL2072 remain present and unsuppressed. They are documented and remain an open review item. Roslyn 5.12.0 MIT licensing is now recorded in `THIRD-PARTY-NOTICES.md`; transitive dependency notice review remains pending.
 
 Do not mark M12 complete. The production integration is still in progress and device verification remains deferred to the consolidated final session.
+
+### M12 three-level DLL compatibility report and compiler JNI update — 2026-11-16
+
+Implemented the first structural replacement comparator in `tools/m12-poc/engine/AssemblyCompatibilityReporter.cs`.
+
+The report compares:
+- Assembly name, version, culture and public-key token.
+- TargetFrameworkAttribute when declared.
+- Public type names.
+- Public method names and raw signature blobs.
+- Public field names and signatures.
+- Public property names and signatures.
+- Public event names.
+- Assembly reference identities (name, version, culture and public-key token).
+- Strong-name signed state.
+
+Status rules:
+- Missing/changed original public API, assembly identity or original dependencies are reported as structural FAIL.
+- Additional public API/references and target framework uncertainty/mismatch are reported as WARNING.
+- Exact metadata-level match is PASS.
+- Runtime/behavioral compatibility remains NOT VERIFIED; compilation and metadata comparison cannot prove behavior in the original host application.
+
+The compiler now derives the rebuilt assembly simple name from the preserved original assembly when available. The original assembly is passed through the JNI call and remains a separate, unchanged project file. The source editor saves the full compiler/compatibility report to `build/M12-Build-Compatibility-Report.txt` and offers separate SAF export for the report and rebuilt DLL.
+
+Host regression evidence from M12 workflow run `43770487345`:
+- Genuine two-file managed DLL compilation: PASS.
+- Identity and metadata verification: PASS.
+- Compatibility report generated with Level 1 PASS, Level 2 WARNING (target framework attribute absent in the synthetic fixture), and Level 3 NOT VERIFIED.
+- Invalid C# compile left the previous output DLL byte-for-byte unchanged: PASS.
+- Host loaded the rebuilt DLL and invoked the edited method; result was `M12_EDITED_VALUE`: PASS.
+
+The same workflow run initially failed only while packaging the isolated proof APK because the proof Java declaration had not yet been updated to the expanded four-argument JNI method. That declaration was corrected. M12 workflow run `43770685184` (run #27) then completed successfully: host tests, Native AOT Bionic ARM64 publish, four-argument JNI build, isolated proof APK packaging, offline/ABI checks, native payload publication, and artifact upload all passed.
+
+The verified four-argument JNI/compiler payload was published to production `jniLibs` in commit `e6af8c879488d3568db7594ac177287259624c59`. A new production Android CI run against that exact payload is still required. Android-device compiler execution remains pending for the final consolidated session.
+
+M12 remains IN PROGRESS. Target framework resolution, dependency-aware compilation beyond the bundled .NET 11 reference profile, signing-key support for strong-name assemblies, and actual runtime replacement testing remain bounded or pending.
