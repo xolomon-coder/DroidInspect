@@ -76,6 +76,20 @@
         android:text="Open Last C# Source Workspace"
         android:enabled="false" />
 
+    <Button
+        android:id="@+id/analyzeDependenciesButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Analyze .NET Dependencies Offline"
+        android:enabled="false" />
+
+    <Button
+        android:id="@+id/openDependencyWorkspaceButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Open Last Dependency Project"
+        android:enabled="false" />
+
     <ProgressBar
         android:id="@+id/progressBar"
         style="?android:attr/progressBarStyleHorizontal"
