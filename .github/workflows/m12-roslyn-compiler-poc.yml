@@ -135,8 +135,13 @@ jobs:
             git reset --hard origin/main
             cp artifacts/libdroidinspect_m12_compiler.so tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_compiler.so
             cp artifacts/libdroidinspect_m12_jni.so tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_jni.so
+            mkdir -p droidinspect/app/src/main/jniLibs/arm64-v8a
+            cp artifacts/libdroidinspect_m12_compiler.so droidinspect/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_compiler.so
+            cp artifacts/libdroidinspect_m12_jni.so droidinspect/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_jni.so
             git add tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_compiler.so
             git add tools/m12-poc/android-host/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_jni.so
+            git add droidinspect/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_compiler.so
+            git add droidinspect/app/src/main/jniLibs/arm64-v8a/libdroidinspect_m12_jni.so
             if git diff --cached --quiet; then
               echo "M12 native compiler payload already matches main."
               exit 0
