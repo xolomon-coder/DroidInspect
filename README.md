@@ -2815,3 +2815,32 @@ The production manifest was rechecked and still does not declare `android.permis
 The first production Android CI run after adding the source editor failed at Android resource linking. The exact cause was an invalid XML attribute in `activity_csharp_source_editor.xml`: `android:hintTextColor` is not a framework attribute. It has been corrected to `android:textColorHint` in commit `842febe8d29a5a14966d3292eb62904524a3c274`.
 
 The host parser tests in that failed run all passed; Android resource linking failed before APK compilation, so no APK artifact was produced. A new push-triggered Android CI run is required to verify the correction. No PASS is claimed until that run completes successfully.
+
+### M12 production compiler integration progress — 2026-11-16
+
+The isolated Roslyn compiler proof has now completed successfully again after the host-test fix.
+
+Verified GitHub Actions:
+- M12 Roslyn workflow run `43769428511` (run #17): **SUCCESS**. Host multi-file compile, failed-build preservation test, metadata verification, Native AOT Bionic ARM64 publish, JNI link, isolated Android proof APK packaging, offline/permission checks, and artifact upload all completed successfully.
+- M12 Roslyn workflow run `43769751887` (run #18): **SUCCESS**. The updated publication workflow also copied the verified compiler and JNI shared libraries into the production app's ARM64 `jniLibs` directory.
+- DroidInspect Android CI run `43769428468` (run #314): **SUCCESS**. Existing metadata, IL, DEX host tests and debug/release APK compilation, APK signing, signature verification, and tamper rejection completed.
+
+The latest generated production compiler payload is:
+- `libdroidinspect_m12_compiler.so`: 35,239,464 bytes.
+- `libdroidinspect_m12_jni.so`: 10,704 bytes.
+- ARM64 only. The compiler adds approximately 35.25 MB of native payload before APK compression.
+
+Production-side M12 source now:
+- Preserves a separate copy of the original selected assembly inside the source project (512 MB safety cap).
+- Retains untouched decompilation separately from editable source.
+- Provides a Java JNI bridge in `com.tanvir.m12poc.NativeBridge`.
+- Adds an offline Roslyn compile action for all project `.cs` files, using the bundled .NET 11 reference profile.
+- Writes the rebuilt managed DLL to the project's separate `build/DroidInspect.Rebuilt.dll` output.
+- Checks the output MZ signature and uses the native compiler's PE/CLI metadata verification before enabling separate SAF export.
+- Does not overwrite the original assembly.
+
+**Still pending:** compatibility comparison against the preserved original assembly (identity, target framework, public API signatures, dependencies, signing status), the three-level DLL Replacement Compatibility Report, full production APK CI after the latest integration commits, and Android-device compiler execution. The compiler is currently tied to the .NET 11 reference profile; this is not general target-framework resolution.
+
+Native AOT warnings IL2091, IL2050, and IL2072 remain present and unsuppressed. They are documented and remain an open review item. Roslyn 5.12.0 MIT licensing is now recorded in `THIRD-PARTY-NOTICES.md`; transitive dependency notice review remains pending.
+
+Do not mark M12 complete. The production integration is still in progress and device verification remains deferred to the consolidated final session.
