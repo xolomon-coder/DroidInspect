@@ -105,3 +105,19 @@ Production Java source now calls the JNI entry point through `com.tanvir.m12poc.
 Verified payload sizes: compiler 35,239,464 bytes; JNI bridge 10,704 bytes. ARM64 only.
 
 The production integration still requires full Android CI after all integration changes, and actual device execution remains pending. Compatibility comparison and the three-level DLL replacement report are not implemented yet. The only compiler reference profile currently bundled is .NET 11.0. The Native AOT warnings IL2091, IL2050, and IL2072 remain unsuppressed.
+
+## Three-level replacement report and JNI signature update — 2026-11-16
+
+Added `engine/AssemblyCompatibilityReporter.cs`. It compares assembly identity, target framework attribute, public types, public method/field/property signatures, public events, assembly-reference identities and strong-name signed state. It reports structural PASS/FAIL/WARNING/NOT VERIFIED without claiming runtime behavior. The compiler uses the original assembly simple name when an original path is supplied.
+
+The original assembly path is now a fourth argument through NativeExports → JNI → Java. The isolated proof Java bridge was updated to the same signature.
+
+Host regression evidence:
+- Two-file compilation and PE/CLI metadata: PASS.
+- Three-level compatibility report: generated; synthetic fixture correctly reports Level 2 WARNING because neither fixture contains TargetFrameworkAttribute, and Level 3 NOT VERIFIED.
+- Invalid compile preserves previous output byte-for-byte: PASS.
+- Host loads rebuilt assembly and edited method returns `M12_EDITED_VALUE`: PASS.
+
+M12 workflow run `43770685184` (run #27) completed successfully, including Native AOT Bionic ARM64 publishing, JNI link, isolated proof APK, offline checks, production payload publication and artifact upload. Verified production native payload is at `droidinspect/app/src/main/jniLibs/arm64-v8a/`.
+
+The production source editor now saves and exports `M12-Build-Compatibility-Report.txt` separately from the rebuilt DLL. Android-device execution and final production CI against the latest four-argument native payload remain pending. Compiler reference support remains limited to the bundled .NET 11 profile.
