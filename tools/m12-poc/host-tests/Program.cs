@@ -7,7 +7,28 @@ using DroidInspect.M12;
 if (args.Length != 3)
     throw new ArgumentException("Usage: HostTests <source-directory> <reference-directory> <output-dll>");
 
-var result = CompilerService.Compile(args[0], args[2], args[1]);
+var originalDirectory = Path.Combine(Path.GetTempPath(), "droidinspect-m12-original-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(originalDirectory);
+var originalPath = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(args[2]))!, "OriginalFixture.dll");
+try
+{
+    File.WriteAllText(Path.Combine(originalDirectory, "EditedFixture.cs"), """
+        namespace DroidInspect.M12Fixture;
+        public sealed class EditedFixture
+        {
+            public string GetEditedValue() => "M12_ORIGINAL_VALUE";
+        }
+        """);
+    var originalResult = CompilerService.Compile(originalDirectory, originalPath, args[1]);
+    if (!originalResult.StartsWith("M12 COMPILATION PASS", StringComparison.Ordinal))
+        throw new Exception("Could not build original compatibility fixture.");
+}
+finally
+{
+    Directory.Delete(originalDirectory, true);
+}
+
+var result = CompilerService.Compile(args[0], args[2], args[1], originalPath);
 Console.WriteLine(result);
 if (!result.StartsWith("M12 COMPILATION PASS", StringComparison.Ordinal))
     throw new Exception("Roslyn compiler proof failed.");
@@ -16,6 +37,10 @@ if (!result.Contains("Source files: 2", StringComparison.Ordinal))
 if (!result.Contains("Public-key token:", StringComparison.Ordinal)
     || !result.Contains("Strong-name public key present:", StringComparison.Ordinal))
     throw new Exception("Assembly identity verification report is incomplete.");
+if (!result.Contains("LEVEL 1 — COMPILATION: PASS", StringComparison.Ordinal)
+    || !result.Contains("LEVEL 2 — STRUCTURAL COMPATIBILITY: WARNING", StringComparison.Ordinal)
+    || !result.Contains("LEVEL 3 — RUNTIME / BEHAVIORAL COMPATIBILITY: NOT VERIFIED", StringComparison.Ordinal))
+    throw new Exception("The three-level DLL replacement compatibility report is incomplete or overclaims compatibility.");
 
 var originalOutput = File.ReadAllBytes(args[2]);
 var originalHash = Convert.ToHexString(SHA256.HashData(originalOutput));
@@ -24,7 +49,7 @@ Directory.CreateDirectory(invalidDirectory);
 try
 {
     File.WriteAllText(Path.Combine(invalidDirectory, "Broken.cs"), "public class Broken { this is not valid C# }");
-    var failed = CompilerService.Compile(invalidDirectory, args[2], args[1]);
+    var failed = CompilerService.Compile(invalidDirectory, args[2], args[1], originalPath);
     Console.WriteLine(failed);
     if (!failed.StartsWith("M12 COMPILE FAILED", StringComparison.Ordinal))
         throw new Exception("Invalid source unexpectedly compiled.");
