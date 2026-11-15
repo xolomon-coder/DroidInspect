@@ -20,7 +20,7 @@ public class MainActivity extends Activity {
     private ProgressBar progressBar;
     private Button openButton, diagnosticsButton, browseDexButton, browseResourcesButton;
     private Button browseDotNetButton, decompileCsharpButton, apkSigningButton, openSourceWorkspaceButton;
-    private Button analyzeDependenciesButton, openDependencyWorkspaceButton;
+    private Button analyzeDependenciesButton, openDependencyWorkspaceButton, assemblyExplorerButton;
     private Uri selectedUri;
     private String selectedName = "Selected assembly";
     private boolean canBrowseDex, canBrowseApk, canBrowseDotNet;
@@ -41,6 +41,7 @@ public class MainActivity extends Activity {
         openSourceWorkspaceButton = findViewById(R.id.openSourceWorkspaceButton);
         analyzeDependenciesButton = findViewById(R.id.analyzeDependenciesButton);
         openDependencyWorkspaceButton = findViewById(R.id.openDependencyWorkspaceButton);
+        assemblyExplorerButton = findViewById(R.id.assemblyExplorerButton);
         browseDexButton.setEnabled(false);
         browseResourcesButton.setEnabled(false);
         browseDotNetButton.setEnabled(false);
@@ -65,6 +66,7 @@ public class MainActivity extends Activity {
         openSourceWorkspaceButton.setOnClickListener(v -> openLastSourceWorkspace());
         analyzeDependenciesButton.setOnClickListener(v -> openDependencyProject());
         openDependencyWorkspaceButton.setOnClickListener(v -> openLastDependencyProject());
+        assemblyExplorerButton.setOnClickListener(v -> openAssemblyExplorer());
         browseDotNetButton.setOnClickListener(v -> {
             if (selectedUri == null || !canBrowseDotNet) return;
             Intent intent = new Intent(this, DotNetIlActivity.class);
@@ -95,6 +97,13 @@ public class MainActivity extends Activity {
         startActivity(intent);
     }
 
+    private void openAssemblyExplorer() {
+        if (selectedUri == null || !canBrowseDotNet) return;
+        Intent intent = new Intent(this, AssemblyExplorerActivity.class);
+        intent.putExtra("assembly_uri", selectedUri.toString());
+        startActivity(intent);
+    }
+
     private void openDependencyProject() {
         if (selectedUri == null || !canBrowseDotNet) return;
         Intent intent = new Intent(this, DotNetDependencyActivity.class);
@@ -119,6 +128,8 @@ public class MainActivity extends Activity {
             openDependencyWorkspaceButton.setEnabled(DotNetDependencyWorkspace.getLastProjectId(this) != null);
         if (analyzeDependenciesButton != null)
             analyzeDependenciesButton.setEnabled(selectedUri != null && canBrowseDotNet);
+        if (assemblyExplorerButton != null)
+            assemblyExplorerButton.setEnabled(selectedUri != null && canBrowseDotNet);
     }
 
     private void updateSourceWorkspaceButton() {
@@ -259,6 +270,7 @@ public class MainActivity extends Activity {
         browseDotNetButton.setEnabled(!busy && canBrowseDotNet);
         decompileCsharpButton.setEnabled(!busy && canBrowseDotNet);
         analyzeDependenciesButton.setEnabled(!busy && canBrowseDotNet);
+        assemblyExplorerButton.setEnabled(!busy && canBrowseDotNet);
         openDependencyWorkspaceButton.setEnabled(!busy && DotNetDependencyWorkspace.getLastProjectId(this) != null);
         openSourceWorkspaceButton.setEnabled(!busy && CSharpSourceWorkspace.getLastProjectId(this) != null);
         statusView.setText(status);
