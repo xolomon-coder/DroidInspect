@@ -1,6 +1,6 @@
-using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
+using System.Security.Cryptography;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
@@ -11,6 +11,7 @@ public static class CompilerService
 {
     public static string Compile(string sourceDirectory, string outputPath, string referenceDirectory)
     {
+        string? temporaryOutput = null;
         try
         {
             if (!Directory.Exists(sourceDirectory))
@@ -31,13 +32,15 @@ public static class CompilerService
             var metadataReferences = referenceFiles
                 .Select(x => MetadataReference.CreateFromFile(x))
                 .ToArray();
-
             var trees = sources.Select(x => CSharpSyntaxTree.ParseText(
                 File.ReadAllText(x),
                 new CSharpParseOptions(LanguageVersion.Latest),
                 x)).ToArray();
 
             var assemblyName = Path.GetFileNameWithoutExtension(outputPath);
+            if (string.IsNullOrWhiteSpace(assemblyName))
+                return "M12 COMPILE FAILED: Output assembly name is invalid.";
+
             var compilation = CSharpCompilation.Create(
                 assemblyName,
                 trees,
@@ -54,8 +57,11 @@ public static class CompilerService
                 return "M12 COMPILE FAILED: Output directory is invalid.";
             Directory.CreateDirectory(parent);
 
+            temporaryOutput = Path.Combine(parent,
+                "." + Path.GetFileName(fullOutput) + "." + Guid.NewGuid().ToString("N") + ".tmp");
+
             EmitResult emit;
-            using (var stream = new FileStream(fullOutput, FileMode.Create, FileAccess.Write, FileShare.None))
+            using (var stream = new FileStream(temporaryOutput, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                 emit = compilation.Emit(stream);
 
             var diagnostics = emit.Diagnostics
@@ -66,22 +72,21 @@ public static class CompilerService
                 .ToArray();
 
             if (!emit.Success)
-            {
-                if (File.Exists(fullOutput)) File.Delete(fullOutput);
                 return "M12 COMPILE FAILED\n" + string.Join("\n", diagnostics);
-            }
 
-            var verification = VerifyManagedAssembly(fullOutput);
+            var verification = VerifyManagedAssembly(temporaryOutput);
             if (!verification.StartsWith("PASS:", StringComparison.Ordinal))
-            {
-                File.Delete(fullOutput);
                 return "M12 OUTPUT VERIFICATION FAILED\n" + verification;
-            }
 
-            var warnings = diagnostics.Where(x => x.Contains("warning", StringComparison.OrdinalIgnoreCase)).ToArray();
+            // Replace the destination only after a complete, verified DLL exists.
+            File.Move(temporaryOutput, fullOutput, true);
+            temporaryOutput = null;
+
+            var warnings = diagnostics.Where(x =>
+                x.Contains("warning", StringComparison.OrdinalIgnoreCase)).ToArray();
             return "M12 COMPILATION PASS\n"
                 + "Compiler: Roslyn 5.12.0\n"
-                + "Target framework references: .NET 11.0\n"
+                + "Reference profile: caller-supplied directory (currently .NET 11.0 in the Android proof)\n"
                 + "Source files: " + sources.Length + "\n"
                 + "Framework references: " + referenceFiles.Length + "\n"
                 + "Output: " + fullOutput + "\n"
@@ -94,6 +99,13 @@ public static class CompilerService
         {
             return "M12 COMPILER ERROR: " + ex.GetType().Name + ": " + ex.Message;
         }
+        finally
+        {
+            if (temporaryOutput != null && File.Exists(temporaryOutput))
+            {
+                try { File.Delete(temporaryOutput); } catch { }
+            }
+        }
     }
 
     private static string VerifyManagedAssembly(string path)
@@ -105,27 +117,33 @@ public static class CompilerService
         var reader = pe.GetMetadataReader();
         if (!reader.IsAssembly)
             return "FAIL: Output is a netmodule, not a managed assembly.";
+
         var assembly = reader.GetAssemblyDefinition();
         var name = reader.GetString(assembly.Name);
-        var foundType = false;
-        var foundMethod = false;
-        foreach (var handle in reader.TypeDefinitions)
-        {
-            var type = reader.GetTypeDefinition(handle);
-            if (reader.GetString(type.Name) == "EditedFixture")
-            {
-                foundType = true;
-                foreach (var methodHandle in type.GetMethods())
-                {
-                    var method = reader.GetMethodDefinition(methodHandle);
-                    if (reader.GetString(method.Name) == "GetEditedValue")
-                        foundMethod = true;
-                }
-            }
-        }
-        if (!foundType || !foundMethod)
-            return "FAIL: Expected edited type/method was not found in emitted metadata.";
-        return "PASS: PE/CLI metadata verified; assembly=" + name
-            + "; edited symbol=EditedFixture.GetEditedValue";
+        var culture = assembly.Culture.IsNil ? "neutral" : reader.GetString(assembly.Culture);
+        var publicKey = assembly.PublicKey.IsNil ? Array.Empty<byte>() : reader.GetBlobBytes(assembly.PublicKey);
+        var token = GetPublicKeyToken(publicKey);
+        var typeCount = reader.TypeDefinitions.Count;
+        var methodCount = reader.MethodDefinitions.Count;
+
+        return "PASS: PE/CLI metadata verified\n"
+            + "Assembly name: " + name + "\n"
+            + "Version: " + assembly.Version + "\n"
+            + "Culture: " + culture + "\n"
+            + "Public-key token: " + token + "\n"
+            + "Public types: " + typeCount + "\n"
+            + "Methods: " + methodCount + "\n"
+            + "Strong-name public key present: " + (publicKey.Length > 0 ? "yes" : "no");
+    }
+
+    private static string GetPublicKeyToken(byte[] publicKey)
+    {
+        if (publicKey.Length == 0) return "null";
+        using var sha1 = SHA1.Create();
+        var hash = sha1.ComputeHash(publicKey);
+        var token = new byte[8];
+        for (var i = 0; i < token.Length; i++)
+            token[i] = hash[hash.Length - 1 - i];
+        return Convert.ToHexString(token).ToLowerInvariant();
     }
 }
