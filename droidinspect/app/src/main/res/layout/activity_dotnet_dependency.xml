@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="10dp"
+    android:background="#101318">
+
+    <TextView
+        android:id="@+id/dependencyTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Offline .NET Dependency Resolver"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:maxLines="2" />
+
+    <TextView
+        android:id="@+id/dependencyStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
+        android:maxLines="4"
+        android:text="Preparing dependency project…"
+        android:textColor="#80CBC4"
+        android:textSize="12sp" />
+
+    <Button
+        android:id="@+id/dependencyImport"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="IMPORT LOCAL DLL / EXE DEPENDENCIES"
+        android:enabled="false" />
+
+    <Button
+        android:id="@+id/dependencyResolve"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="RESOLVE DEPENDENCIES OFFLINE"
+        android:enabled="false" />
+
+    <Button
+        android:id="@+id/dependencyExport"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="EXPORT DEPENDENCY REPORT"
+        android:enabled="false" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true"
+        android:background="#191F27">
+
+        <TextView
+            android:id="@+id/dependencyReport"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="10dp"
+            android:fontFamily="monospace"
+            android:textColor="#E5EAF0"
+            android:textSize="12sp"
+            android:text="Dependency report will appear here." />
+    </ScrollView>
+</LinearLayout>
