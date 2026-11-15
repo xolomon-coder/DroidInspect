@@ -4,6 +4,6 @@ public sealed class EditedFixture
 {
     public string GetEditedValue()
     {
-        return "M12_EDITED_VALUE";
+        return FixtureSupport.EditedValue;
     }
 }
