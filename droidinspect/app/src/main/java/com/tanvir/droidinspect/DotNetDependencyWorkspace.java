@@ -122,6 +122,7 @@ final class DotNetDependencyWorkspace {
             imported.add(target);
         }
         if (imported.isEmpty()) throw new IOException("No .dll or .exe dependency files were selected.");
+        getReportFile().delete();
         return imported;
     }
 
