@@ -59,7 +59,7 @@ public final class MainActivity extends Activity {
                     if (name.endsWith(".dll")) copyAsset("reference-assemblies/net11.0/" + name, new File(refs, name));
                 }
                 File output = new File(base, "DroidInspect.M12.EditedFixture.dll");
-                result = NativeBridge.compile(source.getAbsolutePath(), output.getAbsolutePath(), refs.getAbsolutePath());
+                result = NativeBridge.compile(source.getAbsolutePath(), output.getAbsolutePath(), refs.getAbsolutePath(), "");
                 if (result.startsWith("M12 COMPILATION PASS")) {
                     if (!output.isFile() || output.length() < 512) {
                         result += "\nJAVA VERIFY FAIL: output file missing or too small.";
