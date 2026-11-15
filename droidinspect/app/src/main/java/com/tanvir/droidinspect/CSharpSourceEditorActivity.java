@@ -17,6 +17,7 @@ import android.widget.Toast;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
@@ -26,6 +27,7 @@ public class CSharpSourceEditorActivity extends Activity {
     private static final int REQUEST_IMPORT = 7101;
     private static final int REQUEST_EXPORT_SOURCE = 7102;
     private static final int REQUEST_EXPORT_DLL = 7103;
+    private static final int REQUEST_EXPORT_REPORT = 7104;
 
     private CSharpSourceWorkspace project;
     private Spinner filesSpinner;
@@ -35,6 +37,7 @@ public class CSharpSourceEditorActivity extends Activity {
     private List<File> sourceFiles = new ArrayList<>();
     private File currentFile;
     private File lastBuildFile;
+    private File lastReportFile;
     private boolean loadingText;
     private boolean dirty;
     private boolean compiling;
@@ -49,6 +52,8 @@ public class CSharpSourceEditorActivity extends Activity {
         saveButton = findViewById(R.id.sourceEditorSave);
         compileButton = findViewById(R.id.sourceEditorCompile);
         exportDllButton = findViewById(R.id.sourceEditorExportDll);
+        Button exportReportButton = findViewById(R.id.sourceEditorExportReport);
+        exportReportButton.setOnClickListener(v -> exportCompatibilityReport());
 
         findViewById(R.id.sourceEditorAdd).setOnClickListener(v -> addFile());
         findViewById(R.id.sourceEditorImport).setOnClickListener(v -> importFiles());
@@ -74,7 +79,9 @@ public class CSharpSourceEditorActivity extends Activity {
             title.setText(project.getDisplayName());
             refreshFiles(null);
             lastBuildFile = project.getBuildOutputFile();
+            lastReportFile = new File(lastBuildFile.getParentFile(), "M12-Build-Compatibility-Report.txt");
             exportDllButton.setEnabled(isManagedPe(lastBuildFile));
+            exportReportButton.setEnabled(lastReportFile.isFile());
             status.setText("Private source workspace. Original assembly and untouched decompilation are preserved.");
         } catch (Exception error) {
             status.setText("SOURCE PROJECT ERROR: " + error.getMessage());
@@ -222,11 +229,25 @@ public class CSharpSourceEditorActivity extends Activity {
             }
             final String report = result;
             final File built = output;
+            try {
+                if (output != null) {
+                    File reportFile = new File(output.getParentFile(), "M12-Build-Compatibility-Report.txt");
+                    try (FileOutputStream reportOutput = new FileOutputStream(reportFile)) {
+                        reportOutput.write(report.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                        reportOutput.flush();
+                        reportOutput.getFD().sync();
+                    }
+                }
+            } catch (IOException reportError) {
+                // The visible report remains available even if report-file persistence fails.
+            }
             runOnUiThread(() -> {
                 compiling = false;
                 compileButton.setEnabled(true);
                 lastBuildFile = built;
+                lastReportFile = built == null ? null : new File(built.getParentFile(), "M12-Build-Compatibility-Report.txt");
                 exportDllButton.setEnabled(isManagedPe(lastBuildFile));
+                exportReportButton.setEnabled(lastReportFile != null && lastReportFile.isFile());
                 status.setText(report);
             });
         }, "DroidInspect-M12-Compiler").start();
@@ -239,6 +260,18 @@ public class CSharpSourceEditorActivity extends Activity {
         } catch (IOException error) {
             return false;
         }
+    }
+
+    private void exportCompatibilityReport() {
+        if (lastReportFile == null || !lastReportFile.isFile()) {
+            status.setText("No saved compatibility report is available.");
+            return;
+        }
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("text/plain");
+        intent.putExtra(Intent.EXTRA_TITLE, "DroidInspect-DLL-Compatibility-Report.txt");
+        startActivityForResult(intent, REQUEST_EXPORT_REPORT);
     }
 
     private void exportRebuiltDll() {
@@ -279,6 +312,20 @@ public class CSharpSourceEditorActivity extends Activity {
                 Toast.makeText(this, "Source project ZIP exported.", Toast.LENGTH_LONG).show();
             } catch (Exception error) {
                 status.setText("EXPORT FAILED: " + error.getMessage());
+            }
+        } else if (requestCode == REQUEST_EXPORT_REPORT) {
+            Uri destination = data.getData();
+            if (destination == null || lastReportFile == null || !lastReportFile.isFile()) return;
+            try (FileInputStream input = new FileInputStream(lastReportFile);
+                 OutputStream output = getContentResolver().openOutputStream(destination)) {
+                if (output == null) throw new IOException("Cannot open report export destination.");
+                byte[] buffer = new byte[8192];
+                int count;
+                while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+                output.flush();
+                Toast.makeText(this, "Compatibility report exported.", Toast.LENGTH_LONG).show();
+            } catch (Exception error) {
+                status.setText("REPORT EXPORT FAILED: " + error.getMessage());
             }
         } else if (requestCode == REQUEST_EXPORT_DLL) {
             Uri destination = data.getData();
