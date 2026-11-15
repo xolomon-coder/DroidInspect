@@ -64,6 +64,19 @@
         android:layout_height="wrap_content"
         android:text="EXPORT SOURCE PROJECT ZIP" />
 
+    <Button
+        android:id="@+id/sourceEditorCompile"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="COMPILE OFFLINE TO NEW DLL" />
+
+    <Button
+        android:id="@+id/sourceEditorExportDll"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:enabled="false"
+        android:text="EXPORT REBUILT DLL" />
+
     <EditText
         android:id="@+id/sourceEditorText"
         android:layout_width="match_parent"
