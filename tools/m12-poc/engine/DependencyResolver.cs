@@ -81,6 +81,13 @@ public static class DependencyResolver
                 report.AppendLine();
                 report.AppendLine((current.Path == root.Path ? "[ROOT] " : "[LOCAL DEPENDENCY] ") + current.Identity);
                 report.AppendLine("  Target framework: " + current.TargetFramework);
+                if (current.Path != root.Path) {
+                    if (current.TargetFramework == "not declared")
+                        frameworkWarnings.Add("Local dependency '" + current.Identity.Name + "' has no readable TargetFrameworkAttribute.");
+                    else if (!StringComparer.OrdinalIgnoreCase.Equals(current.TargetFramework, ".NETCoreApp,Version=v11.0"))
+                        frameworkWarnings.Add("Local dependency '" + current.Identity.Name + "' targets '" + current.TargetFramework
+                            + "' while the bundled reference profile is .NET 11.0.");
+                }
                 if (current.References.Count == 0)
                 {
                     report.AppendLine("  No AssemblyRef rows.");
