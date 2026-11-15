@@ -19,7 +19,7 @@ public class MainActivity extends Activity {
     private TextView reportView, statusView;
     private ProgressBar progressBar;
     private Button openButton, diagnosticsButton, browseDexButton, browseResourcesButton;
-    private Button browseDotNetButton, decompileCsharpButton, apkSigningButton;
+    private Button browseDotNetButton, decompileCsharpButton, apkSigningButton, openSourceWorkspaceButton;
     private Uri selectedUri;
     private String selectedName = "Selected assembly";
     private boolean canBrowseDex, canBrowseApk, canBrowseDotNet;
@@ -37,6 +37,7 @@ public class MainActivity extends Activity {
         browseDotNetButton = findViewById(R.id.browseDotNetButton);
         decompileCsharpButton = findViewById(R.id.decompileCsharpButton);
         apkSigningButton = findViewById(R.id.apkSigningButton);
+        openSourceWorkspaceButton = findViewById(R.id.openSourceWorkspaceButton);
         browseDexButton.setEnabled(false);
         browseResourcesButton.setEnabled(false);
         browseDotNetButton.setEnabled(false);
@@ -57,6 +58,7 @@ public class MainActivity extends Activity {
             startActivity(intent);
         });
         apkSigningButton.setOnClickListener(v -> startActivity(new Intent(this, ApkSigningActivity.class)));
+        openSourceWorkspaceButton.setOnClickListener(v -> openLastSourceWorkspace());
         browseDotNetButton.setOnClickListener(v -> {
             if (selectedUri == null || !canBrowseDotNet) return;
             Intent intent = new Intent(this, DotNetIlActivity.class);
@@ -73,6 +75,28 @@ public class MainActivity extends Activity {
         reportView.setText("Choose an APK, DLL, or EXE file to begin.\n\n"
                 + "APK: archive listing, DEX detection, package metadata, manifest/resource analysis and selected manifest editing.\n\n"
                 + ".NET DLL/EXE: PE structure, CLI header, runtime version and metadata inspection.");
+    }
+
+    private void openLastSourceWorkspace() {
+        String id = CSharpSourceWorkspace.getLastProjectId(this);
+        if (id == null) {
+            statusView.setText("No saved C# source workspace is available.");
+            updateSourceWorkspaceButton();
+            return;
+        }
+        Intent intent = new Intent(this, CSharpSourceEditorActivity.class);
+        intent.putExtra("project_id", id);
+        startActivity(intent);
+    }
+
+    private void updateSourceWorkspaceButton() {
+        if (openSourceWorkspaceButton != null)
+            openSourceWorkspaceButton.setEnabled(CSharpSourceWorkspace.getLastProjectId(this) != null);
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        updateSourceWorkspaceButton();
     }
 
     private void openDocument() {
@@ -194,6 +218,7 @@ public class MainActivity extends Activity {
         browseResourcesButton.setEnabled(!busy && canBrowseApk);
         browseDotNetButton.setEnabled(!busy && canBrowseDotNet);
         decompileCsharpButton.setEnabled(!busy && canBrowseDotNet);
+        openSourceWorkspaceButton.setEnabled(!busy && CSharpSourceWorkspace.getLastProjectId(this) != null);
         statusView.setText(status);
     }
 
