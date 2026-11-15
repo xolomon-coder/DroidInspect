@@ -3,6 +3,7 @@ package com.tanvir.droidinspect;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.Editable;
@@ -10,6 +11,7 @@ import android.text.TextWatcher;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.LinearLayout;
 import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -32,8 +34,8 @@ public class CSharpSourceEditorActivity extends Activity {
     private CSharpSourceWorkspace project;
     private Spinner filesSpinner;
     private EditText editor;
-    private TextView title, status;
-    private Button saveButton, compileButton, exportDllButton, exportReportButton;
+    private TextView title, status, lineNumbers;
+    private Button saveButton, compileButton, exportDllButton, exportReportButton, findButton, replaceButton;
     private List<File> sourceFiles = new ArrayList<>();
     private File currentFile;
     private File lastBuildFile;
@@ -49,11 +51,17 @@ public class CSharpSourceEditorActivity extends Activity {
         status = findViewById(R.id.sourceEditorStatus);
         filesSpinner = findViewById(R.id.sourceEditorFiles);
         editor = findViewById(R.id.sourceEditorText);
+        lineNumbers = findViewById(R.id.sourceEditorLineNumbers);
+        findButton = findViewById(R.id.sourceEditorFind);
+        replaceButton = findViewById(R.id.sourceEditorReplace);
         saveButton = findViewById(R.id.sourceEditorSave);
         compileButton = findViewById(R.id.sourceEditorCompile);
         exportDllButton = findViewById(R.id.sourceEditorExportDll);
         exportReportButton = findViewById(R.id.sourceEditorExportReport);
         exportReportButton.setOnClickListener(v -> exportCompatibilityReport());
+        findButton.setOnClickListener(v -> showFindDialog());
+        replaceButton.setOnClickListener(v -> showReplaceDialog());
+        editor.setOnScrollChangeListener((view, x, y, oldX, oldY) -> lineNumbers.scrollTo(0, y));
 
         findViewById(R.id.sourceEditorAdd).setOnClickListener(v -> addFile());
         findViewById(R.id.sourceEditorImport).setOnClickListener(v -> importFiles());
@@ -70,7 +78,10 @@ public class CSharpSourceEditorActivity extends Activity {
                     updateDirtyState();
                 }
             }
-            @Override public void afterTextChanged(Editable s) { }
+            @Override public void afterTextChanged(Editable s) {
+                CSharpSyntaxHighlighter.apply(s);
+                updateLineNumbers();
+            }
         });
 
         String id = getIntent().getStringExtra("project_id");
@@ -78,6 +89,7 @@ public class CSharpSourceEditorActivity extends Activity {
             project = CSharpSourceWorkspace.open(this, id);
             title.setText(project.getDisplayName());
             refreshFiles(null);
+            updateLineNumbers();
             lastBuildFile = project.getBuildOutputFile();
             lastReportFile = new File(lastBuildFile.getParentFile(), "M12-Build-Compatibility-Report.txt");
             exportDllButton.setEnabled(isManagedPe(lastBuildFile));
@@ -342,6 +354,93 @@ public class CSharpSourceEditorActivity extends Activity {
                 status.setText("DLL EXPORT FAILED: " + error.getMessage());
             }
         }
+    }
+
+    private void updateLineNumbers() {
+        if (lineNumbers == null || editor == null) return;
+        int count = Math.max(1, editor.getLineCount());
+        StringBuilder numbers = new StringBuilder(count * 4);
+        for (int i = 1; i <= count; i++) {
+            if (i > 1) numbers.append('\n');
+            numbers.append(i);
+        }
+        lineNumbers.setText(numbers.toString());
+        lineNumbers.scrollTo(0, editor.getScrollY());
+    }
+
+    private void showFindDialog() {
+        EditText query = new EditText(this);
+        query.setSingleLine(true);
+        query.setHint("Find text in current file");
+        new AlertDialog.Builder(this)
+                .setTitle("Find in C# source")
+                .setView(query)
+                .setNegativeButton("CLOSE", null)
+                .setPositiveButton("FIND NEXT", (dialog, which) -> {
+                    String needle = query.getText().toString();
+                    if (needle.isEmpty()) return;
+                    String source = editor.getText().toString();
+                    int start = Math.max(editor.getSelectionEnd(), 0);
+                    int found = source.indexOf(needle, start);
+                    if (found < 0) found = source.indexOf(needle);
+                    if (found >= 0) {
+                        editor.requestFocus();
+                        editor.setSelection(found, found + needle.length());
+                    } else {
+                        status.setText("No match found in " + currentFile.getName() + ".");
+                    }
+                }).show();
+    }
+
+    private void showReplaceDialog() {
+        LinearLayout fields = new LinearLayout(this);
+        fields.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (16 * getResources().getDisplayMetrics().density);
+        fields.setPadding(pad, 0, pad, 0);
+        EditText find = new EditText(this);
+        find.setSingleLine(true);
+        find.setHint("Find");
+        EditText replacement = new EditText(this);
+        replacement.setSingleLine(true);
+        replacement.setHint("Replace with");
+        fields.addView(find);
+        fields.addView(replacement);
+        new AlertDialog.Builder(this)
+                .setTitle("Replace in current C# file")
+                .setView(fields)
+                .setNegativeButton("CANCEL", null)
+                .setPositiveButton("REPLACE NEXT", (dialog, which) -> {
+                    String needle = find.getText().toString();
+                    if (needle.isEmpty()) return;
+                    String source = editor.getText().toString();
+                    int start = Math.max(editor.getSelectionStart(), 0);
+                    int found = source.indexOf(needle, start);
+                    if (found < 0) found = source.indexOf(needle);
+                    if (found >= 0) {
+                        editor.getText().replace(found, found + needle.length(), replacement.getText());
+                        editor.setSelection(found + replacement.length());
+                    } else {
+                        status.setText("No match found in " + currentFile.getName() + ".");
+                    }
+                })
+                .setNeutralButton("REPLACE ALL", (dialog, which) -> {
+                    String needle = find.getText().toString();
+                    if (needle.isEmpty()) return;
+                    String source = editor.getText().toString();
+                    int count = 0, at = 0;
+                    while ((at = source.indexOf(needle, at)) >= 0) {
+                        count++;
+                        at += needle.length();
+                    }
+                    if (count == 0) {
+                        status.setText("No matches found in " + currentFile.getName() + ".");
+                        return;
+                    }
+                    editor.setText(source.replace(needle, replacement.getText().toString()));
+                    dirty = true;
+                    updateDirtyState();
+                    status.setText("Replaced " + count + " occurrence(s) in " + currentFile.getName() + ".");
+                }).show();
     }
 
     private void updateDirtyState() {
