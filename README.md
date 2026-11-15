@@ -2790,3 +2790,22 @@ Current source-workspace behavior implemented in source:
 - Source project files are kept after the editor closes and the last project ID is persisted so the user can reopen the last saved C# source workspace from the DroidInspect main screen. A full recent-project picker remains a later workspace milestone item.
 
 **Verification:** source changes are committed on `main`; production Android compilation/CI and actual device usability have not yet been verified. Do not mark M12 complete. Compiler-to-editor integration, Android Roslyn invocation, rebuilt DLL inspection, and the three-level replacement compatibility report remain pending. The isolated Native AOT warning set remains open.
+
+### M12 current stopping point — 2026-11-16
+
+Latest main HEAD before this stopping-point update: `a73b16855125ed2aff8654119fda4e6b44ee86a2`.
+
+M12 now has committed compiler-service hardening and a production-side persistent multi-file C# source workspace/editor. The last source project can be reopened from the main screen. This is an implementation milestone within M12, not M12 completion.
+
+Remaining M12 work:
+1. Integrate the Roslyn Native AOT compiler and JNI bridge into the production app without disturbing the M11 ILSpy engine.
+2. Add the compile action, compiler diagnostics, and output inspection.
+3. Retain the original assembly inside the private project for accurate replacement comparison.
+4. Implement the required DLL Replacement Compatibility Report with independent compilation, structural, and runtime/behavioral levels.
+5. Expand host tests for metadata comparison and compatibility warnings.
+6. Evaluate Native AOT warnings IL2091, IL2050, and IL2072; do not suppress them.
+7. Verify production Android build and package size in CI; defer actual Android execution and usability acceptance to the final consolidated device session.
+
+Verification limitation at this update: the connected GitHub commit-status query returned no status contexts for the latest main commit, and the available workflow-run lookup does not expose push-triggered runs. Therefore no new CI PASS is claimed here. The production Android build and device behavior remain pending.
+
+The production manifest was rechecked and still does not declare `android.permission.INTERNET`. The repository branch listing contains only `main`.
