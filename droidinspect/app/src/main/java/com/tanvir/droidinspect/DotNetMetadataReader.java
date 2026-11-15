@@ -82,6 +82,10 @@ final class DotNetMetadataReader {
         decodeModule(out);
         decodeAssembly(out);
         decodeReferences(out);
+        decodeTypeReferences(out);
+        decodeMemberReferences(out);
+        decodeTypeSpecifications(out);
+        decodeMethodSpecifications(out);
         decodeTypes(out);
         decodeProperties(out);
         decodeEvents(out);
@@ -143,6 +147,93 @@ final class DotNetMetadataReader {
             o.append('\n');
         }
         if(rows[35]>limit)o.append("… ").append(rows[35]-limit).append(" more references not displayed.\n");
+    }
+
+
+    private void decodeTypeReferences(StringBuilder o) throws Exception {
+        o.append("\nTYPE REFERENCES (").append(rows[1]).append(")\n");
+        int limit = (int) Math.min(rows[1], 1000);
+        long size = rowSize(1);
+        for (int i = 0; i < limit; i++) {
+            long p = tableBase[1] + i * size;
+            long scope = codedIndex(p, 0);
+            int name = indexString(p + codedWidth(0));
+            int namespace = indexString(p + codedWidth(0) + stringWidth());
+            String fullName = str(namespace).isEmpty() ? str(name) : str(namespace) + "." + str(name);
+            o.append(i + 1).append(". ").append(fullName)
+                    .append(" (TypeRef token 0x").append(hex(0x01000000L | (i + 1)))
+                    .append("; ResolutionScope token 0x").append(hex(codedToken(scope, 0))).append(')')
+                    .append('\n');
+        }
+        if (rows[1] > limit) o.append("… ").append(rows[1] - limit).append(" more TypeRef rows omitted.\n");
+    }
+
+    private void decodeMemberReferences(StringBuilder o) throws Exception {
+        o.append("\nMEMBER REFERENCES (").append(rows[10]).append(")\n");
+        int limit = (int) Math.min(rows[10], 2000);
+        long size = rowSize(10);
+        for (int i = 0; i < limit; i++) {
+            long p = tableBase[10] + i * size;
+            long parent = codedIndex(p, 2);
+            int name = indexString(p + codedWidth(2));
+            int signature = indexBlob(p + codedWidth(2) + stringWidth());
+            o.append(i + 1).append(". ").append(str(name))
+                    .append(" (MemberRef token 0x").append(hex(0x0A000000L | (i + 1)))
+                    .append("; parent token 0x").append(hex(codedToken(parent, 2)))
+                    .append("; signature bytes ").append(blobLength(signature)).append(')')
+                    .append('\n');
+        }
+        if (rows[10] > limit) o.append("… ").append(rows[10] - limit).append(" more MemberRef rows omitted.\n");
+    }
+
+    private void decodeTypeSpecifications(StringBuilder o) throws Exception {
+        o.append("\nTYPE SPECIFICATIONS (").append(rows[27]).append(")\n");
+        int limit = (int) Math.min(rows[27], 1000);
+        long size = rowSize(27);
+        for (int i = 0; i < limit; i++) {
+            long p = tableBase[27] + i * size;
+            int signature = indexBlob(p);
+            o.append(i + 1).append(". TypeSpec signature bytes ").append(blobLength(signature))
+                    .append(" (TypeSpec token 0x").append(hex(0x1B000000L | (i + 1))).append(')')
+                    .append('\n');
+        }
+        if (rows[27] > limit) o.append("… ").append(rows[27] - limit).append(" more TypeSpec rows omitted.\n");
+    }
+
+    private void decodeMethodSpecifications(StringBuilder o) throws Exception {
+        o.append("\nMETHOD SPECIFICATIONS (").append(rows[43]).append(")\n");
+        int limit = (int) Math.min(rows[43], 1000);
+        long size = rowSize(43);
+        for (int i = 0; i < limit; i++) {
+            long p = tableBase[43] + i * size;
+            long method = codedIndex(p, 9);
+            int instantiation = indexBlob(p + codedWidth(9));
+            o.append(i + 1).append(". MethodSpec token 0x").append(hex(0x2B000000L | (i + 1)))
+                    .append("; method token 0x").append(hex(codedToken(method, 9)))
+                    .append("; instantiation bytes ").append(blobLength(instantiation)).append('\n');
+        }
+        if (rows[43] > limit) o.append("… ").append(rows[43] - limit).append(" more MethodSpec rows omitted.\n");
+    }
+
+    private long codedToken(long coded, int codedTable) {
+        int tagBits = CODED_BITS[codedTable];
+        int tag = (int) (coded & ((1L << tagBits) - 1));
+        long row = coded >>> tagBits;
+        if (row <= 0 || tag < 0 || tag >= CODED_TABLES[codedTable].length) return 0;
+        int table = CODED_TABLES[codedTable][tag];
+        long prefix;
+        switch (table) {
+            case 0: prefix = 0x00000000L; break;
+            case 1: prefix = 0x01000000L; break;
+            case 2: prefix = 0x02000000L; break;
+            case 6: prefix = 0x06000000L; break;
+            case 10: prefix = 0x0A000000L; break;
+            case 26: prefix = 0x1A000000L; break;
+            case 27: prefix = 0x1B000000L; break;
+            case 35: prefix = 0x23000000L; break;
+            default: return 0;
+        }
+        return prefix | row;
     }
 
     private void decodeTypes(StringBuilder o) throws Exception {
