@@ -60,3 +60,35 @@ SOFTWARE.
 ## Distribution note
 
 The Android application also contains existing third-party components documented in the project README and their respective upstream license files. Before public redistribution of a release, the complete transitive NuGet dependency graph and any generated Native AOT notices must be rechecked against the exact package lock/restore output used for that release. This notice records the direct ILSpy and .NET runtime/reference-pack license texts; it is not a claim that every transitive dependency audit is complete.
+
+## Microsoft Roslyn C# compiler
+
+Project: https://github.com/dotnet/roslyn  
+NuGet package: `Microsoft.CodeAnalysis.CSharp` 5.12.0  
+License: MIT
+
+MIT license text:
+
+Copyright (c) .NET Foundation and Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this
+software and associated documentation files (the "Software"), to deal in the
+Software without restriction, including without limitation the rights to use, copy,
+modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
+and to permit persons to whom the Software is furnished to do so, subject to the
+following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies
+or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+Roslyn's transitive NuGet dependencies and the final Native AOT dependency notices
+must still be checked against the exact publish/restore graph before public release.
+The successful Native AOT build does not by itself complete that transitive licensing
+review.
