@@ -26,10 +26,12 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipFile;
 
 /**
@@ -60,6 +62,7 @@ public final class ApkResourceActivity extends Activity {
     private ProgressBar progress;
     private Button saveButton;
 
+    private volatile boolean destroyed;
     private File sourceCopy;
     private File pendingOutput;
     private ApkModule apkModule;
@@ -120,6 +123,7 @@ public final class ApkResourceActivity extends Activity {
             ArrayList<ResourceEntry> foundStrings = new ArrayList<>();
             ArrayList<String> foundLabels = new ArrayList<>();
             try {
+                checkCancelled();
                 sourceCopy = File.createTempFile("droidinspect-resource-", ".apk", getCacheDir());
                 long copied = sourceFile == null ? copyUri(sourceUri, sourceCopy) : copyFile(sourceFile, sourceCopy);
                 apkModule = ApkModule.loadApkFile(sourceCopy);
@@ -165,6 +169,7 @@ public final class ApkResourceActivity extends Activity {
                     int scanned = 0;
                     while (entries.hasNext() && scanned < MAX_RESOURCE_SCAN
                             && foundStrings.size() < MAX_STRING_RESOURCES) {
+                        checkCancelled();
                         ResourceEntry resource = entries.next();
                         scanned++;
                         if (resource == null || !"string".equals(resource.getType()) || resource.getName() == null) continue;
@@ -188,6 +193,7 @@ public final class ApkResourceActivity extends Activity {
                 b.append("The saved output is unsigned; source signing material is removed.\n");
                 b.append("The original selected APK is never overwritten.");
                 report = b.toString();
+                checkCancelled();
             } catch (Exception e) {
                 error = e.getClass().getSimpleName() + ": " + safe(e.getMessage());
             }
@@ -196,6 +202,7 @@ public final class ApkResourceActivity extends Activity {
             final ArrayList<ResourceEntry> fStrings = foundStrings;
             final ArrayList<String> fLabels = foundLabels;
             runOnUiThread(() -> {
+                if (destroyed || isFinishing() || isDestroyed()) return;
                 setBusy(false, fError == null ? "Manifest and resource analysis complete." : "APK resource analysis failed.");
                 if (fError != null) {
                     summary.setText("APK RESOURCE ANALYSIS FAILED\n\n" + fError
@@ -240,6 +247,7 @@ public final class ApkResourceActivity extends Activity {
             byte[] buffer = new byte[32768];
             int n;
             while ((n = in.read(buffer)) != -1) {
+                checkCancelled();
                 total += n;
                 if (total > MAX_APK_BYTES) throw new IllegalArgumentException("Project APK exceeds the 512 MB editor limit.");
                 out.write(buffer, 0, n);
@@ -257,6 +265,7 @@ public final class ApkResourceActivity extends Activity {
             byte[] buffer = new byte[32768];
             int n;
             while ((n = in.read(buffer)) != -1) {
+                checkCancelled();
                 total += n;
                 if (total > MAX_APK_BYTES) throw new IllegalArgumentException("APK exceeds the 512 MB analysis limit.");
                 out.write(buffer, 0, n);
@@ -299,6 +308,7 @@ public final class ApkResourceActivity extends Activity {
             File output = null;
             String error = null;
             try {
+                checkCancelled();
                 AndroidManifestBlock manifest = apkModule.getAndroidManifest();
                 manifest.setPackageName(newPackage);
                 manifest.setVersionName(newVersionName);
@@ -319,6 +329,7 @@ public final class ApkResourceActivity extends Activity {
                 // any content modification invalidates the source signatures.
                 InputSource[] sources = apkModule.getInputSources();
                 for (InputSource source : sources) {
+                    checkCancelled();
                     String alias = source.getAlias();
                     String upper = alias == null ? "" : alias.toUpperCase(Locale.ROOT);
                     if (upper.startsWith("META-INF/") && (upper.endsWith(".SF")
@@ -331,6 +342,7 @@ public final class ApkResourceActivity extends Activity {
 
                 output = File.createTempFile("droidinspect-modified-", ".apk", getCacheDir());
                 apkModule.writeApk(output);
+                checkCancelled();
 
                 try (ZipFile zip = new ZipFile(output)) {
                     if (zip.getEntry("AndroidManifest.xml") == null) {
@@ -362,6 +374,7 @@ public final class ApkResourceActivity extends Activity {
                 } finally {
                     verify.close();
                 }
+                checkCancelled();
             } catch (Exception e) {
                 error = e.getClass().getSimpleName() + ": " + safe(e.getMessage());
                 if (output != null) output.delete();
@@ -370,7 +383,11 @@ public final class ApkResourceActivity extends Activity {
             final File ready = output;
             final String failure = error;
             runOnUiThread(() -> {
-                setBusy(false, failure == null ? "Modified APK reopened and validated. Choose where to save it." : "APK edit failed.");
+                if (destroyed || isFinishing() || isDestroyed()) {
+                    if (ready != null) ready.delete();
+                    return;
+                }
+                setBusy(false, failure == null ? "Modified APK reopened and validated. Choose where to save it.": "APK edit failed.");
                 if (failure != null || ready == null) {
                     summary.append("\n\nEDIT FAILED\n" + safe(failure));
                     saveButton.setEnabled(true);
@@ -412,13 +429,14 @@ public final class ApkResourceActivity extends Activity {
                 if (out == null) throw new IllegalStateException("The document provider did not create an output stream.");
                 byte[] buffer = new byte[32768];
                 int n;
-                while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
+                while ((n = in.read(buffer)) != -1) { checkCancelled(); out.write(buffer, 0, n); }
                 out.flush();
             } catch (Exception e) {
                 error = e.getClass().getSimpleName() + ": " + safe(e.getMessage());
             }
             final String failure = error;
             runOnUiThread(() -> {
+                if (destroyed || isFinishing() || isDestroyed()) return;
                 setBusy(false, failure == null ? "Export complete. Output is unsigned and needs signing." : "Export failed: " + failure);
                 if (failure == null) summary.append("\n\nEXPORT: PASS — modified unsigned APK saved.");
                 else summary.append("\n\nEXPORT FAILED: " + failure);
