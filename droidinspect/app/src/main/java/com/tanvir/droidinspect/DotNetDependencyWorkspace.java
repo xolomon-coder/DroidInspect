@@ -63,8 +63,9 @@ final class DotNetDependencyWorkspace {
         File marker = new File(root, ".droidinspect-dependency-project");
         File assembly = new File(root, "OriginalAssembly.bin");
         File deps = new File(root, "local-dependencies");
-        if (!marker.isFile() || !assembly.isFile() || !deps.isDirectory())
-            throw new IOException("Saved dependency project is incomplete or unavailable.");
+        if (!marker.isFile() || !assembly.isFile() || assembly.length() <= 0
+                || assembly.length() > MAX_ROOT_ASSEMBLY || !deps.isDirectory())
+            throw new IOException("Saved dependency project is incomplete or its root assembly is outside the safety limit.");
         String name = "Dependency project";
         try (java.io.BufferedReader reader = new java.io.BufferedReader(
                 new java.io.InputStreamReader(new FileInputStream(marker), "UTF-8"))) {
@@ -80,8 +81,11 @@ final class DotNetDependencyWorkspace {
                 .getString("last_project_id", null);
         if (id == null || !id.matches("dependency_[A-Fa-f0-9]{32}")) return null;
         File root = new File(new File(context.getFilesDir(), "dotnet-dependency-projects"), id);
+        File assembly = new File(root, "OriginalAssembly.bin");
         return new File(root, ".droidinspect-dependency-project").isFile()
-                && new File(root, "OriginalAssembly.bin").isFile() ? id : null;
+                && assembly.isFile() && assembly.length() > 0
+                && assembly.length() <= MAX_ROOT_ASSEMBLY
+                && new File(root, "local-dependencies").isDirectory() ? id : null;
     }
 
     private static void remember(Context context, String id) {
