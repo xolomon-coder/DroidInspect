@@ -27,11 +27,11 @@ final class ProjectWorkspaceMetadata {
     }
 
     synchronized void addBookmark(String label, String target) throws IOException {
-        append("bookmarks.txt", clean(label) + "\t" + clean(target), false);
+        append("workspace-bookmarks.txt", clean(label) + "\t" + clean(target), false);
     }
 
     synchronized void saveSearch(String query, String scope) throws IOException {
-        append("saved-searches.txt", clean(scope) + "\t" + clean(query), false);
+        append("workspace-saved-searches.txt", clean(scope) + "\t" + clean(query), false);
     }
 
     synchronized void recordOperation(String operation, String detail) throws IOException {
@@ -46,9 +46,9 @@ final class ProjectWorkspaceMetadata {
     }
 
     synchronized void finishOperation(String operation, String detail) throws IOException {
+        recordOperation("FINISHED", operation + ": " + detail);
         File marker = child("operation-in-progress.txt");
         if (marker.exists() && !marker.delete()) throw new IOException("Cannot clear operation recovery marker.");
-        recordOperation("FINISHED", operation + ": " + detail);
     }
 
     synchronized String readOverview() throws IOException {
@@ -56,8 +56,8 @@ final class ProjectWorkspaceMetadata {
         out.append("PROJECT METADATA\n");
         out.append("Folder: ").append(root.getName()).append('\n');
         appendFile(out, "NOTES", "notes.md");
-        appendFile(out, "BOOKMARKS", "bookmarks.txt");
-        appendFile(out, "SAVED SEARCHES", "saved-searches.txt");
+        appendFile(out, "WORKSPACE BOOKMARKS", "workspace-bookmarks.txt");
+        appendFile(out, "WORKSPACE SAVED SEARCHES", "workspace-saved-searches.txt");
         appendFile(out, "OPERATION HISTORY", "operation-history.log");
         File pending = child("operation-in-progress.txt");
         if (pending.isFile()) {
