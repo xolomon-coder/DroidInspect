@@ -3061,3 +3061,12 @@ The unified launcher currently indexes existing project types; it does not claim
 - Latest implementation commits include `10fc73bd16ada851a905b1479c48f95a68af8b1c`, `a57676f91870630c5fc2b6c54fba9423b21fece0`, `e580d9477dfcf5832d9f6573da7dd43295e4bcec`, `7adec561b037ccb3c22e9f99e0df49da15520af4`, `8e2d46c5cee11f7470e4430ddb56915426cd903b`, and `d9bbe5ff197293e184415bf39b6f99fd19c72db9`.
 - Production Android workflow run [43851747914](https://github.com/xolomon-coder/DroidInspect/actions/runs/43851747914) failed on attempts 1 and 2 before executing any steps. Both attempts report `runner_id=0`, empty steps, and no artifacts. The workflow was explicitly rerun; the runner-allocation failure remains external to the source changes. Keep the latest production commit unverified until a runner executes all host tests and Android build/signing/artifact steps successfully.
 - M19 remains IN PROGRESS. The unified launcher, project metadata tools, bounded index, and operation journal are implemented, but complete Android CI and final on-device close/reopen/recovery acceptance remain pending.
+
+
+### M19 storage-isolation correction — 2026-11-16
+
+- The shared .NET/APK workspace metadata store now writes its own `workspace-bookmarks.txt` and `workspace-saved-searches.txt` files. This deliberately avoids corrupting the APK workspace's existing Base64-encoded `bookmarks.txt` and `saved-searches.txt` record format.
+- Recovery completion now records the FINISHED history event before clearing the interrupted-operation marker, so a history-write failure cannot silently erase the recovery notice.
+- The project list explains tap-to-open and long-press metadata management.
+- Storage isolation and metadata/recovery regression were checked locally; the project-index host regression also passed locally. These local checks do not replace the required full GitHub Actions workflow.
+- Latest M19 implementation commit: `2d9cd652d48ba8821d9ec7d493c8831e91fa6bb2`. Production CI run [43852103192](https://github.com/xolomon-coder/DroidInspect/actions/runs/43852103192) failed on attempts 1 and 2 with `runner_id=0`, no steps, and no artifacts. The failure is runner allocation; source compilation has not yet been attempted by GitHub Actions.

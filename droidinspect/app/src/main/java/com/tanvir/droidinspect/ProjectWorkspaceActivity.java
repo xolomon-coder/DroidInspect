@@ -61,7 +61,7 @@ public final class ProjectWorkspaceActivity extends Activity {
         root.addView(title);
         status = new TextView(this);
         status.setTextColor(0xFF80CBC4);
-        status.setText("Recent projects across APK editing and .NET source/dependency workflows. Project data remains in private app storage.");
+        status.setText("Tap a project to reopen it. Long-press any project to manage notes, bookmarks, saved searches and recovery history. Project data remains in private app storage.");
         root.addView(status);
         Button apk = new Button(this);
         apk.setText("OPEN APK PROJECTS");
