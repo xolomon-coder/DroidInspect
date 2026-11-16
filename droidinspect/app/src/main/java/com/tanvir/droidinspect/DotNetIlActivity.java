@@ -250,7 +250,7 @@ public final class DotNetIlActivity extends Activity {
                 if (out == null) throw new IllegalStateException("The document provider did not create an output stream.");
                 byte[] buffer = new byte[32768];
                 int n;
-                while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
+                while ((n = in.read(buffer)) != -1) { checkCancelled(); out.write(buffer, 0, n); }
                 out.flush();
             } catch (Exception e) {
                 failure = e.getClass().getSimpleName() + ": " + safe(e.getMessage());
