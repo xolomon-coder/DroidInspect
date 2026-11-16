@@ -32,6 +32,15 @@ jobs:
         with:
           dotnet-version: '11.0.100'
 
+      - name: Capture transitive Roslyn and .NET Native AOT package graph
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          dotnet restore tools/m12-poc/engine/DroidInspect.M12.Compiler.csproj -r linux-bionic-arm64
+          dotnet list tools/m12-poc/engine/DroidInspect.M12.Compiler.csproj package --include-transitive \
+            | tee artifacts/m12-nuget-transitive-dependencies.txt
+          test -s artifacts/m12-nuget-transitive-dependencies.txt
+
       - name: Verify production .NET 11 reference pack
         run: |
           set -euo pipefail
