@@ -26,11 +26,13 @@ import org.xmlpull.v1.XmlPullParser;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /** Structured, searchable Android manifest component and permission explorer. */
 public final class ApkComponentExplorerActivity extends Activity {
@@ -42,6 +44,7 @@ public final class ApkComponentExplorerActivity extends Activity {
     };
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private volatile boolean destroyed;
     private final ArrayList<ComponentEntry> allEntries = new ArrayList<>();
     private final ArrayList<ComponentEntry> shownEntries = new ArrayList<>();
     private final ArrayList<String> labels = new ArrayList<>();
@@ -178,6 +181,7 @@ public final class ApkComponentExplorerActivity extends Activity {
                     byte[] buffer = new byte[32768];
                     int n;
                     while ((n = in.read(buffer)) != -1) {
+                        checkCancelled();
                         total += n;
                         if (total > MAX_APK_BYTES) throw new IllegalArgumentException("APK exceeds the 512 MB inspection limit.");
                         out.write(buffer, 0, n);
@@ -202,6 +206,7 @@ public final class ApkComponentExplorerActivity extends Activity {
                 copy = null;
                 if (previous != null) previous.delete();
                 runOnUiThread(() -> {
+                    if (destroyed || isFinishing() || isDestroyed()) return;
                     allEntries.clear();
                     allEntries.addAll(parsed);
                     summary.setText(overview.toString());
@@ -213,7 +218,7 @@ public final class ApkComponentExplorerActivity extends Activity {
                 if (copy != null) copy.delete();
                 String message = "MANIFEST ANALYSIS FAILED: " + error.getClass().getSimpleName()
                         + ": " + (error.getMessage() == null ? "No details." : error.getMessage());
-                runOnUiThread(() -> setBusy(false, message));
+                runOnUiThread(() -> { if (destroyed || isFinishing() || isDestroyed()) return; setBusy(false, message); });
             }
         });
     }
@@ -226,6 +231,7 @@ public final class ApkComponentExplorerActivity extends Activity {
         int componentDepth = -1;
         int event;
         while ((event = parser.next()) != XmlPullParser.END_DOCUMENT) {
+            checkCancelled();
             if (event == XmlPullParser.START_TAG) {
                 String tag = parser.getName();
                 if (isComponent(tag)) {
@@ -324,9 +330,27 @@ public final class ApkComponentExplorerActivity extends Activity {
         status.setText(message);
     }
 
+    private static void checkCancelled() throws InterruptedIOException {
+        if (Thread.currentThread().isInterrupted())
+            throw new InterruptedIOException("APK component exploration cancelled because the activity was closed.");
+    }
+
     @Override protected void onDestroy() {
-        super.onDestroy();
+        destroyed = true;
         worker.shutdownNow();
-        if (apkCopy != null) apkCopy.delete();
+        super.onDestroy();
+        Thread cleanup = new Thread(() -> {
+            try {
+                while (!worker.awaitTermination(1, TimeUnit.DAYS)) { }
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            File copy = apkCopy;
+            apkCopy = null;
+            if (copy != null) copy.delete();
+        }, "droidinspect-component-cleanup");
+        cleanup.setDaemon(true);
+        cleanup.start();
     }
 }
