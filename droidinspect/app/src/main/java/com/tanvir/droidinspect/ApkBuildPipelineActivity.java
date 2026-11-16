@@ -117,6 +117,10 @@ public final class ApkBuildPipelineActivity extends Activity {
         if (request == PICK_SOURCE) {
             if (result != RESULT_OK || data == null || data.getData() == null) return;
             sourceUri = data.getData();
+            editedUri = null;
+            signedUri = null;
+            editButton.setEnabled(false);
+            signButton.setEnabled(false);
             try {
                 getContentResolver().takePersistableUriPermission(sourceUri,
                         data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION));
@@ -248,6 +252,8 @@ public final class ApkBuildPipelineActivity extends Activity {
             runOnUiThread(() -> {
                 setBusy(false, failure == null ? "FINAL OUTPUT VERIFIED." : "FINAL OUTPUT VERIFICATION FAILED.");
                 if (failure != null) {
+                    signedUri = null;
+                    signButton.setEnabled(true);
                     appendReport("\nFINAL OUTPUT: FAIL\n" + failure);
                     showError(failure);
                     return;
