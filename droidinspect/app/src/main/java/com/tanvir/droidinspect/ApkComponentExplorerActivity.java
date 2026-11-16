@@ -237,6 +237,14 @@ public final class ApkComponentExplorerActivity extends Activity {
                     addAttribute(current, "permission", attr(parser, "permission"));
                     addAttribute(current, "process", attr(parser, "process"));
                     addAttribute(current, "authorities", attr(parser, "authorities"));
+                    addAttribute(current, "targetActivity", attr(parser, "targetActivity"));
+                    addAttribute(current, "launchMode", attr(parser, "launchMode"));
+                    addAttribute(current, "screenOrientation", attr(parser, "screenOrientation"));
+                    addAttribute(current, "taskAffinity", attr(parser, "taskAffinity"));
+                    addAttribute(current, "readPermission", attr(parser, "readPermission"));
+                    addAttribute(current, "writePermission", attr(parser, "writePermission"));
+                    addAttribute(current, "grantUriPermissions", attr(parser, "grantUriPermissions"));
+                    addAttribute(current, "directBootAware", attr(parser, "directBootAware"));
                     result.add(current);
                     componentDepth = parser.getDepth();
                 } else if (current != null && "intent-filter".equals(tag)) {
