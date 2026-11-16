@@ -3,6 +3,7 @@ package com.tanvir.droidinspect;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InterruptedIOException;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -54,6 +55,15 @@ public final class DexFileParserSelfTest {
             check(result.dexReports.get(0).contains("PASS"), "valid DEX should pass");
             check(result.dexReports.get(1).contains("REJECTED"), "invalid member index should be rejected");
             check(result.dexReports.get(2).contains("REJECTED"), "malformed DEX should be rejected");
+            Thread.currentThread().interrupt();
+            try {
+                DexFileParser.analyzeApk(apk);
+                throw new AssertionError("pre-interrupted DEX analysis must stop before scanning");
+            } catch (InterruptedIOException expected) {
+                check(expected.getMessage().contains("cancelled"), "cancellation has a clear diagnostic");
+            } finally {
+                Thread.interrupted();
+            }
             System.out.println("DexFileParserSelfTest: PASS");
         } finally {
             //noinspection ResultOfMethodCallIgnored
