@@ -341,7 +341,7 @@ Build progressively, preserve existing work, verify actual functionality, mainta
 
 # DroidInspect — Product Specification and Development Plan
 
-Last project-plan update: 2026-11-16 (M12–M17 cross-reference navigation and CI update)
+Last project-plan update: 2026-11-16 (M12–M18 guided APK pipeline and CI update)
 
 ## 1. App Goal
 
@@ -624,7 +624,7 @@ The long-term roadmap has **20 milestones**, grouped into eight phases. M1–M10
 - Add robust handling for split APKs, large inputs, malformed structures, and unsupported formats where feasible.
 - Exit criteria: representative APK families are inspected and browsed accurately on-device, with limitations clearly reported.
 
-**M18 — APK editing, rebuilding, and signing workflow**
+**M18 — APK editing, rebuilding, and signing workflow (IMPLEMENTATION COMPLETE FOR SUPPORTED EDIT TYPES — HOST TESTS AND ANDROID CI PASS; DEVICE ACCEPTANCE PENDING)**
 - Extend the existing M6 resource/manifest editing and M8 signing foundations into a coherent project-based workflow.
 - Support validated edits to selected resources/manifest/DEX-related representations where the underlying tools permit.
 - Rebuild to a separate APK, sign with supported schemes, verify signatures, and report install/update compatibility constraints.
@@ -650,7 +650,7 @@ The long-term roadmap has **20 milestones**, grouped into eight phases. M1–M10
 ## 4.1 Development Log — 2026-11-16
 
 Latest inspected repository branch: `main`.
-Latest inspected HEAD at this documentation update: `530f3a942247c043074aa3eda3cc23f859328ff8`.
+Latest inspected HEAD at this documentation update: `7abe9688121725517ba4ad6fce4d9ccb2dd0fdec`.
 
 ### M12/M13 verification evidence
 - Commit `7922a821cc5a4a5912b75e61ae64a281bbd9202c`: reject compiler output paths that equal the preserved original assembly.
@@ -695,6 +695,14 @@ Latest inspected HEAD at this documentation update: `530f3a942247c043074aa3eda3c
 - Commits `01cfe02f955c5fb0536c07937bdb248aea1df397` and `530f3a942247c043074aa3eda3cc23f859328ff8`: add in-app navigation from DEX invoke references to locally indexed target classes and expose additional component launch/provider attributes including targetActivity, launchMode, screenOrientation, taskAffinity, read/write permissions, URI grants, and direct-boot state.
 - Android CI run [43783028036](https://github.com/xolomon-coder/DroidInspect/actions/runs/43783028036) completed SUCCESS on `530f3a942247c043074aa3eda3cc23f859328ff8`. All host tests passed, including DEX invoke resolution and malformed-entry transactional rollback. Android debug/release builds, APK signing/tamper checks, native payload verification, offline permission audit, and artifact upload passed. Artifact `DroidInspect-Phase3-builds` was published (69,598,117 bytes; SHA-256 `68002f506ece9d84c61fa2ed2d253f65d1a3a886cede7c4f25af701487658a13`).
 - M17 implementation is complete for the supported scope; device acceptance remains pending. Known limitations: split APK support inventories and consistency-checks selected files but does not merge/install them or parse a combined split DEX/resource graph; resource-to-code mapping is not yet provided; invoke cross-references cover supported invoke opcodes, not every DEX reference kind. Resource catalog indexes at most 50,000 scanned records / 25,000 stored entries. DEX cross-reference indexing is capped at 2,000 records per class and 100,000 total. Root-level multidex files are handled independently; malformed DEX entries are rejected transactionally. Representative APK-family verification remains for the consolidated final device session.
+
+### M18 implementation — 2026-11-16
+- Commits `c8900c9ae27c19ac2012c31a716ceda4ae4317fe`, `d5adb7696f891ca41fa37c6961736b81a8185a26`, `ef8fdb89785dabd126ee48effe3d0027748ed4d8`, and `ddefd136190be8b5aaa1c8df64cf26edcc68c6be`: add a guided production flow that selects an original APK, launches the existing manifest/resource editor, receives the separate unsigned output, launches signing/verification, and receives the exported signed APK.
+- Commits `6754174e154292b2cbae86ceae989f5d921438e1`, `de20e6ef330e793c2e00796d09b24b99b4788d69`, `243c1c682ef9e3c0a5ae1704317f0203aaf8ceea`, and `d1c0aa7641bf8f2019e0cdfaf50414b6f8fb7c89`: add a pure update-compatibility assessment and host tests requiring the same package ID, a higher version code, and an exact verified signer-certificate fingerprint set.
+- Commits `baac2b2d132bb4efbc905ad4187c1ca4c65760b8`, `38d90e71ef3ea02e5a1bcd12160ad6bf9a0c99c9`, `31da24021e3de4adbcd01681141d7dd7867fc303`, `a34843d75635b2857f7fa0da49dac62dea7f9301`, `ad411f83eef5da0094e4d9c9d2babfad0b065ec9`, `9e8f2827307afdb809f46f5669c8eabd64ff5d28`, `0f1afde2a536631a68130fcf8a378d347dc87f87`, `a95d9e19ac6996a72e7f1cf64c132657b220641c`, and `7abe9688121725517ba4ad6fce4d9ccb2dd0fdec`: correct compile issues, reset workflow state between source selections, use long version codes, make the main menu scrollable, and retain SAF output URI access for the editor-to-signer handoff.
+- The final pipeline reopens the exported signed APK and verifies its signature again. It compares package identity, version code, and original/new signer fingerprints; it never claims to preserve a developer's signing identity. The original APK, edited unsigned APK, and signed APK are separate files.
+- Android CI run [43784022921](https://github.com/xolomon-coder/DroidInspect/actions/runs/43784022921) completed SUCCESS on `7abe9688121725517ba4ad6fce4d9ccb2dd0fdec`. Host tests (including update-compatibility cases), Android debug/release builds, APK signing/tamper checks, native payload verification, offline permission audit, and artifact upload passed. Artifact `DroidInspect-Phase3-builds` was published (69,611,869 bytes; SHA-256 `b2445cf933f3c6c333e922877275c777cdd51329a4d1922fb9e70e8ab7052d1e`).
+- M18 is implementation-complete for the currently supported manifest/package/version and named string-resource edits. DEX bytecode editing is not currently supported. The compatibility report is conservative and does not guarantee installation: Android platform/version/ABI/device checks remain necessary, and exact certificate equality may not model every valid signing-certificate rotation lineage. Device acceptance remains pending the consolidated final session.
 
 ## 5. Development and Creation Process
 
