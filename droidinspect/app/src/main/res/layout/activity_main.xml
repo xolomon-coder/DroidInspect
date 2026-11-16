@@ -68,6 +68,12 @@
         android:enabled="false" />
 
     <Button
+        android:id="@+id/apkBuildPipelineButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Guided APK Edit → Rebuild → Sign" />
+
+    <Button
         android:id="@+id/apkSigningButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
