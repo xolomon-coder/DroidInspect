@@ -33,7 +33,22 @@ public final class BoundedSourceTreeSelfTest {
             Files.write(new File(deep, "Deep.cs").toPath(), new byte[]{1});
             expectFailure(root, "directory depth limit");
 
-            System.out.println("PASS: bounded C# source discovery, nested files, file-size and depth limits");
+            File countRoot = new File(parent, "many-files");
+            require(countRoot.mkdirs(), "create file-count fixture");
+            for (int i = 0; i <= BoundedSourceTree.MAX_SOURCE_FILES; i++)
+                Files.write(new File(countRoot, "File" + i + ".cs").toPath(), new byte[0]);
+            expectFailure(countRoot, "source file-count limit");
+
+            File totalRoot = new File(parent, "large-project");
+            require(totalRoot.mkdirs(), "create aggregate-size fixture");
+            for (int i = 0; i < 5; i++) {
+                try (RandomAccessFile out = new RandomAccessFile(new File(totalRoot, "Part" + i + ".cs"), "rw")) {
+                    out.setLength(BoundedSourceTree.MAX_SOURCE_FILE_BYTES);
+                }
+            }
+            expectFailure(totalRoot, "aggregate source-size limit");
+
+            System.out.println("PASS: bounded C# source discovery, nested files, per-file, total-size, file-count and depth limits");
         } finally {
             delete(parent);
         }
