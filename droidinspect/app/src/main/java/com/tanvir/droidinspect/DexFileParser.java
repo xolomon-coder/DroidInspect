@@ -22,6 +22,7 @@ public final class DexFileParser {
     public static final long MAX_DEX_BYTES = 128L * 1024L * 1024L;
     public static final int MAX_CLASSES = 10000;
     public static final int MAX_TOTAL_MEMBERS = 100000;
+    public static final int MAX_TOTAL_REFERENCES = 100000;
     private static final int MAX_MEMBERS_PER_CLASS = 100;
     private static final int MAX_TABLE_ITEMS = 1000000;
 
@@ -39,6 +40,7 @@ public final class DexFileParser {
         public final List<String> methods = new ArrayList<>();
         public final List<String> references = new ArrayList<>();
         public final List<String> referenceWarnings = new ArrayList<>();
+        public boolean referencesTruncated;
 
         ClassInfo(String dex, String descriptor, String access, String superClass) {
             this.dexName = dex;
@@ -57,8 +59,10 @@ public final class DexFileParser {
         public int dexCount;
         public int totalClasses;
         public int totalMembers;
+        public int totalReferences;
         public boolean classLimitReached;
         public boolean memberLimitReached;
+        public boolean referenceLimitReached;
         public String warning = "";
     }
 
@@ -248,7 +252,7 @@ public final class DexFileParser {
                 if (codeOff != 0 && info.references.size() < 2000) {
                     String caller = info.className + "->" + methodName + signature;
                     try {
-                        scanInvokeReferences(raf, codeOff, length, caller, info, typeStrings,
+                        scanInvokeReferences(raf, codeOff, length, caller, info, result, typeStrings,
                                 stringOffsets, strings, protoOff, protoCount, methodOff, methodCount);
                     } catch (Exception scanError) {
                         if (info.referenceWarnings.size() < 20)
@@ -262,7 +266,7 @@ public final class DexFileParser {
     }
 
     private static void scanInvokeReferences(RandomAccessFile raf, long codeOff, long length,
-            String caller, ClassInfo info, int[] typeStrings, int[] stringOffsets,
+            String caller, ClassInfo info, Result result, int[] typeStrings, int[] stringOffsets,
             Map<Integer, String> strings, long protoOff, int protoCount,
             long methodOff, int methodCount) throws Exception {
         if (codeOff < 0 || codeOff > length - 16) throw new IOException("code_item header is out of bounds.");
@@ -271,7 +275,8 @@ public final class DexFileParser {
         if (instructionCount > 1000000L || instructionCount * 2L > length - instructionStart)
             throw new IOException("code_item instruction array is invalid or exceeds scan limit.");
         long cursor = 0;
-        while (cursor < instructionCount && info.references.size() < 2000) {
+        while (cursor < instructionCount && info.references.size() < 2000
+                && result.totalReferences < MAX_TOTAL_REFERENCES) {
             int unit = u16(raf, instructionStart + cursor * 2L);
             if (unit == 0x0100) {
                 if (cursor + 2 > instructionCount) throw new IOException("Truncated packed-switch payload.");
@@ -322,9 +327,17 @@ public final class DexFileParser {
                 String name = string(raf, targetNameIndex, stringOffsets, strings, length);
                 String signature = protoSignature(raf, protoOff, targetProto, typeStrings, stringOffsets, strings, length);
                 String reference = caller + "  ->  " + owner + "->" + name + signature;
-                if (!info.references.contains(reference)) info.references.add(reference);
+                if (!info.references.contains(reference)) {
+                    info.references.add(reference);
+                    result.totalReferences++;
+                }
             }
             cursor += width;
+        }
+        if (cursor < instructionCount && (info.references.size() >= 2000
+                || result.totalReferences >= MAX_TOTAL_REFERENCES)) {
+            info.referencesTruncated = true;
+            if (result.totalReferences >= MAX_TOTAL_REFERENCES) result.referenceLimitReached = true;
         }
     }
 
