@@ -375,15 +375,7 @@ final class ApkProjectWorkspace {
         }
     }
 
-    private static void copyToUri(File source, Uri destination) throws IOException {
-        try (InputStream in = new FileInputStream(source);
-             OutputStream out = null) {
-            // Re-open through ContentResolver in the caller context below.
-            throw new IOException("Internal export helper requires project context.");
-        }
-    }
-
-    private void copyToUri(File source, Uri destination, boolean ignored) throws IOException {
+    private void copyToUri(File source, Uri destination) throws IOException {
         try (InputStream in = new FileInputStream(source);
              OutputStream out = context.getContentResolver().openOutputStream(destination, "w")) {
             if (out == null) throw new IOException("Document provider did not create an output stream.");
