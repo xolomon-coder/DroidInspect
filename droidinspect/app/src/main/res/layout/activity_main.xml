@@ -55,6 +55,12 @@
         android:text="Analyze Split APK Set" />
 
     <Button
+        android:id="@+id/apkResourceCatalogButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="APK Resource ID Catalog" />
+
+    <Button
         android:id="@+id/browseResourcesButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
