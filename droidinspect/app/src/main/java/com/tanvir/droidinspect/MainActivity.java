@@ -21,6 +21,7 @@ public class MainActivity extends Activity {
     private Button openButton, diagnosticsButton, browseDexButton, browseResourcesButton;
     private Button browseDotNetButton, decompileCsharpButton, apkSigningButton, openSourceWorkspaceButton;
     private Button analyzeDependenciesButton, openDependencyWorkspaceButton, assemblyExplorerButton;
+    private Button assemblyComparisonButton;
     private Uri selectedUri;
     private String selectedName = "Selected assembly";
     private boolean canBrowseDex, canBrowseApk, canBrowseDotNet;
@@ -42,6 +43,7 @@ public class MainActivity extends Activity {
         analyzeDependenciesButton = findViewById(R.id.analyzeDependenciesButton);
         openDependencyWorkspaceButton = findViewById(R.id.openDependencyWorkspaceButton);
         assemblyExplorerButton = findViewById(R.id.assemblyExplorerButton);
+        assemblyComparisonButton = findViewById(R.id.assemblyComparisonButton);
         browseDexButton.setEnabled(false);
         browseResourcesButton.setEnabled(false);
         browseDotNetButton.setEnabled(false);
@@ -67,6 +69,7 @@ public class MainActivity extends Activity {
         analyzeDependenciesButton.setOnClickListener(v -> openDependencyProject());
         openDependencyWorkspaceButton.setOnClickListener(v -> openLastDependencyProject());
         assemblyExplorerButton.setOnClickListener(v -> openAssemblyExplorer());
+        assemblyComparisonButton.setOnClickListener(v -> startActivity(new Intent(this, AssemblyComparisonActivity.class)));
         browseDotNetButton.setOnClickListener(v -> {
             if (selectedUri == null || !canBrowseDotNet) return;
             Intent intent = new Intent(this, DotNetIlActivity.class);
@@ -271,6 +274,7 @@ public class MainActivity extends Activity {
         decompileCsharpButton.setEnabled(!busy && canBrowseDotNet);
         analyzeDependenciesButton.setEnabled(!busy && canBrowseDotNet);
         assemblyExplorerButton.setEnabled(!busy && canBrowseDotNet);
+        assemblyComparisonButton.setEnabled(!busy);
         openDependencyWorkspaceButton.setEnabled(!busy && DotNetDependencyWorkspace.getLastProjectId(this) != null);
         openSourceWorkspaceButton.setEnabled(!busy && CSharpSourceWorkspace.getLastProjectId(this) != null);
         statusView.setText(status);
