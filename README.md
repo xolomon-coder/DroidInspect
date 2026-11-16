@@ -3502,3 +3502,16 @@ Additional M20 changes since the previous checkpoint:
 **Milestone state:** M19 remains IN PROGRESS with the two focused host tests previously passing; app-level project persistence/reopen/isolation acceptance remains pending. M20 remains IN PROGRESS: this continuation closes a specific DEX worker/temporary-file race and adds cancellation coverage, but the full lifecycle audit, regression execution, Android build, device performance and release verification remain pending.
 
 **Next action:** Continue the M20 audit of project, diagnostic and decompilation workers; inspect and correct actual lifecycle/cancellation defects. Then obtain one runner-backed production CI execution and inspect every step and artifact before preparing the consolidated M12–M20 device test session.
+
+
+### M19 continuation — bounded APK project discovery — 2026-11-17
+
+- Source review found that the unified project launcher used the bounded `ProjectWorkspaceIndex` for C# source and .NET dependency projects, but `ApkProjectWorkspace.listRecentProjects()` still called `File.listFiles()` over the entire APK project root.
+- Added a shallow bounded index path in `ProjectWorkspaceIndex.scanShallow()`: at most 2,000 root entries are examined, no more than 500 marked projects are returned, symbolic-link roots/markers are excluded, and sorting uses directory recency. APK project metadata continues to supply its own last-updated timestamp and revision.
+- Routed APK recent-project discovery through this bounded helper. The existing deep per-project recency traversal is intentionally avoided for APK projects because their project metadata already records update time.
+- Extended `ProjectWorkspaceIndexSelfTest` to verify the same 2,000-entry cutoff for shallow APK-style discovery. The new assertion is committed but has not yet been executed because GitHub Actions is still failing before job steps.
+- This closes a source-level unbounded root scan in M19; it does not establish Android project launcher/device acceptance.
+
+**Exact changed files:** `ProjectWorkspaceIndex.java`, `ApkProjectWorkspace.java`, and `ProjectWorkspaceIndexSelfTest.java`.
+
+**Status:** M19 remains IN PROGRESS pending execution of the updated host test and Android project creation/reopen, persistence, isolation and recovery tests.

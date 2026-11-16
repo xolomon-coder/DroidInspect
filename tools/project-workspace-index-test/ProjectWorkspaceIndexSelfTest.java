@@ -75,8 +75,15 @@ public final class ProjectWorkspaceIndexSelfTest {
                     discoveredLateProject = true;
             require(!discoveredLateProject,
                     "project root beyond the 2000-entry discovery budget is not scanned");
+            List<ProjectWorkspaceIndex.Entry> shallow = ProjectWorkspaceIndex.scanShallow(
+                    root, ".droidinspect-project", "APK");
+            boolean shallowLateProject = false;
+            for (ProjectWorkspaceIndex.Entry entry : shallow)
+                if (firstUnvisited.getFileName().toString().equals(entry.id)) shallowLateProject = true;
+            require(!shallowLateProject,
+                    "shallow APK-style project indexing also respects the root-entry budget");
 
-            System.out.println("PASS: bounded root iteration, project readiness, marker names and recency");
+            System.out.println("PASS: bounded root iteration, shallow APK-style indexing, project readiness, marker names and recency");
         } finally {
             delete(root);
             delete(new File(root.getParentFile(), "droidinspect-external-project"));

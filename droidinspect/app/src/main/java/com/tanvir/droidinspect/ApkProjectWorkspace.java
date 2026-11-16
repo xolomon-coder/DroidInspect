@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.zip.ZipFile;
+import java.nio.file.Files;
 
 /** Persistent private APK editing project with immutable original, working copy, exports and recovery. */
 final class ApkProjectWorkspace {
@@ -134,9 +135,11 @@ final class ApkProjectWorkspace {
     static List<ProjectSummary> listRecentProjects(Context context) {
         ArrayList<ProjectSummary> result = new ArrayList<>();
         File base = new File(context.getFilesDir(), "apk-projects");
-        File[] roots = base.listFiles();
-        if (roots == null) return result;
-        for (File root : roots) {
+        try {
+            for (ProjectWorkspaceIndex.Entry entry : ProjectWorkspaceIndex.scanShallow(
+                    base, ".droidinspect-apk-project", "APK")) {
+                File root = new File(base, entry.id);
+                if (Files.isSymbolicLink(root.toPath())) continue;
             File marker = new File(root, ".droidinspect-apk-project");
             File metadata = new File(root, "project.properties");
             File working = new File(new File(root, "working"), "working.apk");
@@ -145,9 +148,12 @@ final class ApkProjectWorkspace {
                 Properties p = loadProperties(metadata);
                 result.add(new ProjectSummary(p.getProperty("id", root.getName()),
                         p.getProperty("name", "APK project"),
-                        parseLong(p.getProperty("updated"), root.lastModified()),
+                        parseLong(p.getProperty("updated"), entry.updated),
                         parseLong(p.getProperty("revision"), 0), working.length()));
-            } catch (Exception ignored) { }
+                } catch (Exception ignored) { }
+            }
+        } catch (IOException ignored) {
+            // A bounded index failure must not crash the project launcher.
         }
         Collections.sort(result, (a,b) -> Long.compare(b.updated, a.updated));
         return result;

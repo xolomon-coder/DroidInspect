@@ -77,6 +77,30 @@ final class ProjectWorkspaceIndex {
         return entries;
     }
 
+    /** Shallow bounded index for project types whose own metadata supplies recency. */
+    static List<Entry> scanShallow(File base, String markerName, String kind) throws IOException {
+        ArrayList<Entry> entries = new ArrayList<>();
+        if (base == null || !base.isDirectory() || Files.isSymbolicLink(base.toPath())) return entries;
+        int scanned = 0;
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(base.toPath())) {
+            for (Path path : stream) {
+                if (scanned >= MAX_SCANNED_ROOT_ENTRIES || entries.size() >= MAX_PROJECTS) break;
+                scanned++;
+                if (Files.isSymbolicLink(path)) continue;
+                File folder = path.toFile();
+                if (!folder.isDirectory()) continue;
+                File marker = new File(folder, markerName);
+                if (!marker.isFile() || Files.isSymbolicLink(marker.toPath())) continue;
+                entries.add(new Entry(folder.getName(), kind, readName(marker, folder.getName()),
+                        "READY", folder.lastModified()));
+            }
+        } catch (DirectoryIteratorException error) {
+            throw new IOException("Cannot read project index: " + base.getName(), error);
+        }
+        Collections.sort(entries, (a,b) -> Long.compare(b.updated, a.updated));
+        return entries;
+    }
+
     private static String readName(File marker, String fallback) {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(
                 new FileInputStream(marker), StandardCharsets.UTF_8))) {
