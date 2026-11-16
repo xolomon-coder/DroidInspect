@@ -100,7 +100,6 @@ public class DotNetDependencyActivity extends Activity {
                     byte[] saved = new byte[(int) Math.min(project.getReportFile().length(), 2L * 1024L * 1024L)];
                     int offset = 0;
                     while (offset < saved.length) {
-                        checkCancelled();
                         int count = input.read(saved, offset, saved.length - offset);
                         if (count < 0) break;
                         offset += count;
