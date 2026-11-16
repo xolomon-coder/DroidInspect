@@ -113,6 +113,14 @@ jobs:
         with:
           gradle-version: '8.13'
 
+      - name: Capture resolved release dependency graph
+        working-directory: droidinspect
+        run: |
+          mkdir -p ../artifacts
+          gradle --no-daemon :app:dependencies --configuration releaseRuntimeClasspath \
+            > ../artifacts/release-runtime-dependencies.txt
+          test -s ../artifacts/release-runtime-dependencies.txt
+
       - name: Compile debug APK
         working-directory: droidinspect
         run: gradle --no-daemon --stacktrace :app:assembleDebug
@@ -167,30 +175,55 @@ jobs:
           sha256sum "$SIGNED"
           ls -lh "$SIGNED"
 
-      - name: Verify APK output and production native payload
+      - name: Verify debug and release APK payload, ABI, offline permissions and size
         shell: bash
         run: |
           set -euo pipefail
-          APK="droidinspect/app/build/outputs/apk/debug/app-debug.apk"
-          test -s "$APK"
-          unzip -t "$APK"
-          unzip -l "$APK" | tee /tmp/droidinspect-production-apk-list.txt
-          grep -q 'lib/arm64-v8a/libdroidinspect_engine.so' /tmp/droidinspect-production-apk-list.txt
-          grep -q 'lib/arm64-v8a/libdroidinspect_jni.so' /tmp/droidinspect-production-apk-list.txt
-          grep -q 'lib/arm64-v8a/libdroidinspect_m12_compiler.so' /tmp/droidinspect-production-apk-list.txt
-          grep -q 'lib/arm64-v8a/libdroidinspect_m12_jni.so' /tmp/droidinspect-production-apk-list.txt
-          if unzip -p "$APK" AndroidManifest.xml | strings | grep -q 'android.permission.INTERNET'; then
-            echo 'ERROR: production DroidInspect must remain offline.'
+          DEBUG_APK="droidinspect/app/build/outputs/apk/debug/app-debug.apk"
+          RELEASE_APK="droidinspect/app/build/outputs/apk/release/app-release-unsigned.apk"
+          test -s "$DEBUG_APK"
+          test -s "$RELEASE_APK"
+          test -s THIRD-PARTY-NOTICES.md
+          if grep -q 'android.permission.INTERNET' droidinspect/app/src/main/AndroidManifest.xml; then
+            echo 'ERROR: production source manifest requests Internet permission.'
             exit 1
           fi
-          ls -lh "$APK"
 
-      - name: Upload verified Phase 3 APK artifacts
+          mkdir -p artifacts
+          find droidinspect/app/src/main/jniLibs -type f -name '*.so' -printf '%P %s bytes\\n' \
+            | sort | tee artifacts/native-payload-inventory.txt
+          NATIVE_BYTES="$(find droidinspect/app/src/main/jniLibs -type f -name '*.so' -printf '%s\\n' | awk '{ total += $1 } END { print total + 0 }')"
+          echo "Native payload bytes: $NATIVE_BYTES" | tee -a artifacts/native-payload-inventory.txt
+          test "$NATIVE_BYTES" -le 104857600
+          ABI_DIRS="$(find droidinspect/app/src/main/jniLibs -mindepth 1 -maxdepth 1 -type d -printf '%f\\n' | sort)"
+          test "$ABI_DIRS" = "arm64-v8a"
+
+          for APK in "$DEBUG_APK" "$RELEASE_APK"; do
+            unzip -t "$APK"
+            unzip -l "$APK" > /tmp/droidinspect-apk-list.txt
+            grep -q 'lib/arm64-v8a/libdroidinspect_engine.so' /tmp/droidinspect-apk-list.txt
+            grep -q 'lib/arm64-v8a/libdroidinspect_jni.so' /tmp/droidinspect-apk-list.txt
+            grep -q 'lib/arm64-v8a/libdroidinspect_m12_compiler.so' /tmp/droidinspect-apk-list.txt
+            grep -q 'lib/arm64-v8a/libdroidinspect_m12_jni.so' /tmp/droidinspect-apk-list.txt
+            if unzip -p "$APK" AndroidManifest.xml | strings | grep -q 'android.permission.INTERNET'; then
+              echo "ERROR: $APK requests Internet permission."
+              exit 1
+            fi
+            ls -lh "$APK"
+          done
+
+          sha256sum "$DEBUG_APK" "$RELEASE_APK" artifacts/droidinspect-ci-signed.apk \
+            | tee artifacts/SHA256SUMS.txt
+
+      - name: Upload verified Phase 3 build and audit artifacts
         uses: actions/upload-artifact@v4
         with:
           name: DroidInspect-Phase3-builds
           path: |
             droidinspect/app/build/outputs/apk/debug/app-debug.apk
             artifacts/droidinspect-ci-signed.apk
+            artifacts/release-runtime-dependencies.txt
+            artifacts/native-payload-inventory.txt
+            artifacts/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14
