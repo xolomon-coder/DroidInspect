@@ -314,7 +314,8 @@ public final class ApkBuildPipelineActivity extends Activity {
     }
 
     private void appendReport(String text) {
-        report.append("\n").append(text);
+        report.append("\n");
+        report.append(text);
     }
 
     private void setBusy(boolean busy, String message) {
