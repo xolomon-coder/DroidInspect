@@ -117,9 +117,9 @@ public class DexAnalysisActivity extends Activity {
                 report.append("DEX files found: ").append(parsed.dexCount).append('\n');
                 report.append("Classes parsed: ").append(parsed.totalClasses).append('\n');
                 report.append("Members indexed: ").append(parsed.totalMembers).append('\n');
-                int crossReferences = 0;
-                for (DexFileParser.ClassInfo info : parsed.classes) crossReferences += info.references.size();
-                report.append("Invoke cross-references indexed: ").append(crossReferences).append('\n');
+                report.append("Invoke cross-references indexed: ").append(parsed.totalReferences);
+                if (parsed.referenceLimitReached) report.append(" (global safety cap reached)");
+                report.append('\n');
                 report.append("Class limit: ").append(parsed.classLimitReached ? "REACHED" : "not reached").append('\n');
                 report.append("Member limit: ").append(parsed.memberLimitReached ? "REACHED" : "not reached").append("\n\n");
                 report.append("DEX FILE RESULTS\n");
@@ -174,6 +174,7 @@ public class DexAnalysisActivity extends Activity {
         if (info.methods.isEmpty()) text.append("(none)\n");
         for (String method : info.methods) text.append("• ").append(method).append('\n');
         text.append("\nINVOKE CROSS-REFERENCES (").append(info.references.size()).append(")\n");
+        if (info.referencesTruncated) text.append("NOTE: Cross-reference display cap reached for this class or APK.\n");
         if (info.references.isEmpty()) text.append("(none indexed or no supported invoke instructions found)\n");
         for (String reference : info.references) text.append("• ").append(reference).append('\n');
         if (!info.referenceWarnings.isEmpty()) {
