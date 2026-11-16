@@ -3346,3 +3346,37 @@ Additional M20 changes since the previous checkpoint:
 - The latest observed Actions attempts still provide no host-test, Android build, APK signing/tamper, native payload, permission packaging, dependency graph or checksum evidence. Do not infer any source failure from these no-runner records.
 - The new workflow path filter is only a CI-efficiency change. It does not resolve runner allocation. M19/M20 remain IN PROGRESS and release readiness remains blocked on a real runner-backed production workflow.
 - Latest source/workflow checkpoint before this documentation-only update: `dd6acc429096541d8402cffb18e3e842ec7797d0`. The following README-only commit is intentionally excluded from production build triggers.
+
+### M19 bounded project-discovery correction and host regression — 2026-11-17
+
+**Starting source HEAD:** `f39407f68e84efc6ee7cfa44a16ca5cdeeec4041`.
+
+- Code review found that `ProjectWorkspaceIndex.scan()` capped the number of valid projects but incremented its scan counter only after finding a valid project marker. A directory containing many unrelated folders could therefore require an unbounded root-directory scan.
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/ProjectWorkspaceIndex.java` now enforces `MAX_SCANNED_ROOT_ENTRIES = 2000` across every root entry examined, in addition to the existing 500-project result cap and bounded per-project recency traversal.
+- `tools/project-workspace-index-test/ProjectWorkspaceIndexSelfTest.java` now creates more than 2,000 unrelated root entries and verifies that a project placed beyond the scan budget is not discovered. Existing marker-name, READY/INCOMPLETE and recency assertions remain.
+- Exact implementation commit: `4f9fbabec4ed7fb910aa8f86c177abd66d2d76b4`.
+- Exact regression-test commit: `f39407f68e84efc6ee7cfa44a16ca5cdeeec4041`.
+
+**Host-side test evidence (executed in the available host container using the exact committed Java source and test files):**
+- `ProjectWorkspaceIndexSelfTest`: PASS — project discovery, marker names, readiness, recency and root-entry scan bound.
+- `ProjectWorkspaceMetadataSelfTest`: PASS — metadata persistence across store recreation, project isolation, notes, bookmarks, saved searches, interrupted-operation notice, operation journal and recovery-marker clearing.
+- These are two focused host tests, not a claim that the complete production workflow or all host regressions passed.
+
+**Production Actions retry evidence:**
+- Production run [43969379323](https://github.com/xolomon-coder/DroidInspect/actions/runs/43969379323) targeted implementation commit `4f9fbabec4ed7fb910aa8f86c177abd66d2d76b4`; its job ended before execution with `runner_id=0`, blank runner name and no steps.
+- Production run [43969408209](https://github.com/xolomon-coder/DroidInspect/actions/runs/43969408209) targets test commit `f39407f68e84efc6ee7cfa44a16ca5cdeeec4041`. Attempt 1 and the requested retry (attempt 2) both failed before runner assignment; the latest raw job again reports `runner_id=0`, blank runner name and an empty step list. No artifact was produced.
+- These are infrastructure allocation failures. They do not indicate a failing Java test or Android build, because no workflow step ran. The runner-backed production CI gate remains open.
+
+**M20 static audit snapshot (source inspection only):**
+- Production manifest still declares no Internet permission and sets `android:allowBackup="false"`.
+- The checked-in production ARM64 native library source inventory contains four libraries totalling 81,306,496 bytes (77.54 MiB). This is source-tree size, not measured APK-compressed or installed payload size.
+- The production workflow is configured to build debug and release APKs, verify signing and tamper rejection, check packaged ARM64 libraries and offline permissions, capture the resolved Gradle release dependency graph, and publish SHA-256 records. Those steps have not executed on a runner for the current source.
+- `THIRD-PARTY-NOTICES.md` includes direct ILSpy, .NET runtime/reference-pack and Roslyn MIT notices, and documents ARSCLib 1.4.0 and apksig 8.13.0 as Apache-2.0. Complete transitive NuGet/Gradle licensing review remains pending the actual restore/dependency-graph artifacts; direct notices are not a completed transitive audit.
+
+**Milestone state and next action:**
+- M19 remains IN PROGRESS. The metadata and index host tests now have focused local PASS evidence. Android APK project reopen/recovery, C# source project reopen, dependency project reopen, full project indexing and real app-level persistence still require Android/device or runner-backed verification.
+- M20 remains IN PROGRESS. No production CI PASS, debug/release APK verification, final APK hash, complete transitive licensing conclusion, low-memory/large-file device result, CodeAssist reproducibility result or release readiness is claimed.
+- Retry production CI when runner allocation is available. On the first runner-backed execution, inspect all host test steps and logs, debug/release outputs, signing/tamper checks, packaged native payload, dependency graph, notices and SHA-256 artifacts. Fix any actual source or workflow failure on `main`.
+- Do not request the consolidated M12–M20 phone acceptance session until runner-backed production verification and the remaining release audits are complete.
+
+**Stopping point:** The M19 root-directory scan is now genuinely bounded and both focused M19 host regressions pass locally. GitHub Actions still cannot allocate a runner; M19/M20 and release readiness remain unaccepted.
