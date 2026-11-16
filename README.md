@@ -341,7 +341,7 @@ Build progressively, preserve existing work, verify actual functionality, mainta
 
 # DroidInspect — Product Specification and Development Plan
 
-Last project-plan update: 2026-11-16 (M12–M17 APK/DEX implementation and CI update)
+Last project-plan update: 2026-11-16 (M12–M17 resource catalog and CI update)
 
 ## 1. App Goal
 
@@ -650,7 +650,7 @@ The long-term roadmap has **20 milestones**, grouped into eight phases. M1–M10
 ## 4.1 Development Log — 2026-11-16
 
 Latest inspected repository branch: `main`.
-Latest inspected HEAD at this documentation update: `9b22ab2488e68f7add77f900327c5a5727c541b1`.
+Latest inspected HEAD at this documentation update: `f08258b64a76578f899c4f3ddbe656015eccf858`.
 
 ### M12/M13 verification evidence
 - Commit `7922a821cc5a4a5912b75e61ae64a281bbd9202c`: reject compiler output paths that equal the preserved original assembly.
@@ -690,7 +690,9 @@ Latest inspected HEAD at this documentation update: `9b22ab2488e68f7add77f900327
 - Commits `6906cf075cac077ba20f26166f5ca11f4acba512`, `776a8dc89d1ef71a840d852349004469c26af462`, `72513854ab33a4a4eff8b247721e69049d1d44e9`, `f652a23d32f6b00f81bde1073f3515333b86a2e0`, `715f99b0908c23142f6de46c6b38936e57b35a44`, and `b22a7af7be02e360b04b10e912cdcc056f58804c`: scan supported DEX invoke instructions into caller-to-target cross-reference records, expose references in class details and global search, add per-class/global caps, and make rejected DEX parsing roll back cross-reference counts transactionally.
 - The DEX synthetic fixture now contains an actual `invoke-static` instruction. Host tests verify target resolution and ensure references from a malformed DEX are rolled back. The parser remains read-only and does not decompile Java source.
 - Android CI run [43782215711](https://github.com/xolomon-coder/DroidInspect/actions/runs/43782215711) completed SUCCESS on `9b22ab2488e68f7add77f900327c5a5727c541b1`. Host metadata/resource/IL/comparison/DEX tests passed; Android debug/release builds, signing/tamper checks, native payload checks, offline permission audit, and artifact upload passed. Artifact `DroidInspect-Phase3-builds` was published (69,594,616 bytes; SHA-256 `801055aba6655f34ea3ebd2b2d52308e40b2c4b5bac9532f68cb6be4ff0b8e12`).
-- M17 remains in progress: split APK support currently inventories and checks a selected set but does not merge/install it or parse the combined split DEX/resource graph; resource-to-code mapping and broader cross-reference coverage remain outstanding. DEX cross-reference indexing is capped at 2,000 records per class and 100,000 total. Root-level multidex files are handled independently; malformed DEX entries are rejected transactionally. Device verification on representative APK families remains pending.
+- Commits `d5d3245df6c126d48c23389c9e732e2bf76bd12b`, `b047325472568e0ffce572c919b9f27a573db98c`, `5b1e3504e0a542aac56298ae5bea3b2e4915981d`, and `f08258b64a76578f899c4f3ddbe656015eccf858`: add a read-only searchable resource catalog mapping resource type/name/ID to available default values, with per-APK scan and storage caps.
+- Android CI run [43782643275](https://github.com/xolomon-coder/DroidInspect/actions/runs/43782643275) completed SUCCESS on `f08258b64a76578f899c4f3ddbe656015eccf858`. All host tests passed, including invoke cross-reference and malformed-DEX transactional rollback. Android debug/release builds, APK signing/tamper checks, native payload verification, offline permission audit, and artifact upload passed. Artifact `DroidInspect-Phase3-builds` was published (69,597,425 bytes; SHA-256 `ef844ab98c7f3c1ca6044e11549a66b4108aea50168c77db61a22b5fccf96ade`).
+- M17 remains in progress: split APK support currently inventories and checks a selected set but does not merge/install it or parse the combined split DEX/resource graph; resource-to-code mapping and broader cross-reference coverage remain outstanding. The resource catalog indexes at most 50,000 scanned records / 25,000 stored entries. DEX cross-reference indexing is capped at 2,000 records per class and 100,000 total. Root-level multidex files are handled independently; malformed DEX entries are rejected transactionally. Device verification on representative APK families remains pending.
 
 ## 5. Development and Creation Process
 
