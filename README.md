@@ -3252,3 +3252,12 @@ Additional M20 changes since the previous checkpoint:
 - M12 Native AOT proof run `43867535971`, including retry attempt 2, has the same no-runner result. Its newly added transitive NuGet graph command has not executed.
 - The M11 workflow file now contains the corresponding ILSpy/.NET Native AOT package-graph capture and artifact upload step, but no matching M11 workflow run was observed in the queried run set; do not claim that its dependency inventory was generated.
 - These results add no source compilation, host-test, native publish, APK build, signing or licensing pass evidence. The runner allocation issue remains the active blocker.
+
+
+### Production CI retry after dependency-audit changes — 2026-11-16
+
+- Latest observed production run: `43867779547`, targeting commit `433dfb8af0b631f03acd7d7ba75247cbd776cd5f`.
+- Attempt 1 and attempt 2 both completed with failure before execution. Raw job data for attempt 2 reports `runner_id=0`, blank runner name, empty steps and no artifact output.
+- The main workflow's M19/M20 host tests, Android debug/release builds, signing/tamper checks, native payload checks and checksum generation therefore remain unexecuted for this source state.
+- The M12 proof workflow retry `43867535971` also failed before runner allocation. The M11/M12 transitive package graph artifacts have not yet been generated.
+- No CI PASS or final release status is claimed. Continue with runner-backed verification when GitHub Actions allocates a runner; keep all work on `main`.
