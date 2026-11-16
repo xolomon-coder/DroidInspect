@@ -3,6 +3,7 @@ package com.tanvir.droidinspect;
 import java.io.File;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 /** Host regression tests for bounded C# source-tree enumeration. */
@@ -17,6 +18,14 @@ public final class BoundedSourceTreeSelfTest {
             Files.write(new File(nested, "Model.cs").toPath(), "class Model {}".getBytes("UTF-8"));
             List<File> files = BoundedSourceTree.scan(root);
             require(files.size() == 2, "discover root and nested source files");
+
+            File external = new File(parent, "outside");
+            require(external.mkdir(), "create external source target");
+            Files.write(new File(external, "Outside.cs").toPath(), "class Outside {}".getBytes("UTF-8"));
+            Path linked = new File(root, "linked-outside").toPath();
+            Files.createSymbolicLink(linked, external.toPath());
+            List<File> withoutLinks = BoundedSourceTree.scan(root);
+            require(withoutLinks.size() == 2, "symbolic-link directories are excluded from source indexing");
 
             File oversized = new File(root, "Oversized.cs");
             try (RandomAccessFile out = new RandomAccessFile(oversized, "rw")) {
