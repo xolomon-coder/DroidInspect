@@ -210,6 +210,7 @@ public final class AssemblyComparisonActivity extends Activity {
         compareSection(out, "TYPES AND MEMBERS", leftMetadata, rightMetadata);
         compareSection(out, "PROPERTIES", leftMetadata, rightMetadata);
         compareSection(out, "EVENTS", leftMetadata, rightMetadata);
+        compareSection(out, "MANIFEST RESOURCES", leftMetadata, rightMetadata);
         compareMethods(out, leftIl, rightIl);
         out.append("\nINTERPRETATION\n");
         out.append("This report compares decoded metadata records and available raw IL bodies. ");
@@ -240,6 +241,7 @@ public final class AssemblyComparisonActivity extends Activity {
         if ("ASSEMBLY REFERENCES".equals(heading)) return "MODULE REFERENCES";
         if ("TYPES AND MEMBERS".equals(heading)) return "PROPERTIES";
         if ("PROPERTIES".equals(heading)) return "EVENTS";
+        if ("EVENTS".equals(heading)) return "MANIFEST RESOURCES";
         return "Decode status:";
     }
 
