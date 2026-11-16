@@ -9,6 +9,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
@@ -252,6 +253,7 @@ final class CSharpSourceWorkspace {
             byte[] buffer = new byte[32768];
             int count;
             while ((count = input.read(buffer)) != -1) {
+                checkCancelled();
                 total += count;
                 if (total > MAX_ORIGINAL_ASSEMBLY)
                     throw new IOException("Original assembly exceeds the 512 MB project safety limit.");
@@ -270,6 +272,7 @@ final class CSharpSourceWorkspace {
     }
 
     private static void write(File target, String text) throws IOException {
+        checkCancelled();
         File parent = target.getParentFile();
         if (parent != null && !parent.exists() && !parent.mkdirs())
             throw new IOException("Cannot create source directory.");
@@ -279,6 +282,7 @@ final class CSharpSourceWorkspace {
             if (bytes.length > MAX_SOURCE_FILE)
                 throw new IOException("C# source file exceeds the 32 MB safety limit.");
             try (FileOutputStream output = new FileOutputStream(temporary)) {
+                checkCancelled();
                 output.write(bytes);
                 output.flush();
                 output.getFD().sync();
@@ -287,6 +291,11 @@ final class CSharpSourceWorkspace {
         } finally {
             if (temporary.exists()) temporary.delete();
         }
+    }
+
+    private static void checkCancelled() throws InterruptedIOException {
+        if (Thread.currentThread().isInterrupted())
+            throw new InterruptedIOException("C# source project creation cancelled because its screen was closed.");
     }
 
     private static void deleteTree(File file) {
