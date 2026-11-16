@@ -22,6 +22,7 @@ import org.xmlpull.v1.XmlPullParser;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -32,6 +33,7 @@ import java.util.zip.ZipFile;
 import java.util.Enumeration;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /** Offline inventory and consistency checks for a user-selected base/split APK set. */
 public final class ApkSplitSetActivity extends Activity {
@@ -41,6 +43,7 @@ public final class ApkSplitSetActivity extends Activity {
     private static final long MAX_FILE_BYTES = 512L * 1024L * 1024L;
     private static final String ANDROID_NS = "http://schemas.android.com/apk/res/android";
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private volatile boolean destroyed;
     private final ArrayList<File> copies = new ArrayList<>();
     private Button choose;
     private ProgressBar progress;
@@ -149,6 +152,7 @@ public final class ApkSplitSetActivity extends Activity {
                         byte[] buffer = new byte[32768];
                         int n;
                         while ((n = in.read(buffer)) != -1) {
+                            checkCancelled();
                             copied += n;
                             total += n;
                             if (copied > MAX_FILE_BYTES || total > MAX_TOTAL_BYTES)
@@ -165,6 +169,7 @@ public final class ApkSplitSetActivity extends Activity {
                 newCopies.clear();
                 for (File file : old) file.delete();
                 runOnUiThread(() -> {
+                    if (destroyed || isFinishing() || isDestroyed()) return;
                     report.setText(output);
                     setBusy(false, "Split APK set inventory finished. No APK was modified or installed.");
                 });
@@ -172,7 +177,7 @@ public final class ApkSplitSetActivity extends Activity {
                 for (File file : newCopies) file.delete();
                 String message = "SPLIT SET ANALYSIS FAILED: " + error.getClass().getSimpleName()
                         + ": " + (error.getMessage() == null ? "No details." : error.getMessage());
-                runOnUiThread(() -> setBusy(false, message));
+                runOnUiThread(() -> { if (destroyed || isFinishing() || isDestroyed()) return; setBusy(false, message); });
             }
         });
     }
@@ -196,6 +201,7 @@ public final class ApkSplitSetActivity extends Activity {
         parser.setInput(new StringReader(xml));
         int event;
         while ((event = parser.next()) != XmlPullParser.END_DOCUMENT) {
+            checkCancelled();
             if (event != XmlPullParser.START_TAG) continue;
             String tag = parser.getName();
             if ("manifest".equals(tag)) {
@@ -214,6 +220,7 @@ public final class ApkSplitSetActivity extends Activity {
         try (ZipFile zip = new ZipFile(file)) {
             Enumeration<? extends ZipEntry> entries = zip.entries();
             while (entries.hasMoreElements()) {
+                checkCancelled();
                 ZipEntry entry = entries.nextElement();
                 if (!entry.isDirectory() && entry.getName().matches("classes([0-9]+)?\\.dex")) info.dexCount++;
             }
@@ -300,9 +307,26 @@ public final class ApkSplitSetActivity extends Activity {
         status.setText(message);
     }
 
+    private static void checkCancelled() throws InterruptedIOException {
+        if (Thread.currentThread().isInterrupted())
+            throw new InterruptedIOException("Split APK analysis cancelled because the activity was closed.");
+    }
+
     @Override protected void onDestroy() {
-        super.onDestroy();
+        destroyed = true;
         worker.shutdownNow();
-        for (File file : copies) file.delete();
+        super.onDestroy();
+        Thread cleanup = new Thread(() -> {
+            try {
+                while (!worker.awaitTermination(1, TimeUnit.DAYS)) { }
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            for (File file : copies) if (file != null) file.delete();
+            copies.clear();
+        }, "droidinspect-split-cleanup");
+        cleanup.setDaemon(true);
+        cleanup.start();
     }
 }
