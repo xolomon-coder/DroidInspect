@@ -25,6 +25,7 @@ import java.lang.ref.WeakReference;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -49,8 +50,10 @@ public class CSharpSourceEditorActivity extends Activity {
     private boolean loadingText;
     private boolean dirty;
     private boolean compiling;
+    private boolean ioBusy;
     private volatile boolean activityDestroyed;
     private final ExecutorService compilerWorker = Executors.newSingleThreadExecutor();
+    private final ExecutorService ioWorker = Executors.newSingleThreadExecutor();
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -206,7 +209,7 @@ public class CSharpSourceEditorActivity extends Activity {
     }
 
     private void compileProject() {
-        if (compiling) return;
+        if (compiling || ioBusy) return;
         if (currentFile != null && dirty && !saveCurrent()) return;
         if (project == null || !project.getOriginalAssemblyFile().isFile()) {
             status.setText("The original assembly copy is missing. Recreate this project from the C# decompiler.");
@@ -342,53 +345,132 @@ public class CSharpSourceEditorActivity extends Activity {
                 for (int i = 0; i < data.getClipData().getItemCount(); i++)
                     uris.add(data.getClipData().getItemAt(i).getUri());
             } else if (data.getData() != null) uris.add(data.getData());
-            try {
-                List<File> imported = project.importFiles(this, uris);
-                refreshFiles(imported.get(0));
-                switchFile(imported.get(0));
-                status.setText("Imported " + imported.size() + " C# source file(s).");
-            } catch (Exception error) {
-                status.setText("IMPORT FAILED: " + error.getMessage());
-            }
+            importSourcesAsync(uris);
         } else if (requestCode == REQUEST_EXPORT_SOURCE) {
             Uri destination = data.getData();
             if (destination == null) return;
-            try (OutputStream output = getContentResolver().openOutputStream(destination)) {
-                if (output == null) throw new IOException("Cannot open export destination.");
-                project.exportZip(output);
-                Toast.makeText(this, "Source project ZIP exported.", Toast.LENGTH_LONG).show();
-            } catch (Exception error) {
-                status.setText("EXPORT FAILED: " + error.getMessage());
-            }
+            exportSourceZipAsync(destination);
         } else if (requestCode == REQUEST_EXPORT_REPORT) {
             Uri destination = data.getData();
             if (destination == null || lastReportFile == null || !lastReportFile.isFile()) return;
-            try (FileInputStream input = new FileInputStream(lastReportFile);
-                 OutputStream output = getContentResolver().openOutputStream(destination)) {
-                if (output == null) throw new IOException("Cannot open report export destination.");
-                byte[] buffer = new byte[8192];
-                int count;
-                while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
-                output.flush();
-                Toast.makeText(this, "Compatibility report exported.", Toast.LENGTH_LONG).show();
-            } catch (Exception error) {
-                status.setText("REPORT EXPORT FAILED: " + error.getMessage());
-            }
+            exportFileAsync(destination, lastReportFile, "Compatibility report exported.", "REPORT EXPORT FAILED: ");
         } else if (requestCode == REQUEST_EXPORT_DLL) {
             Uri destination = data.getData();
             if (destination == null || !isManagedPe(lastBuildFile)) return;
-            try (FileInputStream input = new FileInputStream(lastBuildFile);
-                 OutputStream output = getContentResolver().openOutputStream(destination)) {
-                if (output == null) throw new IOException("Cannot open DLL export destination.");
+            exportFileAsync(destination, lastBuildFile, "Rebuilt DLL exported separately. Original assembly remains unchanged.", "DLL EXPORT FAILED: ");
+        }
+    }
+
+    private void importSourcesAsync(List<Uri> uris) {
+        final CSharpSourceWorkspace activeProject = project;
+        final Context appContext = getApplicationContext();
+        final WeakReference<CSharpSourceEditorActivity> reference = new WeakReference<>(this);
+        final Handler ui = new Handler(Looper.getMainLooper());
+        setIoBusy(true, "Importing C# source files in the background…");
+        ioWorker.execute(() -> {
+            List<File> imported = null;
+            String failure = null;
+            try { imported = activeProject.importFiles(appContext, uris); }
+            catch (Exception error) { failure = error.getClass().getSimpleName() + ": " + error.getMessage(); }
+            final List<File> completed = imported;
+            final String errorText = failure;
+            ui.post(() -> {
+                CSharpSourceEditorActivity activity = reference.get();
+                if (activity == null || activity.activityDestroyed
+                        || activity.isFinishing() || activity.isDestroyed()) return;
+                activity.setIoBusy(false, errorText == null
+                        ? "Imported " + completed.size() + " C# source file(s)."
+                        : "IMPORT FAILED: " + errorText);
+                if (completed != null && !completed.isEmpty()) {
+                    try {
+                        activity.refreshFiles(completed.get(0));
+                        activity.switchFile(completed.get(0));
+                    } catch (Exception refreshError) {
+                        activity.status.setText("IMPORT COMPLETED; REFRESH FAILED: " + refreshError.getMessage());
+                    }
+                }
+            });
+        });
+    }
+
+    private void exportSourceZipAsync(Uri destination) {
+        final CSharpSourceWorkspace activeProject = project;
+        final Context appContext = getApplicationContext();
+        final WeakReference<CSharpSourceEditorActivity> reference = new WeakReference<>(this);
+        final Handler ui = new Handler(Looper.getMainLooper());
+        setIoBusy(true, "Exporting C# source project ZIP in the background…");
+        ioWorker.execute(() -> {
+            String failure = null;
+            try (OutputStream output = appContext.getContentResolver().openOutputStream(destination)) {
+                if (output == null) throw new IOException("Cannot open export destination.");
+                activeProject.exportZip(output);
+            } catch (Exception error) {
+                failure = error.getClass().getSimpleName() + ": " + error.getMessage();
+            }
+            final String errorText = failure;
+            ui.post(() -> {
+                CSharpSourceEditorActivity activity = reference.get();
+                if (activity == null || activity.activityDestroyed
+                        || activity.isFinishing() || activity.isDestroyed()) return;
+                activity.setIoBusy(false, errorText == null
+                        ? "Source project ZIP exported."
+                        : "EXPORT FAILED: " + errorText);
+                if (errorText == null) Toast.makeText(activity, "Source project ZIP exported.", Toast.LENGTH_LONG).show();
+            });
+        });
+    }
+
+    private void exportFileAsync(Uri destination, File source, String success, String failurePrefix) {
+        if (source == null || !source.isFile()) {
+            status.setText(failurePrefix + "Source file is unavailable.");
+            return;
+        }
+        final Context appContext = getApplicationContext();
+        final WeakReference<CSharpSourceEditorActivity> reference = new WeakReference<>(this);
+        final Handler ui = new Handler(Looper.getMainLooper());
+        setIoBusy(true, "Exporting file in the background…");
+        ioWorker.execute(() -> {
+            String failure = null;
+            try (FileInputStream input = new FileInputStream(source);
+                 OutputStream output = appContext.getContentResolver().openOutputStream(destination)) {
+                if (output == null) throw new IOException("Cannot open export destination.");
                 byte[] buffer = new byte[32768];
                 int count;
-                while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+                while ((count = input.read(buffer)) != -1) {
+                    checkIoCancelled();
+                    output.write(buffer, 0, count);
+                }
                 output.flush();
-                Toast.makeText(this, "Rebuilt DLL exported separately. Original assembly remains unchanged.", Toast.LENGTH_LONG).show();
             } catch (Exception error) {
-                status.setText("DLL EXPORT FAILED: " + error.getMessage());
+                failure = error.getClass().getSimpleName() + ": " + error.getMessage();
             }
-        }
+            final String errorText = failure;
+            ui.post(() -> {
+                CSharpSourceEditorActivity activity = reference.get();
+                if (activity == null || activity.activityDestroyed
+                        || activity.isFinishing() || activity.isDestroyed()) return;
+                activity.setIoBusy(false, errorText == null ? success : failurePrefix + errorText);
+                if (errorText == null) Toast.makeText(activity, success, Toast.LENGTH_LONG).show();
+            });
+        });
+    }
+
+    private void setIoBusy(boolean busy, String message) {
+        ioBusy = busy;
+        status.setText(message);
+        editor.setEnabled(!busy);
+        saveButton.setEnabled(!busy && !compiling);
+        compileButton.setEnabled(!busy && !compiling);
+        findViewById(R.id.sourceEditorAdd).setEnabled(!busy && !compiling);
+        findViewById(R.id.sourceEditorImport).setEnabled(!busy && !compiling);
+        findViewById(R.id.sourceEditorExport).setEnabled(!busy && !compiling);
+        exportDllButton.setEnabled(!busy && isManagedPe(lastBuildFile));
+        exportReportButton.setEnabled(!busy && lastReportFile != null && lastReportFile.isFile());
+    }
+
+    private static void checkIoCancelled() throws InterruptedIOException {
+        if (Thread.currentThread().isInterrupted())
+            throw new InterruptedIOException("Source file operation cancelled because the editor was closed.");
     }
 
     private void updateLineNumbers() {
@@ -494,6 +576,7 @@ public class CSharpSourceEditorActivity extends Activity {
         activityDestroyed = true;
         // Native AOT compilation is synchronous and cannot be safely interrupted; let the worker finish its private output/report writes.
         compilerWorker.shutdown();
+        ioWorker.shutdownNow();
         super.onDestroy();
     }
 
