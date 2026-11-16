@@ -22,6 +22,7 @@
         <activity android:name=".DexAnalysisActivity" android:exported="false" />
         <activity android:name=".ApkComponentExplorerActivity" android:exported="false" />
         <activity android:name=".ApkSplitSetActivity" android:exported="false" />
+        <activity android:name=".ApkResourceCatalogActivity" android:exported="false" />
 
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
