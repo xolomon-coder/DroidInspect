@@ -234,7 +234,7 @@ public final class AssemblyComparisonActivity extends Activity {
     private void compareSection(StringBuilder out, String heading, String left, String right) {
         Set<String> a = sectionEntries(section(left, heading, nextHeading(heading)));
         Set<String> b = sectionEntries(section(right, heading, nextHeading(heading)));
-        appendSetDiff(out, heading, a, b);
+        out.append(AssemblyComparisonDiff.compareSets(heading, a, b));
     }
 
     private String nextHeading(String heading) {
@@ -258,76 +258,8 @@ public final class AssemblyComparisonActivity extends Activity {
         return values;
     }
 
-    private void appendSetDiff(StringBuilder out, String heading, Set<String> left, Set<String> right) {
-        Set<String> added = new TreeSet<>(right);
-        added.removeAll(left);
-        Set<String> removed = new TreeSet<>(left);
-        removed.removeAll(right);
-        out.append(heading).append("\n");
-        out.append("Baseline entries: ").append(left.size()).append("; candidate entries: ").append(right.size()).append('\n');
-        out.append("Added in candidate: ").append(added.size()).append('\n');
-        for (String item : added) out.append("  + ").append(item).append('\n');
-        out.append("Removed from candidate: ").append(removed.size()).append('\n');
-        for (String item : removed) out.append("  - ").append(item).append('\n');
-        if (added.isEmpty() && removed.isEmpty()) out.append("No structural line differences detected.\n");
-        out.append('\n');
-    }
-
     private void compareMethods(StringBuilder out, DotNetIlReader.Result left, DotNetIlReader.Result right) {
-        Map<String, List<String>> a = methodBodies(left);
-        Map<String, List<String>> b = methodBodies(right);
-        Set<String> keys = new TreeSet<>();
-        keys.addAll(a.keySet());
-        keys.addAll(b.keySet());
-        int added = 0, removed = 0, changed = 0, same = 0, unknown = 0;
-        List<String> details = new ArrayList<>();
-        for (String key : keys) {
-            List<String> x = a.get(key), y = b.get(key);
-            if (x == null) { added += y.size(); details.add("  + " + key + " (" + y.size() + " method record(s))"); }
-            else if (y == null) { removed += x.size(); details.add("  - " + key + " (" + x.size() + " method record(s))"); }
-            else {
-                int paired = Math.min(x.size(), y.size());
-                boolean unavailable = containsUnavailable(x) || containsUnavailable(y);
-                if (unavailable) {
-                    unknown += paired;
-                    details.add("  ? " + key + " — one or more IL bodies exceed the comparison byte cap or could not be decoded");
-                } else if (x.equals(y)) same += paired;
-                else {
-                    changed += paired;
-                    details.add("  * " + key + " — raw IL body differs (" + x.size() + " baseline / " + y.size() + " candidate)");
-                }
-                if (y.size() > x.size()) added += y.size() - x.size();
-                if (x.size() > y.size()) removed += x.size() - y.size();
-            }
-        }
-        out.append("METHOD IL COMPARISON\n");
-        out.append("Baseline methods indexed: ").append(left.methods.size())
-                .append("; candidate methods indexed: ").append(right.methods.size()).append('\n');
-        out.append("Unchanged body records: ").append(same).append("; changed body records: ")
-                .append(changed).append("; unavailable/unverified: ").append(unknown)
-                .append("; added: ").append(added).append("; removed: ").append(removed).append('\n');
-        for (String detail : details) out.append(detail).append('\n');
-        out.append('\n');
-    }
-
-    private boolean containsUnavailable(List<String> bodies) {
-        for (String body : bodies) if (body.startsWith("UNAVAILABLE_IL:")) return true;
-        return false;
-    }
-
-    private Map<String, List<String>> methodBodies(DotNetIlReader.Result result) {
-        Map<String, List<String>> values = new LinkedHashMap<>();
-        for (DotNetIlReader.MethodInfo method : result.methods) {
-            String key = method.owner + " :: " + method.name;
-            String body = method.codeHex == null ? "" : method.codeHex;
-            if (method.codeSize == 0 && method.body != null && method.body.startsWith("IL body unavailable:"))
-                body = "UNAVAILABLE_IL:decode";
-            else if (method.codeSize == 0) body = "NO_BODY";
-            else if (body.isEmpty()) body = "UNAVAILABLE_IL:" + method.codeSize;
-            values.computeIfAbsent(key, ignored -> new ArrayList<>()).add(body);
-        }
-        for (List<String> bodies : values.values()) Collections.sort(bodies);
-        return values;
+        out.append(AssemblyComparisonDiff.compareMethods(left, right));
     }
 
     private String section(String source, String start, String end) {
