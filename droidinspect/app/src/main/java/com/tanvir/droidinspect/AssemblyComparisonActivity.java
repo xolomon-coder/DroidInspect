@@ -279,35 +279,50 @@ public final class AssemblyComparisonActivity extends Activity {
         Set<String> keys = new TreeSet<>();
         keys.addAll(a.keySet());
         keys.addAll(b.keySet());
-        int added = 0, removed = 0, changed = 0, same = 0;
+        int added = 0, removed = 0, changed = 0, same = 0, unknown = 0;
         List<String> details = new ArrayList<>();
         for (String key : keys) {
             List<String> x = a.get(key), y = b.get(key);
-            if (x == null) { added += y.size(); details.add("  + " + key + " (" + y.size() + " method body record(s))"); }
-            else if (y == null) { removed += x.size(); details.add("  - " + key + " (" + x.size() + " method body record(s))"); }
-            else if (x.equals(y)) same += Math.min(x.size(), y.size());
+            if (x == null) { added += y.size(); details.add("  + " + key + " (" + y.size() + " method record(s))"); }
+            else if (y == null) { removed += x.size(); details.add("  - " + key + " (" + x.size() + " method record(s))"); }
             else {
                 int paired = Math.min(x.size(), y.size());
-                changed += paired;
+                boolean unavailable = containsUnavailable(x) || containsUnavailable(y);
+                if (unavailable) {
+                    unknown += paired;
+                    details.add("  ? " + key + " — one or more IL bodies exceed the comparison byte cap or could not be decoded");
+                } else if (x.equals(y)) same += paired;
+                else {
+                    changed += paired;
+                    details.add("  * " + key + " — raw IL body differs (" + x.size() + " baseline / " + y.size() + " candidate)");
+                }
                 if (y.size() > x.size()) added += y.size() - x.size();
                 if (x.size() > y.size()) removed += x.size() - y.size();
-                details.add("  * " + key + " — raw IL body differs (" + x.size() + " baseline / " + y.size() + " candidate)");
             }
         }
         out.append("METHOD IL COMPARISON\n");
-        out.append("Baseline methods with bodies: ").append(left.methods.size())
-                .append("; candidate methods with bodies: ").append(right.methods.size()).append('\n');
+        out.append("Baseline methods indexed: ").append(left.methods.size())
+                .append("; candidate methods indexed: ").append(right.methods.size()).append('\n');
         out.append("Unchanged body records: ").append(same).append("; changed body records: ")
-                .append(changed).append("; added: ").append(added).append("; removed: ").append(removed).append('\n');
+                .append(changed).append("; unavailable/unverified: ").append(unknown)
+                .append("; added: ").append(added).append("; removed: ").append(removed).append('\n');
         for (String detail : details) out.append(detail).append('\n');
         out.append('\n');
+    }
+
+    private boolean containsUnavailable(List<String> bodies) {
+        for (String body : bodies) if (body.startsWith("UNAVAILABLE_IL:")) return true;
+        return false;
     }
 
     private Map<String, List<String>> methodBodies(DotNetIlReader.Result result) {
         Map<String, List<String>> values = new LinkedHashMap<>();
         for (DotNetIlReader.MethodInfo method : result.methods) {
             String key = method.owner + " :: " + method.name;
-            values.computeIfAbsent(key, ignored -> new ArrayList<>()).add(method.codeHex == null ? "" : method.codeHex);
+            String body = method.codeHex == null ? "" : method.codeHex;
+            if (method.codeSize == 0) body = "NO_BODY";
+            else if (body.isEmpty()) body = "UNAVAILABLE_IL:" + method.codeSize;
+            values.computeIfAbsent(key, ignored -> new ArrayList<>()).add(body);
         }
         for (List<String> bodies : values.values()) Collections.sort(bodies);
         return values;
