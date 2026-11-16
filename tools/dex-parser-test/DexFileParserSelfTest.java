@@ -45,6 +45,9 @@ public final class DexFileParserSelfTest {
             check(info.methods.size() == 2, "both encoded method lists should be decoded");
             check(info.methods.get(0).contains("void ping"), "direct method index starts from its own list base");
             check(info.methods.get(1).contains("void run"), "virtual method index resets to its own list base");
+            check(info.references.size() == 1, "invoke instruction should produce one cross-reference");
+            check(info.references.get(0).contains("x.A->ping"), "cross-reference should identify caller method");
+            check(info.references.get(0).contains("x.A->run"), "cross-reference should resolve target method");
             check(result.totalMembers == 4, "member index count excludes rejected DEX partial data");
             check(result.dexReports.size() == 3, "each DEX entry should have a report");
             check(result.dexReports.get(0).contains("PASS"), "valid DEX should pass");
@@ -66,8 +69,8 @@ public final class DexFileParserSelfTest {
                 1, 1, 1, 1, // static fields, instance fields, direct methods, virtual methods
                 1, 1,       // static field: field_id[1]
                 0, 1,       // instance field: field_id[0], index delta resets
-                1, 1, 0,    // direct method: method_id[1], access, code_off
-                0, 1, 0     // virtual method: method_id[0], index delta resets, access, code_off
+                1, 1, (byte) 0xB5, 0x02, // direct method: method_id[1] ping, code_off 309
+                0, 1, 0     // virtual method: method_id[0], index delta resets, access, no code
         };
         int headerSize = 236;
         int stringsStart = headerSize + classData.length;
@@ -77,6 +80,9 @@ public final class DexFileParserSelfTest {
             stringOffsets[i] = cursor;
             cursor += 1 + strings[i].getBytes("UTF-8").length + 1;
         }
+        int codeItemOffset = cursor;
+        check(codeItemOffset == 309, "synthetic code item offset must match its ULEB128 reference");
+        cursor += 24;
 
         byte[] header = new byte[headerSize];
         header[0] = 'd'; header[1] = 'e'; header[2] = 'x'; header[3] = '\n';
@@ -115,9 +121,23 @@ public final class DexFileParserSelfTest {
             out.write(bytes);
             out.write(0);
         }
+        // code_item for ping: invoke-static method_id[0] (run), then return-void.
+        put16(out, 1); put16(out, 0); put16(out, 0); put16(out, 0);
+        put32(out, 0); put32(out, 4);
+        put16(out, 0x0071); put16(out, 0); put16(out, 0); put16(out, 0x000e);
         byte[] result = out.toByteArray();
         check(result.length == cursor, "synthetic DEX fixture size");
         return result;
+    }
+
+    private static void put16(ByteArrayOutputStream out, int value) throws Exception {
+        out.write(value & 255);
+        out.write((value >>> 8) & 255);
+    }
+
+    private static void put32(ByteArrayOutputStream out, int value) throws Exception {
+        put16(out, value);
+        put16(out, value >>> 16);
     }
 
     private static void put16(byte[] data, int offset, int value) {
