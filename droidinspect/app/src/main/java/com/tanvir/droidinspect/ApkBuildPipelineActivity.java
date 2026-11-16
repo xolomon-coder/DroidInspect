@@ -159,7 +159,7 @@ public final class ApkBuildPipelineActivity extends Activity {
                 if (info == null) throw new IllegalArgumentException("Selected file is not a parseable APK.");
                 pkg = info.packageName == null ? "(unknown)" : info.packageName;
                 version = info.versionName == null ? "(not declared)" : info.versionName;
-                versionCode = info.versionCode;
+                versionCode = Build.VERSION.SDK_INT >= 28 ? info.getLongVersionCode() : info.versionCode;
                 signers = signerFingerprints(copy);
             } catch (Exception e) {
                 error = message(e);
@@ -230,7 +230,7 @@ public final class ApkBuildPipelineActivity extends Activity {
                 if (info == null) throw new IllegalArgumentException("Signed output is not a parseable APK.");
                 finalPackage = info.packageName == null ? "(unknown)" : info.packageName;
                 finalVersion = info.versionName == null ? "(not declared)" : info.versionName;
-                finalVersionCode = info.versionCode;
+                finalVersionCode = Build.VERSION.SDK_INT >= 28 ? info.getLongVersionCode() : info.versionCode;
                 ApkVerifier.Result result = new ApkVerifier.Builder(copy).build().verify();
                 verified = result.isVerified();
                 if (!verified) {
