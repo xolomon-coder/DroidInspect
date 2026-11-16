@@ -50,6 +50,16 @@ jobs:
             tools/il-reader-test/DotNetIlReaderSelfTest.java
           java -cp /tmp/droidinspect-il-test com.tanvir.droidinspect.DotNetIlReaderSelfTest
 
+      - name: Test assembly comparison diff engine
+        run: |
+          mkdir -p /tmp/droidinspect-comparison-test
+          javac -d /tmp/droidinspect-comparison-test \
+            droidinspect/app/src/main/java/com/tanvir/droidinspect/DotNetIlReader.java \
+            droidinspect/app/src/main/java/com/tanvir/droidinspect/IlOpcodeExplainer.java \
+            droidinspect/app/src/main/java/com/tanvir/droidinspect/AssemblyComparisonDiff.java \
+            tools/assembly-comparison-test/AssemblyComparisonDiffSelfTest.java
+          java -cp /tmp/droidinspect-comparison-test com.tanvir.droidinspect.AssemblyComparisonDiffSelfTest
+
       - name: Test DEX parser on host JVM
         run: |
           mkdir -p /tmp/droidinspect-dex-test
