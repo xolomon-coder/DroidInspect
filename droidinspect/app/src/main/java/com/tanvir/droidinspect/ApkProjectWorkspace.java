@@ -115,6 +115,8 @@ final class ApkProjectWorkspace {
         if (!project.originalApk.isFile() || !project.workingApk.isFile()
                 || !project.historyDirectory.isDirectory() || !project.exportsDirectory.isDirectory())
             throw new IOException("Saved APK project is incomplete; original or working APK is missing.");
+        validateApk(project.originalApk);
+        validateApk(project.workingApk);
         remember(context, id);
         project.touch();
         return project;
