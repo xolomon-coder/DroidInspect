@@ -266,6 +266,7 @@ jobs:
           path: |
             artifacts/DroidInspect-M11-Android-Proof.apk
             artifacts/DroidInspect-M11-Production-Debug.apk
+            artifacts/m11-nuget-transitive-dependencies.txt
             artifacts/libdroidinspect_engine.so
             artifacts/DecompilerFixture.dll
             artifacts/Newtonsoft.Json.dll
