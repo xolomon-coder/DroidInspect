@@ -159,6 +159,11 @@ public class DotNetDependencyActivity extends Activity {
                         + (error.getMessage() == null ? "No additional details." : error.getMessage());
                 try { project.saveReport(result); } catch (Exception ignored) { }
             }
+            try {
+                new ProjectWorkspaceMetadata(project.getRootAssembly().getParentFile())
+                        .finishOperation("DEPENDENCY_RESOLUTION",
+                                result.contains("RESULT: FAIL") ? "FAIL" : "COMPLETED");
+            } catch (IOException ignored) { }
             final String output = result;
             runOnUiThread(() -> {
                 busy = false;

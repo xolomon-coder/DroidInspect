@@ -247,6 +247,11 @@ public class CSharpSourceEditorActivity extends Activity {
                 result = "M12 COMPILER ERROR: " + error.getClass().getSimpleName() + ": "
                         + (error.getMessage() == null ? "No additional details." : error.getMessage());
             }
+            try {
+                new ProjectWorkspaceMetadata(project.getSourceRoot().getParentFile())
+                        .finishOperation("SOURCE_COMPILE",
+                                result.startsWith("M12 COMPILATION PASS") ? "PASS" : "NOT PASS");
+            } catch (IOException ignored) { }
             final String report = result;
             final File built = output;
             try {
