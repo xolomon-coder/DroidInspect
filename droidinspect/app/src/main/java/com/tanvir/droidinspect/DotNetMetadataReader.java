@@ -91,6 +91,7 @@ final class DotNetMetadataReader {
         decodeTypes(out);
         decodeProperties(out);
         decodeEvents(out);
+        decodeManifestResources(out);
         out.append("\nDecode status: ").append(stringsBase!=0 ? "core identity/type/member tables decoded where present" : "string heap unavailable").append('\n');
         out.append("Note: This is metadata inspection, not C# decompilation or IL editing.\n");
         return out.toString();
@@ -373,6 +374,31 @@ final class DotNetMetadataReader {
             if (next - first > shown) o.append("   … additional events omitted by display cap.\n");
         }
         if (rows[18] > mapLimit) o.append("… ").append(rows[18] - mapLimit).append(" additional EventMap rows omitted.\n");
+    }
+
+    private void decodeManifestResources(StringBuilder out) throws Exception {
+        out.append("\\nMANIFEST RESOURCES (").append(rows[40]).append(")\\n");
+        int limit = (int) Math.min(rows[40], 2000);
+        long size = rowSize(40);
+        for (int i = 0; i < limit; i++) {
+            long p = tableBase[40] + i * size;
+            long offset = u32(p);
+            long flags = u32(p + 4);
+            int nameIndex = indexString(p + 8);
+            long implementation = codedIndex(p + 8 + stringWidth(), 11);
+            int tag = (int) (implementation & 3L);
+            long row = implementation >>> 2;
+            String kind = implementation == 0 ? "embedded" : tag == 0 ? "File" : tag == 1 ? "AssemblyRef" : tag == 2 ? "ExportedType" : "invalid";
+            out.append(i + 1).append(". ").append(str(nameIndex))
+                    .append(" (ManifestResource token 0x").append(hex(0x28000000L | (i + 1)))
+                    .append("; offset=").append(offset)
+                    .append("; flags=0x").append(hex(flags))
+                    .append("; implementation=").append(kind);
+            if (row > 0) out.append(" row=").append(row);
+            out.append(')').append('\\n');
+        }
+        if (rows[40] > limit) out.append("… ").append(rows[40] - limit).append(" additional resource rows omitted.\\n");
+        if (rows[40] == 0) out.append("No manifest resource metadata rows found.\\n");
     }
 
     private long decodeTypeDefOrRefToken(long coded) {
