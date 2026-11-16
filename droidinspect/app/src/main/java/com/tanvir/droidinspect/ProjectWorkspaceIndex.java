@@ -6,6 +6,10 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryIteratorException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -16,6 +20,12 @@ final class ProjectWorkspaceIndex {
     private static final int MAX_PROJECTS = 500;
     static final int MAX_SCANNED_ROOT_ENTRIES = 2000;
     private static final int MAX_VISITED_FILES = 2000;
+    private static final int MAX_DEPTH = 5;
+
+    private static final Comparator<File> RECENCY_ORDER = (left, right) -> {
+        int byTime = Long.compare(right.lastModified(), left.lastModified());
+        return byTime != 0 ? byTime : left.getName().compareTo(right.getName());
+    };
 
     static final class Entry {
         final String id, kind, name, state;
@@ -30,20 +40,27 @@ final class ProjectWorkspaceIndex {
     static List<Entry> scan(File base, String markerName, String kind, String[] requiredPaths)
             throws IOException {
         ArrayList<Entry> entries = new ArrayList<>();
-        if (base == null || !base.isDirectory()) return entries;
-        File[] folders = base.listFiles();
-        if (folders == null) throw new IOException("Cannot read project index: " + base.getName());
-        ArrayList<File> sorted = new ArrayList<>();
-        Collections.addAll(sorted, folders);
-        Collections.sort(sorted, Comparator.comparingLong(File::lastModified).reversed());
+        if (base == null || !base.isDirectory() || Files.isSymbolicLink(base.toPath())) return entries;
+
+        ArrayList<File> folders = new ArrayList<>(MAX_SCANNED_ROOT_ENTRIES);
         int scannedRoots = 0;
-        for (File folder : sorted) {
-            if (scannedRoots >= MAX_SCANNED_ROOT_ENTRIES) break;
-            scannedRoots++;
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(base.toPath())) {
+            for (Path path : stream) {
+                if (scannedRoots >= MAX_SCANNED_ROOT_ENTRIES) break;
+                scannedRoots++;
+                File folder = path.toFile();
+                if (!folder.isDirectory() || Files.isSymbolicLink(path)) continue;
+                folders.add(folder);
+            }
+        } catch (DirectoryIteratorException error) {
+            throw new IOException("Cannot read project index: " + base.getName(), error);
+        }
+
+        Collections.sort(folders, RECENCY_ORDER);
+        for (File folder : folders) {
             if (entries.size() >= MAX_PROJECTS) break;
-            if (!folder.isDirectory()) continue;
             File marker = new File(folder, markerName);
-            if (!marker.isFile()) continue;
+            if (!marker.isFile() || Files.isSymbolicLink(marker.toPath())) continue;
             String name = readName(marker, folder.getName());
             boolean complete = true;
             if (requiredPaths != null) for (String relative : requiredPaths) {
@@ -71,12 +88,18 @@ final class ProjectWorkspaceIndex {
 
     private static long latestModified(File file, int depth, int[] visited) {
         long latest = file.lastModified();
-        if (!file.isDirectory() || depth >= 5 || visited[0] >= MAX_VISITED_FILES) return latest;
-        File[] children = file.listFiles();
-        if (children == null) return latest;
-        for (File child : children) {
-            if (++visited[0] >= MAX_VISITED_FILES) break;
-            latest = Math.max(latest, latestModified(child, depth + 1, visited));
+        if (!file.isDirectory() || depth >= MAX_DEPTH || visited[0] >= MAX_VISITED_FILES
+                || Files.isSymbolicLink(file.toPath())) return latest;
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(file.toPath())) {
+            for (Path path : stream) {
+                if (visited[0] >= MAX_VISITED_FILES) break;
+                visited[0]++;
+                if (Files.isSymbolicLink(path)) continue;
+                File child = path.toFile();
+                latest = Math.max(latest, latestModified(child, depth + 1, visited));
+            }
+        } catch (IOException | DirectoryIteratorException ignored) {
+            // An unreadable child must not prevent the rest of the project index from loading.
         }
         return latest;
     }
