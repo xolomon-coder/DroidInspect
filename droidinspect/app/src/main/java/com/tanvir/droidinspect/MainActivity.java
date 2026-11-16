@@ -32,6 +32,7 @@ public class MainActivity extends Activity {
     private Uri selectedUri;
     private String selectedName = "Selected assembly";
     private boolean canBrowseDex, canBrowseApk, canBrowseDotNet;
+    private volatile boolean destroyed;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -230,6 +231,7 @@ public class MainActivity extends Activity {
                 boolean isManaged = report.startsWith("DROIDINSPECT — PE / .NET INSPECTION")
                         && report.contains(".NET CLI header: PRESENT");
                 runOnUiThread(() -> {
+                    if (destroyed || isFinishing() || isDestroyed()) return;
                     reportView.setText(report);
                     canBrowseDex = isApk;
                     canBrowseApk = isApk;
@@ -239,6 +241,7 @@ public class MainActivity extends Activity {
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
+                    if (destroyed || isFinishing() || isDestroyed()) return;
                     canBrowseDex = canBrowseApk = canBrowseDotNet = false;
                     updateDependencyWorkspaceButtons();
                     reportView.setText("INSPECTION FAILED
@@ -305,6 +308,7 @@ Input copy cap: 512 MB; DEX per-file cap: 128 MB
             report.append("C# source reconstruction is not assembly execution or guaranteed recompilation.");
             String result = report.toString();
             runOnUiThread(() -> {
+                if (destroyed || isFinishing() || isDestroyed()) return;
                 reportView.setText(result);
                 setBusy(false, "Runtime diagnostics finished.");
             });
@@ -335,7 +339,8 @@ Input copy cap: 512 MB; DEX per-file cap: 128 MB
     }
 
     @Override protected void onDestroy() {
-        super.onDestroy();
+        destroyed = true;
         worker.shutdownNow();
+        super.onDestroy();
     }
 }

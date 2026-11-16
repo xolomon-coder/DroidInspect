@@ -3473,3 +3473,32 @@ Additional M20 changes since the previous checkpoint:
 4. Only after cloud/host release verification, prepare the single consolidated M12–M20 Android 11 / CodeAssist testing session.
 
 **Stopping point:** M19 bounded discovery and metadata hardening have focused host PASS evidence. M20 has source-level lifecycle and packaged-payload improvements. The production CI/release gate remains unverified; neither M19 nor M20 is marked complete.
+
+
+### M20 continuation — DEX worker cancellation and activity teardown audit — 2026-11-17
+
+**Source review finding and correction:**
+- A remaining lifecycle race was found in `DexAnalysisActivity`: it used an unmanaged thread, and `onDestroy()` could delete the temporary APK while the worker was still copying or parsing it. The worker could also post UI updates after the Activity had been destroyed.
+- Replaced the unmanaged thread with an owned single-thread executor. Activity teardown now requests interruption, suppresses callbacks after destruction, waits for the worker to terminate on a separate daemon cleanup thread, and only then deletes the temporary APK copy.
+- Added interruption checks to DEX ZIP enumeration, DEX extraction, string/type/class table traversal, class member traversal, and invoke-reference instruction scanning. Cancellation is propagated rather than converted into a normal per-DEX rejection.
+- Expanded `DexFileParserSelfTest` with a pre-interrupted invocation assertion. This is a regression test addition; it has **not yet executed** because the recent GitHub Actions attempts again failed before running steps.
+- `MainActivity` now suppresses all three asynchronous UI callback paths after finishing/destruction and marks itself destroyed before shutting down its worker.
+- `CSharpDecompileActivity` now also checks `isDestroyed()` before applying callbacks obtained through its weak Activity reference. Its native decompilation remains non-interruptible; worker shutdown is graceful so its workspace cleanup can finish.
+
+**Exact files changed in this continuation:**
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/DexFileParser.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/DexAnalysisActivity.java`
+- `tools/dex-parser-test/DexFileParserSelfTest.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/MainActivity.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/CSharpDecompileActivity.java`
+
+**Verification and CI:**
+- Existing M19 focused host tests remain recorded as PASS from the previous host-container execution; this continuation did not rerun them.
+- The DEX parser cancellation regression has been added but is NOT YET VERIFIED by execution.
+- Production Actions runs [43974257644](https://github.com/xolomon-coder/DroidInspect/actions/runs/43974257644) (#582), [43974263083](https://github.com/xolomon-coder/DroidInspect/actions/runs/43974263083) (#583), and [43974268202](https://github.com/xolomon-coder/DroidInspect/actions/runs/43974268202) (#584) ended with zero job steps and no runner execution. The latest job-step queries returned empty arrays. These are infrastructure failures, not source test or Android build results.
+- No debug/release APK, signing/tamper evidence, packaged native payload measurement, dependency graph, transitive license conclusion, or CI checksum is available from these runs.
+- Avoid repeated retry attempts while the same no-runner condition persists.
+
+**Milestone state:** M19 remains IN PROGRESS with the two focused host tests previously passing; app-level project persistence/reopen/isolation acceptance remains pending. M20 remains IN PROGRESS: this continuation closes a specific DEX worker/temporary-file race and adds cancellation coverage, but the full lifecycle audit, regression execution, Android build, device performance and release verification remain pending.
+
+**Next action:** Continue the M20 audit of project, diagnostic and decompilation workers; inspect and correct actual lifecycle/cancellation defects. Then obtain one runner-backed production CI execution and inspect every step and artifact before preparing the consolidated M12–M20 device test session.

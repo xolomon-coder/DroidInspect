@@ -94,7 +94,7 @@ public class CSharpDecompileActivity extends Activity {
                 try (DecompilationWorkspace workspace = DecompilationWorkspace.prepare(app, uri)) {
                 ui.post(() -> {
                     CSharpDecompileActivity activity = reference.get();
-                    if (activity != null && !activity.isFinishing())
+                    if (activity != null && !activity.isFinishing() && !activity.isDestroyed())
                         activity.status.setText("Running offline ILSpy decompilation…");
                 });
                 result = NativeBridge.decompileFile(
@@ -109,7 +109,7 @@ public class CSharpDecompileActivity extends Activity {
             final String output = result;
             ui.post(() -> {
                 CSharpDecompileActivity activity = reference.get();
-                if (activity != null && !activity.isFinishing()) activity.showResult(output);
+                if (activity != null && !activity.isFinishing() && !activity.isDestroyed()) activity.showResult(output);
             });
         });
     }
