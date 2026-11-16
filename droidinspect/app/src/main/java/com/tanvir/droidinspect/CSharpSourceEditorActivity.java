@@ -233,6 +233,7 @@ public class CSharpSourceEditorActivity extends Activity {
         compilerWorker.execute(() -> {
             String result;
             File output = null;
+            boolean verifiedOutput = false;
             try {
                 File references = DecompilationWorkspace.ensureReferences(appContext);
                 output = buildProject.getBuildOutputFile();
@@ -247,7 +248,8 @@ public class CSharpSourceEditorActivity extends Activity {
                             buildProject.getOriginalAssemblyFile().getAbsolutePath());
                     if (result == null) result = "M12 COMPILER ERROR: No result was returned.";
                     if (result.startsWith("M12 COMPILATION PASS")) {
-                        if (!isManagedPe(output)) {
+                        verifiedOutput = isManagedPe(output);
+                        if (!verifiedOutput) {
                             result += "\nJAVA OUTPUT VERIFICATION FAIL: output is not a valid managed .NET assembly.";
                         } else {
                             result += "\nJAVA OUTPUT VERIFICATION PASS: managed PE/CLI assembly reopened; "
@@ -266,6 +268,7 @@ public class CSharpSourceEditorActivity extends Activity {
             } catch (IOException ignored) { }
             final String report = result;
             final File built = output;
+            final boolean managedOutput = verifiedOutput;
             try {
                 if (output != null) {
                     File reportFile = new File(output.getParentFile(), "M12-Build-Compatibility-Report.txt");
@@ -287,7 +290,7 @@ public class CSharpSourceEditorActivity extends Activity {
                 activity.lastBuildFile = built;
                 activity.lastReportFile = built == null ? null
                         : new File(built.getParentFile(), "M12-Build-Compatibility-Report.txt");
-                activity.exportDllButton.setEnabled(isManagedPe(activity.lastBuildFile));
+                activity.exportDllButton.setEnabled(managedOutput);
                 activity.exportReportButton.setEnabled(activity.lastReportFile != null
                         && activity.lastReportFile.isFile());
                 activity.status.setText(report);

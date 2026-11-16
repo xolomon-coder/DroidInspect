@@ -3577,3 +3577,8 @@ Additional M20 changes since the previous checkpoint:
 - This is a stronger structural check than MZ-only detection; it still does not prove runtime/behavioral compatibility or that the rebuilt DLL is a drop-in replacement.
 - Production run [43975093614](https://github.com/xolomon-coder/DroidInspect/actions/runs/43975093614) (#590), targeting commit 234e6d3ef838fe7ee6a2637449e0fd77d3526b8f, again failed before runner assignment (job 133676915084, runner_id=0, blank runner name, zero steps, no artifacts). The change has not yet been compiled or tested by CI.
 - M12 remains implementation-integrated but device acceptance is pending. M19 and M20 remain IN PROGRESS; no milestone is declared complete by this source correction.
+### M12/M20 compiler worker follow-up — 2026-11-17
+
+- The source editor compiler now runs under an owned single-thread executor and captures only application context, project state, and a weak Activity reference. On Activity destruction it shuts down gracefully rather than interrupting the synchronous Native AOT compiler, allowing private build/report writes to finish without retaining the destroyed Activity.
+- The strengthened managed-assembly verification is performed on the compiler worker. Its boolean result is passed to the UI callback; the UI thread no longer reparses the generated DLL when enabling export.
+- Production run [43975208945](https://github.com/xolomon-coder/DroidInspect/actions/runs/43975208945) (#591), targeting commit 07c9a73e40546cca7ef659bc088e24d39eef9d26, again failed before runner assignment (runner_id=0, empty runner name, zero steps). No source compilation or test result is available.
