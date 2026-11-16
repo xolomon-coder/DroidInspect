@@ -103,6 +103,12 @@
         android:layout_height="wrap_content"
         android:text="Compare .NET Assemblies" />
 
+    <Button
+        android:id="@+id/dotNetResourcesButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Extract Embedded .NET Resources" />
+
     <ProgressBar
         android:id="@+id/progressBar"
         style="?android:attr/progressBarStyleHorizontal"
