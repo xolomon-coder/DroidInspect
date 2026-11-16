@@ -2,6 +2,8 @@ package com.tanvir.droidinspect;
 
 import java.io.File;
 import java.io.RandomAccessFile;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Arrays;
@@ -19,12 +21,19 @@ public final class DotNetResourceExtractorSelfTest {
                 throw new AssertionError("Embedded resource bytes differ from fixture payload.");
 
             expectFailure(fixture, 0x1d, "offset outside");
-            try (RandomAccessFile raf = new RandomAccessFile(fixture, "rw")) {
-                le32(raf, 0x300, 0x40);
-            }
-            expectFailure(fixture, 0, "truncated");
             if (!Arrays.equals(before, digest(fixture)))
                 throw new AssertionError("Extractor modified the source assembly.");
+
+            File truncated = File.createTempFile("droidinspect-resource-truncated-", ".dll");
+            try {
+                Files.copy(fixture.toPath(), truncated.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                try (RandomAccessFile raf = new RandomAccessFile(truncated, "rw")) {
+                    le32(raf, 0x300, 0x40);
+                }
+                expectFailure(truncated, 0, "truncated");
+            } finally {
+                truncated.delete();
+            }
             System.out.println("PASS: embedded resource bytes, bounds rejection, truncated payload rejection, and source immutability.");
         } finally {
             //noinspection ResultOfMethodCallIgnored
