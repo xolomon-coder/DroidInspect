@@ -188,6 +188,7 @@ jobs:
             echo 'ERROR: production source manifest requests Internet permission.'
             exit 1
           fi
+          grep -q 'android:allowBackup="false"' droidinspect/app/src/main/AndroidManifest.xml
 
           mkdir -p artifacts
           find droidinspect/app/src/main/jniLibs -type f -name '*.so' -printf '%P %s bytes\n' \
