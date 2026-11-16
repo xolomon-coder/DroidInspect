@@ -106,23 +106,19 @@ public final class ProjectWorkspaceActivity extends Activity {
         entries.clear();
         for (ApkProjectWorkspace.ProjectSummary p : ApkProjectWorkspace.listRecentProjects(this))
             entries.add(new ProjectEntry("APK", p.id, p.name, p.updated));
-        addDirectory(new File(getFilesDir(), "csharp-projects"), ".droidinspect-project", "C# SOURCE");
-        addDirectory(new File(getFilesDir(), "dotnet-dependency-projects"), ".droidinspect-dependency-project", ".NET DEPENDENCIES");
+        addIndexedDirectory(new File(getFilesDir(), "csharp-projects"), ".droidinspect-project",
+                "C# SOURCE", new String[]{"src", "original/OriginalAssembly.bin"});
+        addIndexedDirectory(new File(getFilesDir(), "dotnet-dependency-projects"), ".droidinspect-dependency-project",
+                ".NET DEPENDENCIES", new String[]{"OriginalAssembly.bin", "local-dependencies"});
         Collections.sort(entries, (a,b) -> Long.compare(b.updated, a.updated));
     }
 
-    private void addDirectory(File base, String markerName, String kind) {
-        File[] projects = base.listFiles();
-        if (projects == null) return;
-        for (File folder : projects) {
-            File marker = new File(folder, markerName);
-            if (!folder.isDirectory() || !marker.isFile()) continue;
-            String name = folder.getName();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(marker), "UTF-8"))) {
-                String first = reader.readLine();
-                if (first != null && !first.trim().isEmpty()) name = first.trim();
-            } catch (Exception ignored) { }
-            entries.add(new ProjectEntry(kind, folder.getName(), name, folder.lastModified()));
+    private void addIndexedDirectory(File base, String markerName, String kind, String[] required) {
+        try {
+            for (ProjectWorkspaceIndex.Entry item : ProjectWorkspaceIndex.scan(base, markerName, kind, required))
+                entries.add(new ProjectEntry(item.kind, item.id, item.name + "  [" + item.state + "]", item.updated));
+        } catch (Exception error) {
+            status.setText("PROJECT INDEX WARNING: " + error.getMessage());
         }
     }
 
