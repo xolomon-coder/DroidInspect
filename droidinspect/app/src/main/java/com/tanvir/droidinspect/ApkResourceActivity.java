@@ -387,7 +387,7 @@ public final class ApkResourceActivity extends Activity {
                     if (ready != null) ready.delete();
                     return;
                 }
-                setBusy(false, failure == null ? "Modified APK reopened and validated. Choose where to save it.": "APK edit failed.");
+                setBusy(false, failure == null ? "Modified APK reopened and validated. Choose where to save it." : "APK edit failed.");
                 if (failure != null || ready == null) {
                     summary.append("\n\nEDIT FAILED\n" + safe(failure));
                     saveButton.setEnabled(true);
@@ -485,7 +485,7 @@ public final class ApkResourceActivity extends Activity {
         // while an interrupted worker may still be using them.
         Thread cleanup = new Thread(() -> {
             try {
-                worker.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+                while (!worker.awaitTermination(1, TimeUnit.DAYS)) { }
             } catch (InterruptedException interrupted) {
                 Thread.currentThread().interrupt();
                 return;
