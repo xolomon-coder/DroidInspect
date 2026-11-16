@@ -3335,3 +3335,14 @@ Additional M20 changes since the previous checkpoint:
 - This repeated evidence establishes a persistent Actions runner-allocation blocker for these attempts. It does not establish source compilation or host-test failure. No APK build, signing/tamper test, packaged ABI check, dependency graph capture or CI checksum was executed.
 - Latest source changes are on `main`; no alternate branch or pull request was created. The production manifest remains source-verified offline with backup disabled.
 - **Release gate remains closed.** M19/M20 are not complete. Continue source-level audits that can be performed safely, but do not claim full cloud verification, transitive license compliance, device acceptance or release readiness until a runner-backed production workflow completes and the remaining audits are evidenced.
+
+
+### CI retry and documentation-trigger refinement — 2026-11-16
+
+- The production workflow now ignores README-only pushes and pull requests, so documentation corrections do not consume a build attempt. Source, workflow, Gradle, native and test changes still trigger production CI; manual `workflow_dispatch` remains enabled.
+- Workflow change commit: `dd6acc429096541d8402cffb18e3e842ec7797d0`.
+- Production run [43916937917](https://github.com/xolomon-coder/DroidInspect/actions/runs/43916937917), attempt 1, targets that workflow change. Job `133473488446` again failed before execution with `runner_id=0`, blank runner name and no steps; no artifacts were produced.
+- Production run [43916807457](https://github.com/xolomon-coder/DroidInspect/actions/runs/43916807457), attempt 2, likewise failed before runner allocation (job `133473191905`, `runner_id=0`, empty steps).
+- The latest observed Actions attempts still provide no host-test, Android build, APK signing/tamper, native payload, permission packaging, dependency graph or checksum evidence. Do not infer any source failure from these no-runner records.
+- The new workflow path filter is only a CI-efficiency change. It does not resolve runner allocation. M19/M20 remain IN PROGRESS and release readiness remains blocked on a real runner-backed production workflow.
+- Latest source/workflow checkpoint before this documentation-only update: `dd6acc429096541d8402cffb18e3e842ec7797d0`. The following README-only commit is intentionally excluded from production build triggers.
