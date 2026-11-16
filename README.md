@@ -3301,3 +3301,15 @@ Additional M20 changes since the previous checkpoint:
 4. Continue the M20 dependency/license and APK/.NET regression audit. Only after full cloud verification should the single consolidated M12–M20 Android device session be requested.
 
 **Stopping point:** C# source workspace file/depth/total-size bounds and a host regression are committed; production CI runner allocation is still unverified.
+
+
+### Bounded source-tree regression expansion and latest runner result — 2026-11-16
+
+- Expanded `BoundedSourceTreeSelfTest` to cover the 2,000-file cap and 128 MiB aggregate source cap in addition to normal nested discovery, the 32 MiB per-file cap and the 16-level depth cap.
+- Recompiled and ran the expanded host regression in the available container. Result: `PASS: bounded C# source discovery, nested files, per-file, total-size, file-count and depth limits`.
+- Latest implementation/test commit: `7e1410a31103049791ab52a15019376acc51ae9c`.
+- Production workflow run [43916234501](https://github.com/xolomon-coder/DroidInspect/actions/runs/43916234501), attempts 1 and 2, both failed before any step executed. Raw job IDs `133471022548` and `133471249052` both report `runner_id=0`, blank runner name and empty steps. The run produced no artifacts. A source compilation or test failure has not occurred in this run because no runner executed the job.
+- Retry of the earlier source commit run [43915982432](https://github.com/xolomon-coder/DroidInspect/actions/runs/43915982432), attempt 2, likewise returned `runner_id=0`, no steps and no artifacts.
+- Licensing review remains incomplete: the checked-in notices identify direct ILSpy, .NET runtime/reference pack and Roslyn MIT notices, and the Android Gradle direct dependencies ARSCLib 1.4.0 and apksig 8.13.0 as Apache-2.0. The exact transitive NuGet graphs and resolved Gradle dependency graph have not been produced by runner-backed workflows, so complete redistribution compliance cannot yet be concluded.
+- The production manifest was rechecked: `android:allowBackup="false"` is present and no Internet permission is declared. This is a source-manifest observation, not packaged APK verification.
+- M19/M20 remain IN PROGRESS. The new bounded source-tree test has a local host PASS, but the full host suite, Android debug/release build, APK signing/tamper verification, native packaged-payload checks, transitive licensing review and device acceptance remain unverified.
