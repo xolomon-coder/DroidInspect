@@ -21,6 +21,7 @@
         <activity android:name=".ApkResourceActivity" android:exported="false" />
         <activity android:name=".ApkBuildPipelineActivity" android:exported="false" />
         <activity android:name=".ApkProjectWorkspaceActivity" android:exported="false" />
+        <activity android:name=".ProjectWorkspaceActivity" android:exported="false" />
         <activity android:name=".DexAnalysisActivity" android:exported="false" />
         <activity android:name=".ApkComponentExplorerActivity" android:exported="false" />
         <activity android:name=".ApkSplitSetActivity" android:exported="false" />
