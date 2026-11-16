@@ -198,6 +198,8 @@ public class DotNetDependencyActivity extends Activity {
                 String result;
                 try {
                     List<java.io.File> imported = project.importDependencies(getApplicationContext(), uris);
+                    new ProjectWorkspaceMetadata(project.getRootAssembly().getParentFile())
+                            .recordOperation("DEPENDENCY_IMPORT", imported.size() + " file(s)");
                     result = "Imported " + imported.size() + " local dependency file(s).";
                 } catch (Exception error) {
                     result = "DEPENDENCY IMPORT FAILED: " + error.getMessage();
