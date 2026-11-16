@@ -3,6 +3,7 @@ package com.tanvir.droidinspect;
 import java.io.File;
 import java.io.RandomAccessFile;
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -67,11 +68,13 @@ public final class DexFileParser {
     }
 
     public static Result analyzeApk(File apk) throws Exception {
+        checkCancelled();
         Result result = new Result();
         List<ZipEntry> dexEntries = new ArrayList<>();
         try (ZipFile zip = new ZipFile(apk)) {
             Enumeration<? extends ZipEntry> it = zip.entries();
             while (it.hasMoreElements()) {
+                checkCancelled();
                 ZipEntry entry = it.nextElement();
                 if (isDexName(entry.getName()) && !entry.isDirectory()) dexEntries.add(entry);
             }
@@ -83,6 +86,7 @@ public final class DexFileParser {
             }
             File parent = apk.getParentFile();
             for (ZipEntry entry : dexEntries) {
+                checkCancelled();
                 if (result.classes.size() >= MAX_CLASSES) {
                     result.classLimitReached = true;
                     result.warning = "Class display limit reached (" + MAX_CLASSES + "). Remaining DEX files were not parsed.";
@@ -101,6 +105,7 @@ public final class DexFileParser {
                         byte[] buffer = new byte[32768];
                         int n;
                         while ((n = in.read(buffer)) != -1) {
+                            checkCancelled();
                             copied += n;
                             if (copied > MAX_DEX_BYTES) throw new IOException("DEX entry exceeds 128 MB safety limit.");
                             out.write(buffer, 0, n);
@@ -114,6 +119,8 @@ public final class DexFileParser {
                         parseDex(temp, entry.getName(), result);
                         result.dexReports.add(entry.getName() + ": PASS — " + (result.classes.size() - before) + " classes.");
                     } catch (Exception ex) {
+                        if (Thread.currentThread().isInterrupted())
+                            throw new InterruptedIOException("DEX analysis cancelled.");
                         // Parsing is transactional per DEX: do not expose partial classes or member counts.
                         while (result.classes.size() > before) result.classes.remove(result.classes.size() - 1);
                         result.totalMembers = membersBefore;
@@ -135,6 +142,7 @@ public final class DexFileParser {
     }
 
     private static void parseDex(File file, String dexName, Result result) throws Exception {
+        checkCancelled();
         if (file.length() < 112 || file.length() > MAX_DEX_BYTES) throw new IOException("Invalid DEX file length.");
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
             byte[] magic = new byte[8];
@@ -168,18 +176,21 @@ public final class DexFileParser {
 
             int[] stringOffsets = new int[stringCount];
             for (int i = 0; i < stringCount; i++) {
+                checkCancelled();
                 long v = u32(raf, stringOff + i * 4L);
                 if (v > file.length() - 1) throw new IOException("string_data offset is out of bounds.");
                 stringOffsets[i] = (int) v;
             }
             int[] typeStringIndexes = new int[typeCount];
             for (int i = 0; i < typeCount; i++) {
+                checkCancelled();
                 int idx = (int) u32(raf, typeOff + i * 4L);
                 if (idx < 0 || idx >= stringCount) throw new IOException("Invalid type descriptor string index.");
                 typeStringIndexes[i] = idx;
             }
             Map<Integer, String> strings = new HashMap<>();
             for (int i = 0; i < classCount && result.classes.size() < MAX_CLASSES; i++) {
+                checkCancelled();
                 long p = classOff + i * 32L;
                 int classIdx = (int) u32(raf, p);
                 int access = (int) u32(raf, p + 4);
@@ -218,6 +229,7 @@ public final class DexFileParser {
             throw new IOException("Unreasonable class_data member count.");
         int fieldIndex = 0;
         for (int i = 0; i < staticFields + instanceFields; i++) {
+            checkCancelled();
             // DEX field_idx_diff is relative to the start of each encoded field list.
             if (i == staticFields) fieldIndex = 0;
             fieldIndex += uleb(raf, c, length);
@@ -238,6 +250,7 @@ public final class DexFileParser {
         }
         int methodIndex = 0;
         for (int i = 0; i < directMethods + virtualMethods; i++) {
+            checkCancelled();
             // DEX method_idx_diff is relative to the start of each encoded method list.
             if (i == directMethods) methodIndex = 0;
             methodIndex += uleb(raf, c, length);
@@ -259,6 +272,7 @@ public final class DexFileParser {
                         scanInvokeReferences(raf, codeOff, length, caller, info, result, typeStrings,
                                 stringOffsets, strings, protoOff, protoCount, methodOff, methodCount);
                     } catch (Exception scanError) {
+                        if (Thread.currentThread().isInterrupted()) throw scanError;
                         if (info.referenceWarnings.size() < 20)
                             info.referenceWarnings.add(caller + ": " + safeMessage(scanError));
                     }
@@ -281,6 +295,7 @@ public final class DexFileParser {
         long cursor = 0;
         while (cursor < instructionCount && info.references.size() < 2000
                 && result.totalReferences < MAX_TOTAL_REFERENCES) {
+            checkCancelled();
             int unit = u16(raf, instructionStart + cursor * 2L);
             if (unit == 0x0100) {
                 if (cursor + 2 > instructionCount) throw new IOException("Truncated packed-switch payload.");
@@ -449,6 +464,11 @@ public final class DexFileParser {
         catch (Exception e) { return Integer.MAX_VALUE; }
     }
     private static String safeMessage(Exception e) { return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage(); }
+
+    private static void checkCancelled() throws InterruptedIOException {
+        if (Thread.currentThread().isInterrupted())
+            throw new InterruptedIOException("DEX analysis cancelled because the activity was closed.");
+    }
 
     private static String javaName(String d) {
         if (d == null || d.length() == 0) return "?";
