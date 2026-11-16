@@ -3515,3 +3515,17 @@ Additional M20 changes since the previous checkpoint:
 **Exact changed files:** `ProjectWorkspaceIndex.java`, `ApkProjectWorkspace.java`, and `ProjectWorkspaceIndexSelfTest.java`.
 
 **Status:** M19 remains IN PROGRESS pending execution of the updated host test and Android project creation/reopen, persistence, isolation and recovery tests.
+
+
+### M20 continuation — project import cancellation and background source-workspace creation — 2026-11-17
+
+- Added interruption checks to APK project SHA-256 streaming so a closing APK project activity does not continue hashing a large working/original file after its worker is cancelled.
+- Added interruption checks to .NET dependency-project document imports. The existing temporary-file/rename pattern now receives cancellation promptly; the incomplete temporary import is deleted by the existing error path, and the batch rollback removes already imported files.
+- Moved C# source-project creation out of the decompiler Activity's UI thread and onto its existing worker executor. Preserving a selected original assembly (up to the documented 512 MiB bound) and writing the source workspace can no longer block the UI thread. The callback uses a weak Activity reference and checks finishing/destruction before opening the editor.
+- These are source-level lifecycle changes. They have not yet passed a runner-backed Android build or device execution.
+
+**Exact additional changed files:** `DotNetDependencyWorkspace.java`, `ApkProjectWorkspace.java`, and `CSharpDecompileActivity.java`.
+
+**Latest CI evidence:** Production runs [43974403048](https://github.com/xolomon-coder/DroidInspect/actions/runs/43974403048) (#585), [43974549193](https://github.com/xolomon-coder/DroidInspect/actions/runs/43974549193) (#586), and [43974622943](https://github.com/xolomon-coder/DroidInspect/actions/runs/43974622943) (#587) all ended before executing a single step; each job-step query returned an empty list. The latest source change in this continuation will trigger another production run. These attempts do not establish compilation or test results.
+
+**M19/M20 state:** M19 remains IN PROGRESS; bounded APK project discovery now uses the same root-entry budget as the other project types, with an added host regression assertion awaiting execution. M20 remains IN PROGRESS; cancellation and UI-thread work have been improved in additional project/decompilation paths, but a complete lifecycle audit, full host suite, Android debug/release build, packaged APK audit, and device verification are still outstanding.

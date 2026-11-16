@@ -269,15 +269,38 @@ public class CSharpDecompileActivity extends Activity {
 
     private void openSourceEditor() {
         if (loading || completeSource.isEmpty() || completeSource.startsWith("M11 DECOMPILATION ERROR:")) return;
-        try {
-            CSharpSourceWorkspace project = CSharpSourceWorkspace.create(
-                    this, title.getText().toString(), completeSource, selectedAssemblyUri);
-            Intent intent = new Intent(this, CSharpSourceEditorActivity.class);
-            intent.putExtra("project_id", project.getId());
-            startActivity(intent);
-        } catch (Exception error) {
-            status.setText("Could not create editable source workspace: " + error.getMessage());
-        }
+        final String projectName = title.getText().toString();
+        final String sourceText = completeSource;
+        final Uri originalUri = selectedAssemblyUri;
+        final Context appContext = getApplicationContext();
+        final WeakReference<CSharpDecompileActivity> reference = new WeakReference<>(this);
+        setLoading(true, "Preparing a separate C# source project…");
+        worker.execute(() -> {
+            CSharpSourceWorkspace created = null;
+            String failure = null;
+            try {
+                created = CSharpSourceWorkspace.create(appContext, projectName, sourceText, originalUri);
+            } catch (Exception error) {
+                failure = error.getClass().getSimpleName() + ": "
+                        + (error.getMessage() == null ? "No additional details." : error.getMessage());
+            }
+            final CSharpSourceWorkspace project = created;
+            final String errorText = failure;
+            ui.post(() -> {
+                CSharpDecompileActivity activity = reference.get();
+                if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
+                activity.setLoading(false, project == null
+                        ? "Could not create editable source workspace."
+                        : "Separate C# source project is ready.");
+                if (project != null) {
+                    Intent intent = new Intent(activity, CSharpSourceEditorActivity.class);
+                    intent.putExtra("project_id", project.getId());
+                    activity.startActivity(intent);
+                } else {
+                    activity.status.setText("Could not create editable source workspace: " + errorText);
+                }
+            });
+        });
     }
 
     @Override protected void onDestroy() {

@@ -9,6 +9,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -160,6 +161,7 @@ final class DotNetDependencyWorkspace {
             byte[] buffer = new byte[32768];
             int count;
             while ((count = input.read(buffer)) != -1) {
+                checkCancelled();
                 total += count;
                 if (total > limit) throw new IOException("File exceeds the " + (limit / (1024 * 1024)) + " MB safety limit.");
                 output.write(buffer, 0, count);
@@ -175,6 +177,11 @@ final class DotNetDependencyWorkspace {
             throw new IOException(total == 0 ? "Selected file is empty." : "Cannot activate copied file.");
         }
         return total;
+    }
+
+    private static void checkCancelled() throws InterruptedIOException {
+        if (Thread.currentThread().isInterrupted())
+            throw new InterruptedIOException("Dependency project import cancelled because its activity was closed.");
     }
 
     private static String queryName(Context context, Uri uri) {

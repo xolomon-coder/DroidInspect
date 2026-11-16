@@ -493,7 +493,10 @@ final class ApkProjectWorkspace {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             try (InputStream in = new FileInputStream(file)) {
                 byte[] buffer = new byte[32768]; int n;
-                while ((n = in.read(buffer)) != -1) digest.update(buffer, 0, n);
+                while ((n = in.read(buffer)) != -1) {
+                    checkCancelled();
+                    digest.update(buffer, 0, n);
+                }
             }
             StringBuilder value = new StringBuilder();
             for (byte b : digest.digest()) value.append(String.format(java.util.Locale.ROOT, "%02x", b & 255));
