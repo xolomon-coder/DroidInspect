@@ -341,7 +341,7 @@ Build progressively, preserve existing work, verify actual functionality, mainta
 
 # DroidInspect — Product Specification and Development Plan
 
-Last project-plan update: 2026-11-16 (M12–M16 resource integrity tests and CI update)
+Last project-plan update: 2026-11-16 (M12–M16 comparison regression and CI update)
 
 ## 1. App Goal
 
@@ -650,7 +650,7 @@ The long-term roadmap has **20 milestones**, grouped into eight phases. M1–M10
 ## 4.1 Development Log — 2026-11-16
 
 Latest inspected repository branch: `main`.
-Latest inspected HEAD at this documentation update: `a783dd5d9315c0af231beeeeca5be9d60f62a1ee`.
+Latest inspected HEAD at this documentation update: `631022b56b18bb2fac378deb065efce55b2f65c4`.
 
 ### M12/M13 verification evidence
 - Commit `7922a821cc5a4a5912b75e61ae64a281bbd9202c`: reject compiler output paths that equal the preserved original assembly.
@@ -678,6 +678,8 @@ Latest inspected HEAD at this documentation update: `a783dd5d9315c0af231beeeeca5
 - Commits `24896c88bd4f6dcfa41b42db86d1978d97c4ff77`, `ac117d531360f84a7fe723c18c9e6ffcd0309965`, and `a783dd5d9315c0af231beeeeca5be9d60f62a1ee`: include ManifestResource rows in assembly comparison and ensure oversized/unavailable IL is reported as unverified rather than falsely unchanged.
 - Android CI run [43780357379](https://github.com/xolomon-coder/DroidInspect/actions/runs/43780357379) completed SUCCESS on `a783dd5d9315c0af231beeeeca5be9d60f62a1ee`. The ManifestResource metadata fixture, embedded resource byte-integrity/bounds/source-immutability fixture, IL and DEX host tests, Android debug/release builds, signing/tamper checks, production native payload and offline permission checks all passed. Artifact `DroidInspect-Phase3-builds` was published (69,565,111 bytes; SHA-256 `29670c818390b16c30e56e19ba35be3f6d9133c336ece09e5c10927b104e98ca`).
 - M16 remains in progress: signature-level comparison and representative changed/unchanged assembly-pair regression fixtures are still outstanding; linked resources are listed but not exported; resource payload integrity is covered by a synthetic PE fixture but still needs validation against real-world assemblies and final device acceptance. Structural comparison does not establish semantic equivalence.
+- Commits `bcd327d0faea78c5e7354a023ed8d5244b563485`, `416da91f3c6762b2e83e2d574829119d44d7ef12`, `eeb23bac879ee29512287786bd6abcb904ff3b96`, and `631022b56b18bb2fac378deb065efce55b2f65c4`: extract the pure structural/IL diff engine, connect it to the Android screen, and add host regression coverage for added, removed, changed, unchanged, and unavailable IL records.
+- Android CI run [43780703602](https://github.com/xolomon-coder/DroidInspect/actions/runs/43780703602) completed SUCCESS on `631022b56b18bb2fac378deb065efce55b2f65c4`. All host parser, resource-integrity, comparison-diff, IL and DEX tests passed; debug/release Android builds, APK signing/tamper checks, native payload checks, offline permission audit, and artifact upload passed. Artifact `DroidInspect-Phase3-builds` was published (69,565,674 bytes; SHA-256 `1e70edb27aaaebaa8a6b45d4ef35f09d8229b7efdbe499a39da667bd8b12fdb2`).
 - The production manifest and permission audit remains offline; no Internet permission was added. Device acceptance for M12–M16 is pending the consolidated final test session.
 
 ## 5. Development and Creation Process
