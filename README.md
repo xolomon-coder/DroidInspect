@@ -3385,7 +3385,7 @@ Additional M20 changes since the previous checkpoint:
 
 ### M19/M20 reliability continuation — 2026-11-17
 
-**Current source checkpoint:** `main` HEAD `96e6221fb538b264d2346a619ebc8e686b1a8ec0`. All changes in this continuation were committed directly to `main`; no alternate branch was created.
+**Latest source/workflow checkpoint before this README-only update:** `96e6221fb538b264d2346a619ebc8e686b1a8ec0`. All source and workflow changes in this continuation were committed directly to `main`; this final documentation update also targets `main`, with no alternate branch created.
 
 **M19 bounded project discovery and metadata hardening:**
 - Reworked `ProjectWorkspaceIndex.scan()` to use `DirectoryStream` and stop after examining at most 2,000 root entries, regardless of whether those entries contain valid project markers. The 500-project result cap remains. Per-project timestamp traversal remains limited to 2,000 visited entries and depth 5.
