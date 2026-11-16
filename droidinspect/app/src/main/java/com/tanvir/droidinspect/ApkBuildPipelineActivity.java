@@ -114,6 +114,7 @@ public final class ApkBuildPipelineActivity extends Activity {
                 ApkProjectWorkspace ready = opened;
                 String errorText = failure;
                 runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
                     if (errorText != null) {
                         setBusy(false, "Project could not be opened.");
                         showError(errorText);
