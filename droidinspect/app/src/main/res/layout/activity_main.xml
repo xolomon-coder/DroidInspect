@@ -97,6 +97,12 @@
         android:text="Advanced .NET Assembly Explorer"
         android:enabled="false" />
 
+    <Button
+        android:id="@+id/assemblyComparisonButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Compare .NET Assemblies" />
+
     <ProgressBar
         android:id="@+id/progressBar"
         style="?android:attr/progressBarStyleHorizontal"
