@@ -283,9 +283,11 @@ public class CSharpSourceEditorActivity extends Activity {
 
     private static boolean isManagedPe(File file) {
         if (file == null || !file.isFile() || file.length() < 512) return false;
-        try (FileInputStream input = new FileInputStream(file)) {
-            return input.read() == 'M' && input.read() == 'Z';
-        } catch (IOException error) {
+        try {
+            DotNetIlReader.Result inspected = DotNetIlReader.read(file);
+            return inspected != null && inspected.methods != null && !inspected.methods.isEmpty()
+                    && inspected.assembly != null && !"(unknown assembly)".equals(inspected.assembly);
+        } catch (Exception error) {
             return false;
         }
     }
