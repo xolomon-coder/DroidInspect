@@ -117,11 +117,11 @@ public final class ApkSigningActivity extends Activity {
                     setBusy(false, failure == null ? "Signed APK exported." : "Export failed: " + failure);
                     if (failure != null) showError(failure);
                     if (returnSignedUri) {
-                        Intent result = new Intent();
+                        Intent resultIntent = new Intent();
                         if (failure == null) {
-                            result.setData(destination);
-                            result.putExtra("signed_apk_uri", destination.toString());
-                            setResult(RESULT_OK, result);
+                            resultIntent.setData(destination);
+                            resultIntent.putExtra("signed_apk_uri", destination.toString());
+                            setResult(RESULT_OK, resultIntent);
                         } else {
                             setResult(RESULT_CANCELED);
                         }
