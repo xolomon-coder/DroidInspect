@@ -69,8 +69,11 @@ final class CSharpSourceWorkspace {
             throw new IOException("Invalid source project identifier.");
         File root = new File(new File(context.getFilesDir(), "csharp-projects"), id);
         File marker = new File(root, ".droidinspect-project");
-        if (!marker.isFile() || !new File(root, "src").isDirectory())
-            throw new IOException("The saved C# source project could not be found.");
+        File source = new File(root, "src");
+        File originalAssembly = new File(root, "original/OriginalAssembly.bin");
+        if (!marker.isFile() || !source.isDirectory() || !originalAssembly.isFile()
+                || originalAssembly.length() <= 0 || originalAssembly.length() > MAX_ORIGINAL_ASSEMBLY)
+            throw new IOException("Saved C# source project is incomplete or its original assembly is outside the safety limit.");
         String name = "C# source project";
         try (java.io.BufferedReader reader = new java.io.BufferedReader(
                 new java.io.InputStreamReader(new FileInputStream(marker), "UTF-8"))) {
@@ -86,7 +89,11 @@ final class CSharpSourceWorkspace {
                 .getString("last_project_id", null);
         if (id == null || !id.matches("project_[A-Fa-f0-9]{32}")) return null;
         File root = new File(new File(context.getFilesDir(), "csharp-projects"), id);
-        return new File(root, ".droidinspect-project").isFile() ? id : null;
+        File originalAssembly = new File(root, "original/OriginalAssembly.bin");
+        return new File(root, ".droidinspect-project").isFile()
+                && new File(root, "src").isDirectory()
+                && originalAssembly.isFile() && originalAssembly.length() > 0
+                && originalAssembly.length() <= MAX_ORIGINAL_ASSEMBLY ? id : null;
     }
 
     private static void remember(Context context, String id) {
