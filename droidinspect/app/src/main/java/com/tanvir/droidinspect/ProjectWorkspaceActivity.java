@@ -109,7 +109,9 @@ public final class ProjectWorkspaceActivity extends Activity {
 
     private void open(ProjectEntry entry) {
         if ("APK".equals(entry.kind)) {
-            startActivity(new Intent(this, ApkProjectWorkspaceActivity.class));
+            Intent intent = new Intent(this, ApkProjectWorkspaceActivity.class);
+            intent.putExtra("project_id", entry.id);
+            startActivity(intent);
         } else if ("C# SOURCE".equals(entry.kind)) {
             openSource(entry.id);
         } else {
