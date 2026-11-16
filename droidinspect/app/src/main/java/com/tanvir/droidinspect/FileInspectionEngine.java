@@ -9,6 +9,7 @@ import android.os.Build;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.InterruptedIOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
@@ -50,6 +51,7 @@ final class FileInspectionEngine {
             byte[] buffer = new byte[32 * 1024];
             int read;
             while ((read = in.read(buffer)) != -1) {
+                checkCancelled();
                 total += read;
                 if (total > MAX_COPY_BYTES) throw new IllegalArgumentException("File exceeds the current 512 MB inspection limit.");
                 fos.write(buffer, 0, read);
@@ -61,6 +63,11 @@ final class FileInspectionEngine {
             out.delete();
             throw e;
         }
+    }
+
+    private static void checkCancelled() throws InterruptedIOException {
+        if (Thread.currentThread().isInterrupted())
+            throw new InterruptedIOException("File inspection cancelled because the dashboard activity was closed.");
     }
 
     private static String queryName(Context context, Uri uri) {
