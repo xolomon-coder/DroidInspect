@@ -454,14 +454,37 @@ public final class ApkResourceActivity extends Activity {
 
     private static String safe(String value) { return value == null ? "" : value; }
 
+    private static void checkCancelled() throws InterruptedIOException {
+        if (Thread.currentThread().isInterrupted())
+            throw new InterruptedIOException("APK operation cancelled because the activity was closed.");
+    }
+
     @Override protected void onDestroy() {
-        super.onDestroy();
+        destroyed = true;
         worker.shutdownNow();
-        if (apkModule != null) {
-            try { apkModule.close(); } catch (Exception ignored) { }
+        super.onDestroy();
+        // Wait off the UI thread: never close ApkModule or delete working files
+        // while an interrupted worker may still be using them.
+        Thread cleanup = new Thread(() -> {
+            try {
+                worker.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            ApkModule module = apkModule;
             apkModule = null;
-        }
-        if (sourceCopy != null) sourceCopy.delete();
-        deletePendingOutput();
+            if (module != null) {
+                try { module.close(); } catch (Exception ignored) { }
+            }
+            File source = sourceCopy;
+            sourceCopy = null;
+            if (source != null) source.delete();
+            File pending = pendingOutput;
+            pendingOutput = null;
+            if (pending != null) pending.delete();
+        }, "droidinspect-apk-cleanup");
+        cleanup.setDaemon(true);
+        cleanup.start();
     }
 }
