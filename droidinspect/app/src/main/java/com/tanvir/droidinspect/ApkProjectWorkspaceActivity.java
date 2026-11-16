@@ -295,6 +295,7 @@ public final class ApkProjectWorkspaceActivity extends Activity {
                 ApkProjectWorkspace ready = created;
                 String failure = error;
                 runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
                     if (failure != null) { setBusy(false, "Project creation failed."); showError(failure); return; }
                     project = ready;
                     showProject();
@@ -329,6 +330,7 @@ public final class ApkProjectWorkspaceActivity extends Activity {
             catch (Exception e) { error = e.getClass().getSimpleName() + ": " + safe(e.getMessage()); }
             String finalMessage = message, failure = error;
             runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
                 setBusy(false, failure == null ? finalMessage : "Project operation failed.");
                 if (failure != null) showError(failure);
                 refreshProjectStatus();
