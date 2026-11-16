@@ -8,6 +8,7 @@ import android.provider.OpenableColumns;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Locale;
@@ -31,6 +32,7 @@ final class DecompilationWorkspace implements AutoCloseable {
         File root = new File(new File(context.getCacheDir(), "csharp-decompile"), UUID.randomUUID().toString());
         if (!root.mkdirs()) throw new IOException("Cannot create private decompilation workspace.");
         try {
+            checkCancelled();
             File input = new File(root, safeName(queryName(context, source)));
             copyDocument(context, source, input);
             return new DecompilationWorkspace(root, input, ensureReferences(context));
@@ -52,6 +54,7 @@ final class DecompilationWorkspace implements AutoCloseable {
             byte[] buffer = new byte[32768];
             int n;
             while ((n = in.read(buffer)) != -1) {
+                checkCancelled();
                 total += n;
                 if (total > MAX_INPUT) throw new IOException("Input exceeds the 512 MB safety limit.");
                 out.write(buffer, 0, n);
@@ -82,11 +85,15 @@ final class DecompilationWorkspace implements AutoCloseable {
             int copied = 0;
             byte[] buffer = new byte[32768];
             for (String name : names) {
+                checkCancelled();
                 if (!name.toLowerCase(Locale.ROOT).endsWith(".dll")) continue;
                 try (InputStream in = context.getAssets().open(assetRoot + "/" + name);
                      OutputStream out = new FileOutputStream(new File(staging, name))) {
                     int n;
-                    while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
+                    while ((n = in.read(buffer)) != -1) {
+                        checkCancelled();
+                        out.write(buffer, 0, n);
+                    }
                     out.flush();
                 }
                 copied++;
@@ -97,6 +104,7 @@ final class DecompilationWorkspace implements AutoCloseable {
                 marker.flush();
                 marker.getFD().sync();
             }
+            checkCancelled();
             deleteTree(ready);
             if (!staging.renameTo(ready)) throw new IOException("Cannot activate extracted framework references.");
             activated = true;
@@ -104,6 +112,11 @@ final class DecompilationWorkspace implements AutoCloseable {
         } finally {
             if (!activated) deleteTree(staging);
         }
+    }
+
+    private static void checkCancelled() throws InterruptedIOException {
+        if (Thread.currentThread().isInterrupted())
+            throw new InterruptedIOException("Decompilation preparation cancelled because its screen was closed.");
     }
 
     private static String queryName(Context context, Uri uri) {
