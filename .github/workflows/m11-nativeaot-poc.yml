@@ -28,6 +28,14 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '11.0.100'
+      - name: Capture transitive ILSpy and .NET Native AOT package graph
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          dotnet restore tools/m11-poc/engine/DroidInspect.M11.Engine.csproj -r linux-bionic-arm64
+          dotnet list tools/m11-poc/engine/DroidInspect.M11.Engine.csproj package --include-transitive \
+            | tee artifacts/m11-nuget-transitive-dependencies.txt
+          test -s artifacts/m11-nuget-transitive-dependencies.txt
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
