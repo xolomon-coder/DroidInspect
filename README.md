@@ -3005,3 +3005,31 @@ M12/M13 workflow run `43772390454` (run #37) completed successfully:
 Latest workflow-generated native payload commit: `29ea824cc26467f6eaa41dc206198334476956c2`. A fresh production Android CI run against this exact payload is still required; this documentation commit triggers that run.
 
 M13 code and automated host/CI coverage are implemented. Device acceptance remains pending for the consolidated final session. The resolver is offline-only and uses the bundled .NET 11.0 reference profile; other framework packs are not yet bundled.
+
+
+### M19 unified project workspace integration — 2026-11-16
+
+Added a unified **APK / .NET Project Workspace** entry to the production main menu and a recent-project launcher at `ProjectWorkspaceActivity.java`.
+
+The launcher enumerates:
+- APK projects from the persistent APK workspace index.
+- C# source projects from the existing private `csharp-projects` store.
+- Offline .NET dependency projects from the existing `dotnet-dependency-projects` store.
+
+Project selection routes to the existing APK project detail screen, C# source editor, or offline dependency workspace. The APK workspace now accepts a project ID so a selected APK project opens directly rather than returning to the APK project list. This reuses the existing project stores and avoids duplicating original APKs, original assemblies, source trees, or dependency files.
+
+Updated production entry points:
+- `ProjectWorkspaceActivity.java`
+- `MainActivity.java` and `activity_main.xml`
+- `AndroidManifest.xml`
+- `ApkProjectWorkspaceActivity.java`
+
+**Verification status: NOT YET VERIFIED.** The push-triggered Android Actions jobs for commits in this integration batch terminate in approximately two seconds with `runner_id=0`, an empty step list, and no runner logs. This indicates the job did not reach a GitHub-hosted runner; it is not evidence of a source compilation failure or a successful build. The job must be run when GitHub Actions runner capacity is available. Do not mark M19 complete until the production Android build succeeds and project navigation/reopen/recovery behavior is covered by tests.
+
+Known remaining M19 work:
+1. Add .NET source/dependency project notes, bookmarks, saved searches, revision/recovery and report management to the persistent project model rather than relying only on the APK workspace's richer project controls.
+2. Add host-testable project-index and metadata/recovery tests, and Android-level persistence tests where available.
+3. Verify APK pipeline path handoff, signed output revision replacement, and project reopen after app restart.
+4. Complete a successful production Android CI run against the final M19 commit.
+
+The unified launcher currently indexes existing project types; it does not claim that all APK and .NET project operations have already been merged into one storage format. Existing source/dependency project formats remain separate and backward-compatible.
