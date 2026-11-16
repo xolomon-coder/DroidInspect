@@ -1,6 +1,7 @@
 package com.tanvir.droidinspect;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 
@@ -41,13 +42,51 @@ public final class ProjectWorkspaceMetadataSelfTest {
             File note = new File(firstRoot, "notes.md");
             String noteText = new String(Files.readAllBytes(note.toPath()), StandardCharsets.UTF_8);
             require(noteText.contains("Investigate assembly identity"), "note bytes survive reopen");
+            require(!new File(firstRoot, "operation-in-progress.txt").exists(),
+                    "recovery marker removed only after completion record");
 
-            File marker = new File(firstRoot, "operation-in-progress.txt");
-            require(!marker.exists(), "recovery marker removed only after completion record");
+            File reports = new File(firstRoot, "reports");
+            require(reports.mkdir(), "create report listing directory");
+            for (int i = 0; i < 120; i++)
+                Files.write(new File(reports, String.format("report-%03d.txt", i)).toPath(), new byte[]{1});
+            require(first.readOverview().contains("listing truncated by safety limits"),
+                    "workspace overview truncates large directory listings");
 
-            System.out.println("PASS: metadata reopen, project isolation, notes, bookmarks, searches and recovery journal");
+            File corruptRoot = new File(parent, "corrupt-project");
+            require(corruptRoot.mkdir(), "create corrupt metadata project");
+            Files.write(new File(corruptRoot, "notes.md").toPath(), new byte[]{(byte) 0xC3, 0x28});
+            expectIOException(() -> new ProjectWorkspaceMetadata(corruptRoot).readOverview(),
+                    "malformed UTF-8 metadata is rejected");
+
+            File oversizedRoot = new File(parent, "oversized-project");
+            require(oversizedRoot.mkdir(), "create oversized metadata project");
+            byte[] oversized = new byte[1024 * 1024 + 1];
+            Files.write(new File(oversizedRoot, "notes.md").toPath(), oversized);
+            expectIOException(() -> new ProjectWorkspaceMetadata(oversizedRoot).readOverview(),
+                    "metadata larger than 1 MB is rejected");
+
+            File outside = new File(parent, "outside.txt");
+            Files.write(outside.toPath(), "outside".getBytes(StandardCharsets.UTF_8));
+            File linkedRoot = new File(parent, "linked-project");
+            require(linkedRoot.mkdir(), "create symlink metadata project");
+            Files.createSymbolicLink(new File(linkedRoot, "notes.md").toPath(), outside.toPath());
+            expectIOException(() -> new ProjectWorkspaceMetadata(linkedRoot).readOverview(),
+                    "metadata symlink cannot escape project root");
+
+            System.out.println("PASS: reopen, isolation, notes, bookmarks, searches, recovery, bounded listings, corrupt/oversized metadata and symlink isolation");
         } finally {
             delete(parent);
+        }
+    }
+
+    private interface IoAction { void run() throws Exception; }
+
+    private static void expectIOException(IoAction action, String message) throws Exception {
+        try {
+            action.run();
+            throw new AssertionError("FAIL: " + message);
+        } catch (IOException expected) {
+            // Expected bounded-storage or path-safety rejection.
         }
     }
 
