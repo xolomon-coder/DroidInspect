@@ -169,6 +169,7 @@ final class ApkProjectWorkspace {
     File getNotesFile() { return notesFile; }
 
     synchronized void replaceWorkingFromUri(Uri source) throws IOException {
+        beginOperationQuietly("APK_WORKING_REPLACE", "Replace working APK from selected document");
         File incoming = new File(new File(root, "working"), "working-incoming.tmp");
         try {
             copyUri(context, source, incoming, MAX_APK_BYTES);
@@ -182,12 +183,14 @@ final class ApkProjectWorkspace {
             }
             revision++;
             saveMetadata(revision, sha256(originalApk), sha256(workingApk));
+            finishOperationQuietly("APK_WORKING_REPLACE", "revision " + revision);
         } finally {
             if (incoming.exists()) incoming.delete();
         }
     }
 
     synchronized void restoreRevision(File snapshot) throws IOException {
+        beginOperationQuietly("APK_REVISION_RESTORE", "Restore a saved working revision");
         if (snapshot == null || !snapshot.isFile() || !snapshot.getCanonicalPath().startsWith(historyDirectory.getCanonicalPath() + File.separator))
             throw new IOException("Selected recovery revision is not inside this project's history folder.");
         File incoming = new File(new File(root, "working"), "working-restore.tmp");
@@ -203,6 +206,7 @@ final class ApkProjectWorkspace {
             }
             revision++;
             saveMetadata(revision, sha256(originalApk), sha256(workingApk));
+            finishOperationQuietly("APK_REVISION_RESTORE", "revision " + revision);
         } finally {
             if (incoming.exists()) incoming.delete();
         }
@@ -229,6 +233,7 @@ final class ApkProjectWorkspace {
     }
 
     synchronized File saveExportFromUri(Uri source, String requestedName) throws IOException {
+        beginOperationQuietly("APK_EXPORT", requestedName);
         String filename = safeFilename(requestedName);
         if (!filename.toLowerCase(java.util.Locale.ROOT).endsWith(".apk")) filename += ".apk";
         File output = new File(exportsDirectory, filename);
@@ -242,6 +247,7 @@ final class ApkProjectWorkspace {
                 temp.delete();
             }
             touch();
+            finishOperationQuietly("APK_EXPORT", output.getName());
             return output;
         } finally {
             if (temp.exists()) temp.delete();
@@ -260,6 +266,7 @@ final class ApkProjectWorkspace {
     void saveNotes(String notes) throws IOException {
         writeText(notesFile, notes == null ? "" : notes);
         touch();
+        recordOperationQuietly("NOTES_UPDATED", "Project notes saved");
     }
 
     String readNotes() throws IOException {
@@ -269,11 +276,13 @@ final class ApkProjectWorkspace {
     void addBookmark(String kind, String target, String note) throws IOException {
         appendRecord(bookmarksFile, kind, target, note);
         touch();
+        recordOperationQuietly("BOOKMARK_ADDED", kind + ": " + target);
     }
 
     void addSavedSearch(String scope, String query) throws IOException {
         appendRecord(searchesFile, scope, query, "");
         touch();
+        recordOperationQuietly("SEARCH_SAVED", scope + ": " + query);
     }
 
     List<String> readBookmarks() throws IOException { return readRecords(bookmarksFile); }
@@ -285,6 +294,7 @@ final class ApkProjectWorkspace {
         File output = new File(reportsDirectory, safe);
         writeText(output, content == null ? "" : content);
         touch();
+        recordOperationQuietly("REPORT_WRITTEN", output.getName());
         return output;
     }
 
