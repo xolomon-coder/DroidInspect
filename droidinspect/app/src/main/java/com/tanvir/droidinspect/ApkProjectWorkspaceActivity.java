@@ -226,15 +226,24 @@ public final class ApkProjectWorkspaceActivity extends Activity {
     }
 
     private void showTree() {
-        List<String> files = project.listProjectTree();
-        StringBuilder text = new StringBuilder();
-        for (String file : files) text.append(file).append('\n');
-        new AlertDialog.Builder(this).setTitle("Project file tree").setMessage(text.toString())
-                .setPositiveButton("CLOSE", null).show();
+        try {
+            List<String> files = project.listProjectTree();
+            StringBuilder text = new StringBuilder();
+            for (String file : files) text.append(file).append('\n');
+            new AlertDialog.Builder(this).setTitle("Project file tree").setMessage(text.toString())
+                    .setPositiveButton("CLOSE", null).show();
+        } catch (Exception error) {
+            showError("Cannot list project tree: " + safe(error.getMessage()));
+        }
     }
 
     private void showHistory() {
-        List<File> history = project.listHistory();
+        List<File> history;
+        try { history = project.listHistory(); }
+        catch (Exception error) {
+            showError("Cannot list revision history: " + safe(error.getMessage()));
+            return;
+        }
         if (history.isEmpty()) {
             new AlertDialog.Builder(this).setTitle("Revision history")
                     .setMessage("No recovery snapshots yet. A snapshot is created before each working APK replacement.")
@@ -257,7 +266,12 @@ public final class ApkProjectWorkspaceActivity extends Activity {
     }
 
     private void showReports() {
-        List<File> reports = project.listReports();
+        List<File> reports;
+        try { reports = project.listReports(); }
+        catch (Exception error) {
+            showError("Cannot list project reports: " + safe(error.getMessage()));
+            return;
+        }
         if (reports.isEmpty()) {
             new AlertDialog.Builder(this).setTitle("Project reports")
                     .setMessage("No reports have been saved to this project yet.")
