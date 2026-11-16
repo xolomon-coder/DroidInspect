@@ -121,6 +121,7 @@ public final class ApkProjectWorkspaceActivity extends Activity {
             ApkProjectWorkspace ready = opened;
             String failure = error;
             runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
                 if (failure != null) {
                     setBusy(false, "Project could not be opened.");
                     showError(failure);
