@@ -15,7 +15,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-/** Bounded, deterministic index for app-private project folders. */
+/** Bounded index for app-private project folders. */
 final class ProjectWorkspaceIndex {
     private static final int MAX_PROJECTS = 500;
     static final int MAX_SCANNED_ROOT_ENTRIES = 2000;
