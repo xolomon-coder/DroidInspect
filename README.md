@@ -3547,7 +3547,7 @@ Additional M20 changes since the previous checkpoint:
 - These are source changes only. None of the newly added cancellation tests or Android runtime paths have been accepted on-device.
 
 **Current production CI evidence:**
-- Latest source commit before this README update: 024ecad5b6daf78a574f4039152ea73fe5225755.
+- Latest source commit before this README update: 465c6499b8bfbfcf3507821588268bb4ad3b4fd5 (M12 compile-operation verification correction). The current README-only checkpoint follows that source commit.
 - Production run [43974822673](https://github.com/xolomon-coder/DroidInspect/actions/runs/43974822673) (#589) targeted that source commit. Its job 133675971061 completed with failure, runner_id=0, blank runner name, and an empty step list. It produced no artifacts. This is another runner-allocation failure, not a source compilation or test result.
 - The preceding runs #585–#588 also had zero steps. No further retries are useful until runner assignment recovers.
 - The production workflow is configured to run the expanded M19 index and metadata tests plus DEX, IL, metadata, resource, APK compatibility, comparison, and source-tree host regressions; build debug and release APKs; sign and verify; reject a tampered APK; inspect actual packaged native libraries/ABI/size; capture the Gradle release dependency graph; and publish SHA-256 artifacts. None of those checks ran in #589.
