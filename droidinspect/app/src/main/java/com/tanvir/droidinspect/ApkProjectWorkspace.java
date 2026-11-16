@@ -223,10 +223,15 @@ final class ApkProjectWorkspace {
     }
 
     private void snapshotCurrent() throws IOException {
+        // Validate and bound the existing inventory before creating the next snapshot.
+        List<File> files = BoundedProjectFiles.listFiles(
+                historyDirectory, MAX_PROJECT_DIRECTORY_ENTRIES, ".apk");
         File snapshot = new File(historyDirectory,
                 "before-revision-" + (revision + 1) + "-" + System.currentTimeMillis() + ".apk");
         copyFile(workingApk, snapshot);
-        List<File> files = BoundedProjectFiles.listFiles(historyDirectory, MAX_PROJECT_DIRECTORY_ENTRIES, ".apk");
+        files.add(snapshot);
+        Collections.sort(files, Comparator.comparingLong(File::lastModified).reversed()
+                .thenComparing(File::getName));
         for (int i = MAX_HISTORY_REVISIONS; i < files.size(); i++) files.get(i).delete();
     }
 
