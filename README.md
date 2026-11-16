@@ -3529,3 +3529,44 @@ Additional M20 changes since the previous checkpoint:
 **Latest CI evidence:** Production runs [43974403048](https://github.com/xolomon-coder/DroidInspect/actions/runs/43974403048) (#585), [43974549193](https://github.com/xolomon-coder/DroidInspect/actions/runs/43974549193) (#586), and [43974622943](https://github.com/xolomon-coder/DroidInspect/actions/runs/43974622943) (#587) all ended before executing a single step; each job-step query returned an empty list. The latest source change in this continuation will trigger another production run. These attempts do not establish compilation or test results.
 
 **M19/M20 state:** M19 remains IN PROGRESS; bounded APK project discovery now uses the same root-entry budget as the other project types, with an added host regression assertion awaiting execution. M20 remains IN PROGRESS; cancellation and UI-thread work have been improved in additional project/decompilation paths, but a complete lifecycle audit, full host suite, Android debug/release build, packaged APK audit, and device verification are still outstanding.
+
+### M19/M20 continuation — bounded APK indexing, project cancellation, and remaining runner blocker — 2026-11-17
+
+**M19 project discovery correction:**
+- APK recent-project discovery no longer calls unbounded File.listFiles() on the project root. It now uses ProjectWorkspaceIndex.scanShallow(), with the shared 2,000-root-entry scan budget and 500-project result cap, while using the APK project's own metadata timestamp/revision.
+- The M19 host regression now also checks that a project beyond the root-entry budget is not returned by shallow APK-style indexing. This new assertion is committed but has not yet executed.
+- Existing focused host test evidence remains limited to the earlier index and metadata tests. Do not claim the expanded index test passed until it actually runs.
+
+**M20 lifecycle/cancellation continuation:**
+- DEX analysis now owns an executor, checks interruption during ZIP extraction and parser table/member/instruction traversal, suppresses callbacks after Activity destruction, and defers temporary APK deletion until the worker exits.
+- The DEX host test includes a pre-interrupted parser assertion; execution remains pending.
+- Main dashboard asynchronous callbacks now guard against finishing/destroyed Activity state. The file inspection copy loop checks interruption so dashboard teardown can stop a large file copy and remove its temporary file.
+- APK project imports, local working-copy transfers, exports, and SHA-256 streaming check cancellation. Interrupted partial local copies are deleted.
+- .NET dependency-project SAF imports check interruption and remove their temporary import file; failed batch imports retain the existing rollback behavior.
+- C# source-project creation is now performed on the decompiler worker rather than the UI thread. Copying the preserved original assembly and writing the separate source project no longer blocks the UI thread; the UI callback uses a weak Activity reference and lifecycle checks.
+- These are source changes only. None of the newly added cancellation tests or Android runtime paths have been accepted on-device.
+
+**Current production CI evidence:**
+- Latest source commit before this README update: 024ecad5b6daf78a574f4039152ea73fe5225755.
+- Production run [43974822673](https://github.com/xolomon-coder/DroidInspect/actions/runs/43974822673) (#589) targeted that source commit. Its job 133675971061 completed with failure, runner_id=0, blank runner name, and an empty step list. It produced no artifacts. This is another runner-allocation failure, not a source compilation or test result.
+- The preceding runs #585–#588 also had zero steps. No further retries are useful until runner assignment recovers.
+- The production workflow is configured to run the expanded M19 index and metadata tests plus DEX, IL, metadata, resource, APK compatibility, comparison, and source-tree host regressions; build debug and release APKs; sign and verify; reject a tampered APK; inspect actual packaged native libraries/ABI/size; capture the Gradle release dependency graph; and publish SHA-256 artifacts. None of those checks ran in #589.
+- The M12 compiler and M11 decompiler proof workflows remain separately subject to their previously documented runner-allocation blocker. Transitive NuGet dependency/license review remains incomplete.
+
+**Source native payload inventory (rechecked from the current repository tree):**
+- The only source ABI directory is arm64-v8a.
+- libdroidinspect_engine.so: 45,966,680 bytes.
+- libdroidinspect_jni.so: 11,032 bytes.
+- libdroidinspect_m12_compiler.so: 35,316,984 bytes.
+- libdroidinspect_m12_jni.so: 11,800 bytes.
+- Total source-tree native library size: **81,306,496 bytes (77.54 MiB)**.
+- This is the checked-in source-library total, not a measured compressed/uncompressed APK payload or installed size. The actual packaged inventory and compressed sizes still require a successful production runner.
+- The production source manifest was rechecked: no uses-permission declarations are present and android:allowBackup=false is set. Packaged APK permission verification remains unexecuted.
+- Direct dependencies in app/build.gradle.kts remain ARSCLib 1.4.0 and apksig 8.13.0 (Apache-2.0). THIRD-PARTY-NOTICES.md records direct ILSpy 11.2.0.10050, .NET 11 runtime/reference pack, and Roslyn 5.12.0 MIT notices. This is not a completed transitive NuGet/Gradle license audit.
+
+**Milestone state:**
+- **M19 — IN PROGRESS.** The C# source/dependency index and metadata host tests previously passed. The APK index is now bounded, but its added host assertion, full host regression suite, APK/C#/.NET reopen, restart persistence, project isolation, and recovery remain to be verified.
+- **M20 — IN PROGRESS.** More project/decompilation/diagnostic worker races have been addressed. Remaining work includes the complete lifecycle/cancellation sweep, full host regression execution, Android debug/release builds, signing/tamper verification, actual packaged native inventory, transitive license review, device memory/performance tests, and CodeAssist reproducibility.
+- **M12–M18** remain implementation-integrated with consolidated device acceptance pending. **M11 remains user-accepted; do not repeat its acceptance tests.**
+
+**Exact next action:** Continue static review of remaining project and decompilation worker ownership/cancellation paths without speculative rewrites. When Actions runner allocation recovers, run the production workflow once, inspect every host test and build step plus every artifact, fix actual failures on main, and only then prepare the consolidated M12–M20 phone test session.
