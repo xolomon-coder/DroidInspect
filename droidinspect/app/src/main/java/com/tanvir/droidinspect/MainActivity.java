@@ -27,7 +27,8 @@ public class MainActivity extends Activity {
     private Button apkSplitSetButton;
     private Button apkResourceCatalogButton;
     private Button apkBuildPipelineButton;
-    private Button apkProjectWorkspaceButton;\n    private Button unifiedProjectWorkspaceButton;
+    private Button apkProjectWorkspaceButton;
+    private Button unifiedProjectWorkspaceButton;
     private Uri selectedUri;
     private String selectedName = "Selected assembly";
     private boolean canBrowseDex, canBrowseApk, canBrowseDotNet;
@@ -55,7 +56,8 @@ public class MainActivity extends Activity {
         apkSplitSetButton = findViewById(R.id.apkSplitSetButton);
         apkResourceCatalogButton = findViewById(R.id.apkResourceCatalogButton);
         apkBuildPipelineButton = findViewById(R.id.apkBuildPipelineButton);
-        apkProjectWorkspaceButton = findViewById(R.id.apkProjectWorkspaceButton);\n        unifiedProjectWorkspaceButton = findViewById(R.id.unifiedProjectWorkspaceButton);
+        apkProjectWorkspaceButton = findViewById(R.id.apkProjectWorkspaceButton);
+        unifiedProjectWorkspaceButton = findViewById(R.id.unifiedProjectWorkspaceButton);
         browseDexButton.setEnabled(false);
         browseResourcesButton.setEnabled(false);
         browseDotNetButton.setEnabled(false);
@@ -87,7 +89,8 @@ public class MainActivity extends Activity {
         apkSplitSetButton.setOnClickListener(v -> startActivity(new Intent(this, ApkSplitSetActivity.class)));
         apkResourceCatalogButton.setOnClickListener(v -> startActivity(new Intent(this, ApkResourceCatalogActivity.class)));
         apkBuildPipelineButton.setOnClickListener(v -> startActivity(new Intent(this, ApkBuildPipelineActivity.class)));
-        apkProjectWorkspaceButton.setOnClickListener(v -> startActivity(new Intent(this, ApkProjectWorkspaceActivity.class)));\n        unifiedProjectWorkspaceButton.setOnClickListener(v -> startActivity(new Intent(this, ProjectWorkspaceActivity.class)));
+        apkProjectWorkspaceButton.setOnClickListener(v -> startActivity(new Intent(this, ApkProjectWorkspaceActivity.class)));
+        unifiedProjectWorkspaceButton.setOnClickListener(v -> startActivity(new Intent(this, ProjectWorkspaceActivity.class)));
         browseDotNetButton.setOnClickListener(v -> {
             if (selectedUri == null || !canBrowseDotNet) return;
             Intent intent = new Intent(this, DotNetIlActivity.class);
@@ -101,8 +104,12 @@ public class MainActivity extends Activity {
             intent.putExtra("assembly_name", selectedName);
             startActivity(intent);
         });
-        reportView.setText("Choose an APK, DLL, or EXE file to begin.\n\n"
-                + "APK: archive listing, DEX detection, package metadata, manifest/resource analysis and selected manifest editing.\n\n"
+        reportView.setText("Choose an APK, DLL, or EXE file to begin.
+
+"
+                + "APK: archive listing, DEX detection, package metadata, manifest/resource analysis and selected manifest editing.
+
+"
                 + ".NET DLL/EXE: PE structure, CLI header, runtime version and metadata inspection.");
     }
 
@@ -234,9 +241,13 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     canBrowseDex = canBrowseApk = canBrowseDotNet = false;
                     updateDependencyWorkspaceButtons();
-                    reportView.setText("INSPECTION FAILED\n\n" + e.getClass().getSimpleName()
+                    reportView.setText("INSPECTION FAILED
+
+" + e.getClass().getSimpleName()
                             + ": " + (e.getMessage() == null ? "No additional details." : e.getMessage())
-                            + "\n\nThe original selected file was not modified.");
+                            + "
+
+The original selected file was not modified.");
                     setBusy(false, "Inspection failed.");
                 });
             }
@@ -247,32 +258,50 @@ public class MainActivity extends Activity {
         setBusy(true, "Running runtime diagnostics…");
         worker.execute(() -> {
             StringBuilder report = new StringBuilder();
-            report.append("DROIDINSPECT — RUNTIME DIAGNOSTICS\n\n");
-            report.append("Android API: ").append(android.os.Build.VERSION.SDK_INT).append('\n');
-            report.append("Android release: ").append(android.os.Build.VERSION.RELEASE).append('\n');
-            report.append("App package: ").append(getPackageName()).append('\n');
+            report.append("DROIDINSPECT — RUNTIME DIAGNOSTICS
+
+");
+            report.append("Android API: ").append(android.os.Build.VERSION.SDK_INT).append('
+');
+            report.append("Android release: ").append(android.os.Build.VERSION.RELEASE).append('
+');
+            report.append("App package: ").append(getPackageName()).append('
+');
             report.append("Cache writable: ");
             File probe = null;
             try {
                 probe = File.createTempFile("di-test-", ".tmp", getCacheDir());
-                report.append("PASS\n");
+                report.append("PASS
+");
             } catch (Exception e) {
-                report.append("FAIL — ").append(e.getMessage()).append('\n');
+                report.append("FAIL — ").append(e.getMessage()).append('
+');
             } finally {
                 if (probe != null) probe.delete();
             }
-            report.append("Document picker: available through Android ACTION_OPEN_DOCUMENT\n");
-            report.append("External storage permission: not requested (SAF is used)\n");
-            report.append("APK ZIP and DEX structural parsers: available\n");
-            report.append("ARSCLib manifest/resource engine: packaged in this build\n");
-            report.append("PE/CLI metadata and raw IL browser: available\n");
-            report.append("C# decompiler ABI: ").append(NativeBridge.isArm64Supported() ? "ARM64 supported" : "unsupported device ABI").append('\n');
+            report.append("Document picker: available through Android ACTION_OPEN_DOCUMENT
+");
+            report.append("External storage permission: not requested (SAF is used)
+");
+            report.append("APK ZIP and DEX structural parsers: available
+");
+            report.append("ARSCLib manifest/resource engine: packaged in this build
+");
+            report.append("PE/CLI metadata and raw IL browser: available
+");
+            report.append("C# decompiler ABI: ").append(NativeBridge.isArm64Supported() ? "ARM64 supported" : "unsupported device ABI").append('
+');
             String compilerLoadError = com.tanvir.m12poc.NativeBridge.getLoadError();
             report.append("Offline Roslyn compiler / dependency resolver: ")
                     .append(compilerLoadError == null ? "ARM64 native payload loaded" : "unavailable — " + compilerLoadError)
-                    .append('\n');
-            report.append("Network required for local inspection/decompilation/dependency analysis: NO\n\n");
-            report.append("LIMITS\nInput copy cap: 512 MB; DEX per-file cap: 128 MB\n");
+                    .append('
+');
+            report.append("Network required for local inspection/decompilation/dependency analysis: NO
+
+");
+            report.append("LIMITS
+Input copy cap: 512 MB; DEX per-file cap: 128 MB
+");
             report.append("C# source reconstruction is not assembly execution or guaranteed recompilation.");
             String result = report.toString();
             runOnUiThread(() -> {
@@ -298,7 +327,8 @@ public class MainActivity extends Activity {
         apkSplitSetButton.setEnabled(!busy);
         apkResourceCatalogButton.setEnabled(!busy);
         apkBuildPipelineButton.setEnabled(!busy);
-        apkProjectWorkspaceButton.setEnabled(!busy);\n        unifiedProjectWorkspaceButton.setEnabled(!busy);
+        apkProjectWorkspaceButton.setEnabled(!busy);
+        unifiedProjectWorkspaceButton.setEnabled(!busy);
         openDependencyWorkspaceButton.setEnabled(!busy && DotNetDependencyWorkspace.getLastProjectId(this) != null);
         openSourceWorkspaceButton.setEnabled(!busy && CSharpSourceWorkspace.getLastProjectId(this) != null);
         statusView.setText(status);
