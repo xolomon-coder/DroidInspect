@@ -288,46 +288,7 @@ final class FileInspectionEngine {
     }
 
     static byte[] extractEmbeddedManagedResource(File file, long resourceOffset) throws Exception {
-        final long maxResourceBytes = 128L * 1024L * 1024L;
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            if (file.length() < 64 || readU16(raf, 0) != 0x5A4D)
-                throw new IllegalArgumentException("Missing PE DOS signature.");
-            long pe = readU32(raf, 0x3C);
-            if (!inBounds(pe, 24, file.length()) || readU32(raf, pe) != 0x00004550L)
-                throw new IllegalArgumentException("Invalid PE signature.");
-            int sections = readU16(raf, pe + 6);
-            int optionalSize = readU16(raf, pe + 20);
-            long optional = pe + 24;
-            int magic = readU16(raf, optional);
-            int directoryOffset = magic == 0x10B ? 96 : magic == 0x20B ? 112 : -1;
-            if (directoryOffset < 0 || optionalSize < directoryOffset + 15 * 8)
-                throw new IllegalArgumentException("Unsupported or truncated PE optional header.");
-            long sectionTable = optional + optionalSize;
-            long cliRva = readU32(raf, optional + directoryOffset + 14L * 8);
-            if (cliRva == 0) throw new IllegalArgumentException("No .NET CLI header.");
-            long cliOffset = rvaToOffset(raf, cliRva, sectionTable, sections, file.length());
-            if (cliOffset < 0 || !inBounds(cliOffset, 32, file.length()))
-                throw new IllegalArgumentException("Invalid .NET CLI header mapping.");
-            long resourcesRva = readU32(raf, cliOffset + 24);
-            long resourcesSize = readU32(raf, cliOffset + 28);
-            if (resourcesRva == 0 || resourcesSize < 4)
-                throw new IllegalArgumentException("The assembly has no embedded managed resource directory.");
-            if (resourceOffset < 0 || resourceOffset > resourcesSize - 4)
-                throw new IllegalArgumentException("Manifest resource offset is outside the managed resource directory.");
-            long resourceBase = rvaToOffset(raf, resourcesRva, sectionTable, sections, file.length());
-            if (resourceBase < 0 || !inBounds(resourceBase, resourcesSize, file.length()))
-                throw new IllegalArgumentException("Managed resource directory is outside the file.");
-            long length = readU32(raf, resourceBase + resourceOffset);
-            if (length > maxResourceBytes)
-                throw new IllegalArgumentException("Resource exceeds the 128 MB extraction limit.");
-            if (length > resourcesSize - resourceOffset - 4
-                    || !inBounds(resourceBase + resourceOffset + 4, length, file.length()))
-                throw new IllegalArgumentException("Embedded resource data is truncated or outside its directory.");
-            byte[] bytes = new byte[(int) length];
-            raf.seek(resourceBase + resourceOffset + 4);
-            raf.readFully(bytes);
-            return bytes;
-        }
+        return DotNetResourceExtractor.extractEmbeddedResource(file, resourceOffset);
     }
 
     private static long findTableRows(RandomAccessFile raf, long metadataOffset, long metadataSize, long fileLength, int tableId) {
