@@ -33,7 +33,28 @@ public final class ProjectWorkspaceIndexSelfTest {
                 }
             }
             require(incomplete, "incomplete project is retained and identified");
-            System.out.println("PASS: project discovery, marker names, readiness and recency index");
+
+            File late = null;
+            long baseTime = System.currentTimeMillis() + 100000L;
+            for (int i = 0; i <= ProjectWorkspaceIndex.MAX_SCANNED_ROOT_ENTRIES; i++) {
+                File folder = new File(root, String.format("unrelated_%04d", i));
+                require(folder.mkdir(), "create unrelated root entry " + i);
+                folder.setLastModified(baseTime + (i * 2000L));
+                if (i == ProjectWorkspaceIndex.MAX_SCANNED_ROOT_ENTRIES) late = folder;
+            }
+            require(late != null, "create root entry beyond scan limit");
+            Files.write(new File(late, ".droidinspect-project").toPath(),
+                    "Beyond scan limit\nformat=1\n".getBytes("UTF-8"));
+            late.setLastModified(baseTime - 100000L);
+            List<ProjectWorkspaceIndex.Entry> bounded = ProjectWorkspaceIndex.scan(
+                    root, ".droidinspect-project", "C# SOURCE", null);
+            boolean discoveredLateProject = false;
+            for (ProjectWorkspaceIndex.Entry entry : bounded)
+                if ("unrelated_2000".equals(entry.id)) discoveredLateProject = true;
+            require(!discoveredLateProject,
+                    "project roots beyond the 2000-entry discovery budget are not scanned");
+
+            System.out.println("PASS: project discovery, marker names, readiness, recency and root-entry scan bound");
         } finally { delete(root); }
     }
     private static void require(boolean value, String message) {
