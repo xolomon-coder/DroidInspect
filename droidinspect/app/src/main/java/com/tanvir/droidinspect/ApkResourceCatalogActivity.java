@@ -24,6 +24,7 @@ import com.reandroid.arsc.value.Entry;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -31,6 +32,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /** Searchable read-only map of Android resource IDs to named resource entries and default values. */
 public final class ApkResourceCatalogActivity extends Activity {
@@ -39,6 +41,7 @@ public final class ApkResourceCatalogActivity extends Activity {
     private static final int MAX_SCAN = 50000;
     private static final int MAX_STORED = 25000;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private volatile boolean destroyed;
     private final ArrayList<ResourceInfo> all = new ArrayList<>();
     private final ArrayList<ResourceInfo> shown = new ArrayList<>();
     private final ArrayList<String> labels = new ArrayList<>();
@@ -162,6 +165,7 @@ public final class ApkResourceCatalogActivity extends Activity {
                     byte[] buffer = new byte[32768];
                     int n;
                     while ((n = in.read(buffer)) != -1) {
+                        checkCancelled();
                         bytes += n;
                         if (bytes > MAX_APK_BYTES) throw new IllegalArgumentException("APK exceeds the 512 MB resource scan limit.");
                         out.write(buffer, 0, n);
@@ -177,6 +181,7 @@ public final class ApkResourceCatalogActivity extends Activity {
                 int scanned = 0;
                 java.util.Iterator<ResourceEntry> iterator = table.getResources();
                 while (iterator.hasNext() && scanned < MAX_SCAN && found.size() < MAX_STORED) {
+                    checkCancelled();
                     ResourceEntry resource = iterator.next();
                     scanned++;
                     if (resource == null) continue;
@@ -201,6 +206,7 @@ public final class ApkResourceCatalogActivity extends Activity {
                 int scannedFinal = scanned;
                 long bytesFinal = bytes;
                 runOnUiThread(() -> {
+                    if (destroyed || isFinishing() || isDestroyed()) return;
                     all.clear();
                     all.addAll(found);
                     ArrayList<String> choices = new ArrayList<>();
@@ -221,7 +227,7 @@ public final class ApkResourceCatalogActivity extends Activity {
                 if (copy != null) copy.delete();
                 String message = "RESOURCE CATALOG FAILED: " + error.getClass().getSimpleName()
                         + ": " + (error.getMessage() == null ? "No details." : error.getMessage());
-                runOnUiThread(() -> setBusy(false, message));
+                runOnUiThread(() -> { if (destroyed || isFinishing() || isDestroyed()) return; setBusy(false, message); });
             }
         });
     }
@@ -252,9 +258,27 @@ public final class ApkResourceCatalogActivity extends Activity {
         status.setText(message);
     }
 
+    private static void checkCancelled() throws InterruptedIOException {
+        if (Thread.currentThread().isInterrupted())
+            throw new InterruptedIOException("APK resource catalog cancelled because the activity was closed.");
+    }
+
     @Override protected void onDestroy() {
-        super.onDestroy();
+        destroyed = true;
         worker.shutdownNow();
-        if (apkCopy != null) apkCopy.delete();
+        super.onDestroy();
+        Thread cleanup = new Thread(() -> {
+            try {
+                while (!worker.awaitTermination(1, TimeUnit.DAYS)) { }
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            File copy = apkCopy;
+            apkCopy = null;
+            if (copy != null) copy.delete();
+        }, "droidinspect-resource-catalog-cleanup");
+        cleanup.setDaemon(true);
+        cleanup.start();
     }
 }
