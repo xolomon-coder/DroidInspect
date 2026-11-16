@@ -3208,3 +3208,28 @@ Updated `.github/workflows/phase1-android.yml`:
 5. Only then provide the latest `main.zip`, exact CodeAssist build/install instructions and one consolidated M12–M20 device test plan.
 
 **Stopping point:** M19/M20 source hardening and CI audit expansion are committed; production CI remains blocked before runner execution. No final release PASS or device acceptance is claimed.
+
+
+### M20 privacy and CI runner retry checkpoint — 2026-11-16
+
+**Latest main before this note:** `6b0ef5b9f0f64243b758b5db6892298b4f70d4ca`.
+
+Additional M20 changes since the previous checkpoint:
+- `droidinspect/app/src/main/AndroidManifest.xml`: changed `android:allowBackup` from `true` to `false`. DroidInspect stores user-selected APKs, assemblies, source and dependency files in app-private storage; disabling Android automatic backup reduces the risk of those potentially proprietary inputs being copied into device/cloud backup. No Internet permission was added.
+- `.github/workflows/phase1-android.yml`: the production manifest audit now also requires `android:allowBackup="false"`.
+
+**Runner retry evidence**
+- Run `43866954568`, attempt 2, failed with `runner_id=0`, blank runner name, empty steps and no artifacts.
+- Run `43867085126`, attempt 2, failed with `runner_id=0`, blank runner name, empty steps and no artifacts.
+- Run `43867134813` targets `6b0ef5b9f0f64243b758b5db6892298b4f70d4ca`; its first attempt also failed with `runner_id=0`, blank runner name and empty steps.
+- These raw job records confirm the jobs were not assigned to a GitHub-hosted runner. No host test, Android compilation, signing/tamper check or artifact generation took place in these attempts. The workflow itself still requires an actual runner execution.
+
+**Current M19/M20 state**
+- M19: project metadata isolation/reopen regression test is expanded and committed. Full host execution, Android build, app-level project reopen/recovery and device acceptance remain unverified.
+- M20: background callback guards, managed dependency-workspace executor, backup privacy setting, and CI dependency/native-payload/ABI/permission/checksum audits are committed. Static inspection confirms four production ARM64 native libraries total 81,306,496 bytes (77.54 MiB); the workflow now enforces a 100 MiB ceiling. Real build output and artifact hashes remain unavailable until CI runs.
+- Remaining release blockers: obtain a runner-backed green production workflow; inspect the emitted resolved dependency graph and finish the transitive licensing/notice review; confirm debug/release APK signatures, tamper rejection, native ABI inventory and checksum artifacts; review actual low-memory and large-input behavior; and complete the final Android device session.
+- CodeAssist reproducibility and device acceptance cannot be inferred from GitHub source or a runner-only build.
+
+**Next exact action:** re-fetch `main`, inspect the workflow run associated with that exact commit, and retry the full production workflow when runner capacity is available. If a runner starts, inspect every step and log and fix the first real source/workflow failure on `main`. Do not mark M19/M20 complete or ask for the consolidated phone test until all cloud verification and remaining release audits are complete.
+
+**Stopping point:** privacy and CI audit hardening committed; GitHub Actions runner allocation remains the blocking infrastructure issue. No production CI PASS, final APK hash, final release readiness or consolidated device acceptance is claimed.
