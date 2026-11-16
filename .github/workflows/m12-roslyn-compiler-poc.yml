@@ -172,6 +172,7 @@ jobs:
           name: DroidInspect-M12-Roslyn-Compiler-Proof
           path: |
             artifacts/DroidInspect.M12.EditedFixture.dll
+            artifacts/m12-nuget-transitive-dependencies.txt
             artifacts/libdroidinspect_m12_compiler.so
             artifacts/libdroidinspect_m12_jni.so
             artifacts/DroidInspect-M12-Roslyn-Android-Proof.apk
