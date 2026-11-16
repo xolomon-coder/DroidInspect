@@ -13,6 +13,7 @@ import android.widget.TextView;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -29,6 +30,7 @@ public final class AssemblyComparisonActivity extends Activity {
     private static final int PICK_LEFT = 6101, PICK_RIGHT = 6102;
     private static final long MAX_INPUT = 512L * 1024L * 1024L;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private volatile boolean destroyed;
     private Uri leftUri, rightUri;
     private String leftName = "Baseline assembly", rightName = "Candidate assembly";
     private Button leftButton, rightButton, compareButton;
@@ -144,8 +146,11 @@ public final class AssemblyComparisonActivity extends Activity {
             try {
                 left = copy(leftUri, "droidinspect-compare-left-");
                 right = copy(rightUri, "droidinspect-compare-right-");
+                checkCancelled();
                 String leftMetadata = FileInspectionEngine.inspectPe(left, leftName);
+                checkCancelled();
                 String rightMetadata = FileInspectionEngine.inspectPe(right, rightName);
+                checkCancelled();
                 if (!leftMetadata.contains(".NET CLI header: PRESENT")
                         || !rightMetadata.contains(".NET CLI header: PRESENT"))
                     throw new IllegalArgumentException("Both selected files must contain a valid managed .NET CLI header.");
@@ -153,6 +158,7 @@ public final class AssemblyComparisonActivity extends Activity {
                 DotNetIlReader.Result rightIl = DotNetIlReader.read(right);
                 String output = buildReport(leftMetadata, rightMetadata, leftIl, rightIl);
                 runOnUiThread(() -> {
+                    if (destroyed || isFinishing() || isDestroyed()) return;
                     report.setText(output);
                     status.setText("Structural comparison finished. Original assemblies were not modified.");
                     setButtons(true);
@@ -162,6 +168,7 @@ public final class AssemblyComparisonActivity extends Activity {
                         + ": " + (error.getMessage() == null ? "No details." : error.getMessage())
                         + "\n\nNo source assembly was modified.";
                 runOnUiThread(() -> {
+                    if (destroyed || isFinishing() || isDestroyed()) return;
                     report.setText(message);
                     status.setText("Comparison failed.");
                     setButtons(true);
@@ -182,6 +189,7 @@ public final class AssemblyComparisonActivity extends Activity {
             byte[] buffer = new byte[32768];
             int n;
             while ((n = in.read(buffer)) != -1) {
+                checkCancelled();
                 total += n;
                 if (total > MAX_INPUT) throw new IllegalArgumentException("Assembly exceeds the 512 MB comparison limit.");
                 stream.write(buffer, 0, n);
@@ -272,8 +280,14 @@ public final class AssemblyComparisonActivity extends Activity {
         return source.substring(from + 1, to < 0 ? source.length() : to).trim();
     }
 
+    private static void checkCancelled() throws InterruptedIOException {
+        if (Thread.currentThread().isInterrupted())
+            throw new InterruptedIOException("Assembly comparison cancelled because the activity was closed.");
+    }
+
     @Override protected void onDestroy() {
-        super.onDestroy();
+        destroyed = true;
         worker.shutdownNow();
+        super.onDestroy();
     }
 }
