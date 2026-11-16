@@ -725,13 +725,15 @@ This is the required process for building DroidInspect:
 
 No milestone is complete solely because code was written or committed. When delivering a full phase, complete implementation and available automated verification for all milestones in that phase before the normal ZIP handoff. Device-only verification may be collected as a clearly documented user test batch after handoff when it does not block safe implementation of later milestones; never claim device tests passed without user evidence.
 
-## 6. Current Project Status (2026-11-13)
+## 6. Current Project Status (2026-11-17)
 
-**Current phase: Phase 5 / M12 — offline compiler feasibility prototype in progress on `main`. M11 production integration and Android-device acceptance are complete.** The isolated proof app remains intact. M4–M7 retain their previously accepted Android 11 device scopes. M8–M10 production foundations and regression CI remain preserved. M11 production integration does not claim complete dependency resolution, recompilation, or target-program execution. Do not confuse cloud APK verification with user device acceptance.
+**Current development state: M12–M18 implementation has been integrated into the existing production app; M19 and M20 implementation and verification hardening are in progress on `main`. M11 production decompilation remains accepted by the user.** Do not repeat M11 acceptance testing. M12–M18 still require the planned consolidated device acceptance; implementation and host/CI evidence must not be confused with device acceptance.
 
-Phase 1 implementation has passed cloud CI and initial Android 11 device smoke checks. The user chose to proceed without the optional native-PE fixture test. Native/non-managed PE rejection therefore remains an explicit unverified limitation; do not claim full M3 classification coverage. M2 has one successful real APK test, and M3 has one successful CLI-bearing mixed-mode .NET DLL test. Phase 2 may begin while this gap remains documented for later regression coverage.
+The project remains the existing Java + native Android XML application, package `com.tanvir.droidinspect`, with the 20-milestone roadmap across eight phases. The current source includes separate-copy C# editing/compiler integration, dependency resolution, advanced .NET inspection and comparison, APK analysis and guided editing/signing, persistent APK/.NET project workspaces, bounded source/project indexing, lifecycle protections, offline/backup controls, and expanded release audits. Existing M1–M11 history and user-accepted M11 status are retained.
 
-The project remains the existing Java + native XML Android application. The roadmap contains 20 milestones across eight phases. M11 production C# decompilation is integrated and accepted on the user's device. M12 is active for separate-copy C# editing and DLL recompilation; compiler feasibility is the first implementation gate. M13–M20 remain planned only. Development branch: `main`.
+**Current verification gate:** focused M19 host regressions for project metadata persistence/isolation/recovery and bounded project indexing pass in the available host container. The production GitHub Actions workflow has not executed for the latest implementation because the latest attempts failed before runner assignment (`runner_id=0`, blank runner name, empty steps and no artifacts). Therefore, full host-suite execution, Android debug/release builds, APK signing/tamper checks, packaged native inventory, dependency graph capture, complete transitive licensing review and release checks remain unverified. M19/M20 are not complete and release readiness is not established.
+
+The latest documented main HEAD is maintained in the final M19/M20 checkpoint at the end of this README. All changes remain on `main`; no alternate development branch is used.
 
 ### M1 — Foundation and file identification
 
