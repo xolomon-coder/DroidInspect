@@ -62,7 +62,7 @@ public class DotNetDependencyActivity extends Activity {
     private void createProject(Uri uri) {
         busy = true;
         status.setText("Copying selected assembly into a private offline dependency project…");
-        new Thread(() -> {
+        worker.execute(() -> {
             DotNetDependencyWorkspace created = null;
             String errorText = null;
             try {
@@ -73,6 +73,7 @@ public class DotNetDependencyActivity extends Activity {
             final DotNetDependencyWorkspace result = created;
             final String error = errorText;
             runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
                 busy = false;
                 if (result != null) {
                     project = result;
@@ -82,7 +83,7 @@ public class DotNetDependencyActivity extends Activity {
                     setControls(false);
                 }
             });
-        }, "DroidInspect-M13-Workspace").start();
+        });
     }
 
     private void showProjectReady() {
