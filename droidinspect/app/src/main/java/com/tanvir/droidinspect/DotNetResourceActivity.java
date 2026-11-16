@@ -180,7 +180,7 @@ public final class DotNetResourceActivity extends Activity {
             try {
                 long offset = Long.parseLong(line.substring(offsetAt + 9, line.indexOf(';', offsetAt + 2)));
                 long flags = Long.parseLong(line.substring(flagsAt + 10, line.indexOf(';', flagsAt + 2)), 16);
-                int end = line.indexOf(' ', implementationAt + 18);
+                int end = line.indexOf(' ', implementationAt + 17);
                 String implementation = line.substring(implementationAt + 18, end < 0 ? line.length() - 1 : end);
                 result.add(new ResourceItem(name, offset, flags, implementation));
             } catch (Exception ignored) { }
