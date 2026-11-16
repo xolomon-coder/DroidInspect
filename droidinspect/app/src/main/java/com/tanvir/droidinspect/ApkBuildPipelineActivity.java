@@ -18,6 +18,7 @@ import com.android.apksig.ApkVerifier;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.security.MessageDigest;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
@@ -26,12 +27,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /** Guided edit -> rebuild -> sign -> verify -> compatibility workflow. */
 public final class ApkBuildPipelineActivity extends Activity {
     private static final int PICK_SOURCE = 6601, EDIT_APK = 6602, SIGN_APK = 6603;
     private static final long MAX_APK_BYTES = 512L * 1024L * 1024L;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private volatile boolean destroyed;
     private Button selectButton, editButton, signButton;
     private ProgressBar progress;
     private TextView status, sourceSummary, report;
@@ -114,7 +117,7 @@ public final class ApkBuildPipelineActivity extends Activity {
                 ApkProjectWorkspace ready = opened;
                 String errorText = failure;
                 runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) return;
+                if (destroyed || isFinishing() || isDestroyed()) return;
                     if (errorText != null) {
                         setBusy(false, "Project could not be opened.");
                         showError(errorText);
@@ -228,7 +231,10 @@ public final class ApkBuildPipelineActivity extends Activity {
             final long finalVersionCode = versionCode;
             final List<String> finalSigners = signers;
             runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) return;
+                if (destroyed || isFinishing() || isDestroyed()) {
+                    if (ready != null) ready.delete();
+                    return;
+                }
                 setBusy(false, failure == null ? "Original APK inspection complete." : "Original APK inspection failed.");
                 if (failure != null) {
                     showError(failure);
@@ -321,7 +327,7 @@ public final class ApkBuildPipelineActivity extends Activity {
             final boolean projectUpdatedFinal = projectUpdated;
             final String projectUpdateFailure = projectUpdateError;
             runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) return;
+                if (destroyed || isFinishing() || isDestroyed()) return;
                 setBusy(false, failure == null ? "FINAL OUTPUT VERIFIED." : "FINAL OUTPUT VERIFICATION FAILED.");
                 if (failure != null) {
                     signedUri = null;
@@ -386,6 +392,7 @@ public final class ApkBuildPipelineActivity extends Activity {
             byte[] buffer = new byte[32768];
             int read;
             while ((read = in.read(buffer)) != -1) {
+                checkCancelled();
                 total += read;
                 if (total > MAX_APK_BYTES) throw new IllegalArgumentException("APK exceeds the 512 MB pipeline limit.");
                 stream.write(buffer, 0, read);
@@ -442,9 +449,27 @@ public final class ApkBuildPipelineActivity extends Activity {
                 + (error.getMessage() == null ? "No details." : error.getMessage());
     }
 
+    private static void checkCancelled() throws InterruptedIOException {
+        if (Thread.currentThread().isInterrupted())
+            throw new InterruptedIOException("APK pipeline operation cancelled because the activity was closed.");
+    }
+
     @Override protected void onDestroy() {
-        super.onDestroy();
+        destroyed = true;
         worker.shutdownNow();
-        if (originalCopy != null) originalCopy.delete();
+        super.onDestroy();
+        Thread cleanup = new Thread(() -> {
+            try {
+                while (!worker.awaitTermination(1, TimeUnit.DAYS)) { }
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            File copy = originalCopy;
+            originalCopy = null;
+            if (copy != null) copy.delete();
+        }, "droidinspect-pipeline-cleanup");
+        cleanup.setDaemon(true);
+        cleanup.start();
     }
 }
