@@ -34,7 +34,9 @@ public final class ApkProjectWorkspaceActivity extends Activity {
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
-        showHome();
+        String requestedProject = getIntent().getStringExtra("project_id");
+        if (requestedProject == null) showHome();
+        else openProject(requestedProject);
     }
 
     @Override protected void onResume() {
