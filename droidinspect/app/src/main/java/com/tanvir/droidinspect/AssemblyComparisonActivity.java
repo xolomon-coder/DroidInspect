@@ -320,7 +320,9 @@ public final class AssemblyComparisonActivity extends Activity {
         for (DotNetIlReader.MethodInfo method : result.methods) {
             String key = method.owner + " :: " + method.name;
             String body = method.codeHex == null ? "" : method.codeHex;
-            if (method.codeSize == 0) body = "NO_BODY";
+            if (method.codeSize == 0 && method.body != null && method.body.startsWith("IL body unavailable:"))
+                body = "UNAVAILABLE_IL:decode";
+            else if (method.codeSize == 0) body = "NO_BODY";
             else if (body.isEmpty()) body = "UNAVAILABLE_IL:" + method.codeSize;
             values.computeIfAbsent(key, ignored -> new ArrayList<>()).add(body);
         }
