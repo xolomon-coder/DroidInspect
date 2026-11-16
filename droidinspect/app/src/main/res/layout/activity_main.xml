@@ -49,6 +49,12 @@
         android:text="APK Components and Permissions" />
 
     <Button
+        android:id="@+id/apkSplitSetButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Analyze Split APK Set" />
+
+    <Button
         android:id="@+id/browseResourcesButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
