@@ -105,15 +105,18 @@ final class CSharpSourceWorkspace {
     }
 
     List<File> listSourceFiles() throws IOException {
-        ArrayList<File> files = new ArrayList<>();
-        collect(sourceRoot, files);
+        ArrayList<File> files = new ArrayList<>(BoundedSourceTree.scan(sourceRoot));
         Collections.sort(files, Comparator.comparing(f -> relativePath(sourceRoot, f).toLowerCase(java.util.Locale.ROOT)));
         return files;
     }
 
     String read(File file) throws IOException {
         ensureInsideSource(file);
+        if (!file.isFile() || file.length() > MAX_SOURCE_FILE)
+            throw new IOException("C# source file is missing or exceeds the 32 MB safety limit.");
         byte[] bytes = Files.readAllBytes(file.toPath());
+        if (bytes.length > MAX_SOURCE_FILE)
+            throw new IOException("C# source file exceeds the 32 MB safety limit.");
         return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
     }
 
@@ -201,16 +204,6 @@ final class CSharpSourceWorkspace {
             throw new IOException("Source file path is outside the project or is not a .cs file.");
     }
 
-    private static void collect(File directory, List<File> output) throws IOException {
-        File[] children = directory.listFiles();
-        if (children == null) throw new IOException("Cannot read source project directory.");
-        for (File child : children) {
-            if (child.isDirectory()) collect(child, output);
-            else if (child.isFile() && child.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".cs"))
-                output.add(child);
-        }
-    }
-
     private static String relativePath(File root, File file) {
         return file.getAbsolutePath().substring(root.getAbsolutePath().length() + 1).replace(File.separatorChar, '/');
     }
@@ -276,6 +269,8 @@ final class CSharpSourceWorkspace {
         File temporary = new File(parent, target.getName() + ".tmp-" + UUID.randomUUID());
         try {
             byte[] bytes = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            if (bytes.length > MAX_SOURCE_FILE)
+                throw new IOException("C# source file exceeds the 32 MB safety limit.");
             try (FileOutputStream output = new FileOutputStream(temporary)) {
                 output.write(bytes);
                 output.flush();
