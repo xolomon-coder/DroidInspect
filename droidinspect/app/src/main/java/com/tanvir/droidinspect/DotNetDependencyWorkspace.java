@@ -10,6 +10,10 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InterruptedIOException;
+import java.nio.file.DirectoryIteratorException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -21,6 +25,7 @@ final class DotNetDependencyWorkspace {
     private static final long MAX_ROOT_ASSEMBLY = 512L * 1024L * 1024L;
     private static final long MAX_DEPENDENCY_FILE = 128L * 1024L * 1024L;
     private static final long MAX_IMPORT_BATCH = 512L * 1024L * 1024L;
+    private static final int MAX_DEPENDENCY_FILES = 2000;
 
     private final File root;
     private final File dependencies;
@@ -101,16 +106,26 @@ final class DotNetDependencyWorkspace {
     File getReportFile() { return new File(root, "Dependency-Resolution-Report.txt"); }
 
     List<File> listDependencies() throws IOException {
-        File[] files = dependencies.listFiles();
-        if (files == null) throw new IOException("Cannot list local dependency files.");
         ArrayList<File> result = new ArrayList<>();
-        for (File file : files) if (file.isFile()) result.add(file);
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dependencies.toPath())) {
+            for (Path path : stream) {
+                if (Files.isSymbolicLink(path)) continue;
+                File file = path.toFile();
+                if (!file.isFile()) continue;
+                if (result.size() >= MAX_DEPENDENCY_FILES)
+                    throw new IOException("Local dependency project exceeds the " + MAX_DEPENDENCY_FILES + " file safety limit.");
+                result.add(file);
+            }
+        } catch (DirectoryIteratorException error) {
+            throw new IOException("Cannot list local dependency files.", error);
+        }
         Collections.sort(result, (a, b) -> a.getName().compareToIgnoreCase(b.getName()));
         return result;
     }
 
     List<File> importDependencies(Context context, List<Uri> uris) throws IOException {
         ArrayList<File> imported = new ArrayList<>();
+        int existingCount = listDependencies().size();
         long batchBytes = 0;
         try {
             for (Uri uri : uris) {
@@ -118,6 +133,8 @@ final class DotNetDependencyWorkspace {
                 String name = safeName(queryName(context, uri));
                 String lower = name.toLowerCase(java.util.Locale.ROOT);
                 if (!lower.endsWith(".dll") && !lower.endsWith(".exe")) continue;
+                if (existingCount + imported.size() >= MAX_DEPENDENCY_FILES)
+                    throw new IOException("Local dependency project exceeds the " + MAX_DEPENDENCY_FILES + " file safety limit.");
                 File target = uniqueTarget(name);
                 long copied = copyDocument(context, uri, target, MAX_DEPENDENCY_FILE);
                 batchBytes += copied;
