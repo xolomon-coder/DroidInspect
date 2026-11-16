@@ -25,6 +25,7 @@ public class MainActivity extends Activity {
     private Button dotNetResourcesButton;
     private Button apkComponentExplorerButton;
     private Button apkSplitSetButton;
+    private Button apkResourceCatalogButton;
     private Uri selectedUri;
     private String selectedName = "Selected assembly";
     private boolean canBrowseDex, canBrowseApk, canBrowseDotNet;
@@ -50,6 +51,7 @@ public class MainActivity extends Activity {
         dotNetResourcesButton = findViewById(R.id.dotNetResourcesButton);
         apkComponentExplorerButton = findViewById(R.id.apkComponentExplorerButton);
         apkSplitSetButton = findViewById(R.id.apkSplitSetButton);
+        apkResourceCatalogButton = findViewById(R.id.apkResourceCatalogButton);
         browseDexButton.setEnabled(false);
         browseResourcesButton.setEnabled(false);
         browseDotNetButton.setEnabled(false);
@@ -79,6 +81,7 @@ public class MainActivity extends Activity {
         dotNetResourcesButton.setOnClickListener(v -> startActivity(new Intent(this, DotNetResourceActivity.class)));
         apkComponentExplorerButton.setOnClickListener(v -> startActivity(new Intent(this, ApkComponentExplorerActivity.class)));
         apkSplitSetButton.setOnClickListener(v -> startActivity(new Intent(this, ApkSplitSetActivity.class)));
+        apkResourceCatalogButton.setOnClickListener(v -> startActivity(new Intent(this, ApkResourceCatalogActivity.class)));
         browseDotNetButton.setOnClickListener(v -> {
             if (selectedUri == null || !canBrowseDotNet) return;
             Intent intent = new Intent(this, DotNetIlActivity.class);
@@ -287,6 +290,7 @@ public class MainActivity extends Activity {
         dotNetResourcesButton.setEnabled(!busy);
         apkComponentExplorerButton.setEnabled(!busy);
         apkSplitSetButton.setEnabled(!busy);
+        apkResourceCatalogButton.setEnabled(!busy);
         openDependencyWorkspaceButton.setEnabled(!busy && DotNetDependencyWorkspace.getLastProjectId(this) != null);
         openSourceWorkspaceButton.setEnabled(!busy && CSharpSourceWorkspace.getLastProjectId(this) != null);
         statusView.setText(status);
