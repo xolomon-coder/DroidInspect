@@ -182,8 +182,48 @@ public class DexAnalysisActivity extends Activity {
             for (String warning : info.referenceWarnings) text.append("• ").append(warning).append('\n');
         }
         text.append("\nMethod bodies / Java decompilation: not implemented in this milestone build.");
-        new AlertDialog.Builder(this).setTitle(info.className).setMessage(text.toString())
-                .setPositiveButton("Close", null).show();
+        AlertDialog.Builder dialog = new AlertDialog.Builder(this)
+                .setTitle(info.className).setMessage(text.toString())
+                .setPositiveButton("Close", null);
+        if (!info.references.isEmpty())
+            dialog.setNeutralButton("REFERENCES", (d, which) -> showReferences(info));
+        dialog.show();
+    }
+
+    private void showReferences(DexFileParser.ClassInfo info) {
+        ArrayList<String> choices = new ArrayList<>();
+        for (String reference : info.references) choices.add(reference);
+        new AlertDialog.Builder(this).setTitle("Method references — " + info.className)
+                .setItems(choices.toArray(new String[0]), (dialog, which) ->
+                        openReferenceTarget(info.references.get(which)))
+                .setNegativeButton("CLOSE", null).show();
+    }
+
+    private void openReferenceTarget(String reference) {
+        int arrow = reference.indexOf("  ->  ");
+        if (arrow < 0) {
+            new AlertDialog.Builder(this).setMessage("The reference target could not be decoded.")
+                    .setPositiveButton("CLOSE", null).show();
+            return;
+        }
+        String target = reference.substring(arrow + 6);
+        int separator = target.indexOf("->");
+        if (separator <= 0) {
+            new AlertDialog.Builder(this).setMessage("The reference target could not be decoded.")
+                    .setPositiveButton("CLOSE", null).show();
+            return;
+        }
+        String owner = target.substring(0, separator);
+        for (DexFileParser.ClassInfo candidate : allClasses) {
+            if (candidate.className.equals(owner)) {
+                showClass(candidate);
+                return;
+            }
+        }
+        new AlertDialog.Builder(this).setTitle("External / unindexed target")
+                .setMessage("Target class: " + owner
+                        + "\nThis class is not present in the parsed DEX class index. It may belong to another split, library, or omitted DEX entry.")
+                .setPositiveButton("CLOSE", null).show();
     }
 
     private void setBusy(boolean busy, String message) {
