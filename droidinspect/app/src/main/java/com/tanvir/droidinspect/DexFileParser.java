@@ -108,6 +108,8 @@ public final class DexFileParser {
                     }
                     int before = result.classes.size();
                     int membersBefore = result.totalMembers;
+                    int referencesBefore = result.totalReferences;
+                    boolean referenceLimitBefore = result.referenceLimitReached;
                     try {
                         parseDex(temp, entry.getName(), result);
                         result.dexReports.add(entry.getName() + ": PASS — " + (result.classes.size() - before) + " classes.");
@@ -115,6 +117,8 @@ public final class DexFileParser {
                         // Parsing is transactional per DEX: do not expose partial classes or member counts.
                         while (result.classes.size() > before) result.classes.remove(result.classes.size() - 1);
                         result.totalMembers = membersBefore;
+                        result.totalReferences = referencesBefore;
+                        result.referenceLimitReached = referenceLimitBefore;
                         result.dexReports.add(entry.getName() + ": REJECTED — " + safeMessage(ex));
                     }
                 } finally {
