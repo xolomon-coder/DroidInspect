@@ -313,7 +313,13 @@ final class ApkProjectWorkspace {
     }
 
     private void touch() throws IOException {
-        saveMetadata(revision, sha256(originalApk), sha256(workingApk));
+        File metadata = new File(root, "project.properties");
+        Properties previous = metadata.isFile() ? loadProperties(metadata) : new Properties();
+        String originalHash = previous.getProperty("originalSha256");
+        String workingHash = previous.getProperty("workingSha256");
+        if (originalHash == null) originalHash = sha256(originalApk);
+        if (workingHash == null) workingHash = sha256(workingApk);
+        saveMetadata(revision, originalHash, workingHash);
     }
 
     private void saveMetadata(long rev, String originalHash, String workingHash) throws IOException {
