@@ -90,7 +90,9 @@ public class CSharpDecompileActivity extends Activity {
         worker.execute(() -> {
             String result;
             try {
+                if (Thread.currentThread().isInterrupted()) throw new InterruptedException("Decompilation cancelled.");
                 if (!NativeBridge.ensureLoaded()) throw new IllegalStateException(NativeBridge.getLoadError());
+                if (Thread.currentThread().isInterrupted()) throw new InterruptedException("Decompilation cancelled.");
                 try (DecompilationWorkspace workspace = DecompilationWorkspace.prepare(app, uri)) {
                 ui.post(() -> {
                     CSharpDecompileActivity activity = reference.get();
@@ -304,9 +306,9 @@ public class CSharpDecompileActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
-        // Native decompilation is synchronous and cannot be safely interrupted.
-        // The weak UI reference lets the worker finish and clean its workspace.
-        worker.shutdown();
+        // Interrupt cancellable file/reference preparation and source-project copies.
+        // A native decompilation already inside JNI may finish; try-with-resources then cleans its workspace.
+        worker.shutdownNow();
         super.onDestroy();
     }
 }
