@@ -175,6 +175,7 @@ public final class ApkBuildPipelineActivity extends Activity {
                         catch (Exception error) { failure = message(error); }
                         String errorText = failure;
                         runOnUiThread(() -> {
+                            if (isFinishing() || isDestroyed()) return;
                             setBusy(false, errorText == null ? "Edited unsigned APK saved to project exports." : "Project export save failed.");
                             if (errorText != null) {
                                 editedUri = null;
@@ -227,6 +228,7 @@ public final class ApkBuildPipelineActivity extends Activity {
             final long finalVersionCode = versionCode;
             final List<String> finalSigners = signers;
             runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
                 setBusy(false, failure == null ? "Original APK inspection complete." : "Original APK inspection failed.");
                 if (failure != null) {
                     showError(failure);
@@ -319,6 +321,7 @@ public final class ApkBuildPipelineActivity extends Activity {
             final boolean projectUpdatedFinal = projectUpdated;
             final String projectUpdateFailure = projectUpdateError;
             runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
                 setBusy(false, failure == null ? "FINAL OUTPUT VERIFIED." : "FINAL OUTPUT VERIFICATION FAILED.");
                 if (failure != null) {
                     signedUri = null;
