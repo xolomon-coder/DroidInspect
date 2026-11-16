@@ -177,6 +177,8 @@ public final class ApkBuildPipelineActivity extends Activity {
                             setBusy(false, errorText == null ? "Edited unsigned APK saved to project exports." : "Project export save failed.");
                             if (errorText != null) {
                                 editedUri = null;
+                                signButton.setEnabled(false);
+                                editButton.setEnabled(true);
                                 showError(errorText);
                             }
                         });
@@ -278,6 +280,8 @@ public final class ApkBuildPipelineActivity extends Activity {
             long finalVersionCode = -1;
             List<String> finalSigners = Collections.emptyList();
             boolean verified = false;
+            boolean projectUpdated = false;
+            String projectUpdateError = null;
             try {
                 copy = copyUri(signedUri, "signed");
                 PackageInfo info = getPackageManager().getPackageArchiveInfo(copy.getAbsolutePath(), 0);
@@ -294,7 +298,14 @@ public final class ApkBuildPipelineActivity extends Activity {
                 }
                 finalSigners = signerFingerprints(copy);
                 if (finalSigners.isEmpty()) throw new IllegalStateException("Signature verifier returned no signer certificates.");
-                if (project != null) project.replaceWorkingFromUri(signedUri);
+                if (project != null) {
+                    try {
+                        project.replaceWorkingFromUri(signedUri);
+                        projectUpdated = true;
+                    } catch (Exception projectError) {
+                        projectUpdateError = message(projectError);
+                    }
+                }
             } catch (Exception e) {
                 error = message(e);
             } finally {
@@ -304,6 +315,8 @@ public final class ApkBuildPipelineActivity extends Activity {
             final long versionCode = finalVersionCode;
             final List<String> signers = finalSigners;
             final boolean signaturePass = verified;
+            final boolean projectUpdatedFinal = projectUpdated;
+            final String projectUpdateFailure = projectUpdateError;
             runOnUiThread(() -> {
                 setBusy(false, failure == null ? "FINAL OUTPUT VERIFIED." : "FINAL OUTPUT VERIFICATION FAILED.");
                 if (failure != null) {
@@ -334,7 +347,10 @@ public final class ApkBuildPipelineActivity extends Activity {
                 finalReport.append("Signed output URI: ").append(signedUri).append('\n');
                 finalReport.append("\nThe exported signed APK is a separate file. The original APK and edited unsigned APK were not overwritten.");
                 if (project != null) {
-                    finalReport.append("\nProject working APK: updated to signed output; previous working revision was snapshotted.");
+                    if (projectUpdatedFinal)
+                        finalReport.append("\nProject working APK: updated to signed output; previous working revision was snapshotted.");
+                    else
+                        finalReport.append("\nProject working APK was NOT updated: ").append(projectUpdateFailure);
                     try { project.writeReport("Build-Sign-Report-r" + project.getRevision(), finalReport.toString()); }
                     catch (Exception reportError) { finalReport.append("\nProject report save failed: ").append(message(reportError)); }
                 }
