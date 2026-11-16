@@ -376,7 +376,7 @@ public final class ApkResourceActivity extends Activity {
         try {
             getContentResolver().takePersistableUriPermission(destination,
                     data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION));
-        catch (SecurityException ignored) { }
+        } catch (SecurityException ignored) { }
         setBusy(true, "Exporting validated modified APK…");
         worker.execute(() -> {
             String error = null;
