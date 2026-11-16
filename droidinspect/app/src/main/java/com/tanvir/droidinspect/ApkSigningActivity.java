@@ -20,6 +20,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.io.OutputStream;
 import java.math.BigInteger;
 import java.security.KeyPairGenerator;
@@ -31,6 +32,7 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 import javax.security.auth.x500.X500Principal;
 
@@ -48,6 +50,7 @@ public final class ApkSigningActivity extends Activity {
     private EditText alias, owner, storePassword, keyPassword;
     private Button signButton, verifyButton, exportButton;
     private ProgressBar progress;
+    private volatile boolean destroyed;
     private File apkFile, keyStoreFile, signedFile;
     private boolean generatedKey;
     private boolean returnSignedUri;
@@ -113,11 +116,12 @@ public final class ApkSigningActivity extends Activity {
                      OutputStream out = getContentResolver().openOutputStream(destination, "w")) {
                     if (out == null) throw new IllegalStateException("Document provider did not create an output stream.");
                     byte[] buffer = new byte[32768]; int n;
-                    while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
+                    while ((n = in.read(buffer)) != -1) { checkCancelled(); out.write(buffer, 0, n); }
                     out.flush();
                 } catch (Exception e) { error = message(e); }
                 final String failure = error;
                 runOnUiThread(() -> {
+                    if (destroyed || isFinishing() || isDestroyed()) return;
                     setBusy(false, failure == null ? "Signed APK exported." : "Export failed: " + failure);
                     if (failure != null) showError(failure);
                     if (returnSignedUri) {
@@ -147,6 +151,7 @@ public final class ApkSigningActivity extends Activity {
                 catch (Exception e) { error = message(e); if (copy != null) copy.delete(); copy = null; }
                 final File ready = copy; final String failure = error;
                 runOnUiThread(() -> {
+                    if (destroyed || isFinishing() || isDestroyed()) { if (ready != null) ready.delete(); return; }
                     setBusy(false, failure == null ? "Keystore copied. Enter its alias and passwords." : "Keystore import failed.");
                     if (failure == null) {
                         if (keyStoreFile != null) keyStoreFile.delete();
@@ -170,6 +175,7 @@ public final class ApkSigningActivity extends Activity {
             } catch (Exception e) { error = message(e); if (copy != null) copy.delete(); copy = null; }
             final File ready = copy; final String failure = error;
             runOnUiThread(() -> {
+                if (destroyed || isFinishing() || isDestroyed()) { if (ready != null) ready.delete(); return; }
                 setBusy(false, failure == null ? "APK ready." : "APK selection failed.");
                 if (failure == null) {
                     if (apkFile != null) apkFile.delete();
@@ -190,6 +196,7 @@ public final class ApkSigningActivity extends Activity {
             if (in == null) throw new IllegalStateException("Android could not open the selected document.");
             byte[] buffer = new byte[32768]; int n;
             while ((n = in.read(buffer)) != -1) {
+                checkCancelled();
                 total += n;
                 if (total > limit) throw new IllegalArgumentException("Selected document exceeds the safety size limit.");
                 out.write(buffer, 0, n);
@@ -236,6 +243,7 @@ public final class ApkSigningActivity extends Activity {
             } catch (Exception e) { error = message(e); }
             final String failure = error;
             runOnUiThread(() -> {
+                if (destroyed || isFinishing() || isDestroyed()) return;
                 setBusy(false, failure == null ? "Signing key created in Android Keystore." : "Key generation failed.");
                 if (failure == null) {
                     generatedKey = true;
@@ -315,6 +323,7 @@ public final class ApkSigningActivity extends Activity {
             } catch (Exception e) { error = message(e); if (output != null) output.delete(); output = null; }
             final File ready = output; final String details = resultText; final String failure = error;
             runOnUiThread(() -> {
+                if (destroyed || isFinishing() || isDestroyed()) { if (ready != null) ready.delete(); return; }
                 storePassword.setText(""); keyPassword.setText("");
                 setBusy(false, failure == null ? "Signed APK verified successfully." : "Signing or verification failed.");
                 if (failure == null) {
@@ -338,6 +347,7 @@ public final class ApkSigningActivity extends Activity {
             } catch (Exception e) { error = message(e); }
             final String text = result, failure = error;
             runOnUiThread(() -> {
+                if (destroyed || isFinishing() || isDestroyed()) return;
                 setBusy(false, "Verification finished.");
                 report.setText(failure == null ? text : "VERIFICATION ERROR\n" + failure);
                 updateButtons();
@@ -422,10 +432,27 @@ public final class ApkSigningActivity extends Activity {
         KeyMaterial(PrivateKey k, List<X509Certificate> c) { key = k; chain = c; }
     }
 
+    private static void checkCancelled() throws InterruptedIOException {
+        if (Thread.currentThread().isInterrupted())
+            throw new InterruptedIOException("APK signing operation cancelled because the activity was closed.");
+    }
+
     @Override protected void onDestroy() {
-        super.onDestroy(); worker.shutdownNow();
-        if (apkFile != null) apkFile.delete();
-        if (keyStoreFile != null) keyStoreFile.delete();
-        if (signedFile != null) signedFile.delete();
+        destroyed = true;
+        worker.shutdownNow();
+        super.onDestroy();
+        Thread cleanup = new Thread(() -> {
+            try {
+                while (!worker.awaitTermination(1, TimeUnit.DAYS)) { }
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            File apk = apkFile; apkFile = null; if (apk != null) apk.delete();
+            File key = keyStoreFile; keyStoreFile = null; if (key != null) key.delete();
+            File signed = signedFile; signedFile = null; if (signed != null) signed.delete();
+        }, "droidinspect-signing-cleanup");
+        cleanup.setDaemon(true);
+        cleanup.start();
     }
 }
