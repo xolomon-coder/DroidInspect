@@ -3385,7 +3385,7 @@ Additional M20 changes since the previous checkpoint:
 
 ### M19/M20 reliability continuation — 2026-11-17
 
-**Latest source checkpoint before this README-only update:** `126da94834fac691bf1b5cc4210a59c167aacec5`. The latest workflow change remains `96e6221fb538b264d2346a619ebc8e686b1a8ec0`. All source and workflow changes in this continuation were committed directly to `main`; this documentation update also targets `main`; no alternate branch was created.
+**Latest source checkpoint before this README-only update:** `da83776b12c0316c3bc3a5711294a20e3610f891`. The latest workflow change remains `96e6221fb538b264d2346a619ebc8e686b1a8ec0`. All source and workflow changes in this continuation were committed directly to `main`; this documentation update also targets `main`; no alternate branch was created.
 
 **M19 bounded project discovery and metadata hardening:**
 - Reworked `ProjectWorkspaceIndex.scan()` to use `DirectoryStream` and stop after examining at most 2,000 root entries, regardless of whether those entries contain valid project markers. The 500-project result cap remains. Per-project timestamp traversal remains limited to 2,000 visited entries and depth 5.
@@ -3403,6 +3403,11 @@ Additional M20 changes since the previous checkpoint:
 - `DotNetResourceActivity` now guards post-destruction callbacks, checks interruption during the assembly copy, and defers assembly-copy cleanup / pending-byte release until its worker terminates.
 - `ApkSigningActivity` now checks cancellation during APK/keystore copies and signed-output export, guards callbacks, and defers temporary APK/keystore cleanup until its worker terminates.
 - `ApkSplitSetActivity` now checks cancellation during split-file copy, manifest parsing and ZIP inventory, guards callbacks, and defers copied-file cleanup until its worker terminates.
+- `AssemblyExplorerActivity` now defers source-copy deletion until its indexing worker exits and checks cancellation during assembly copy.
+- `ApkResourceCatalogActivity` now checks cancellation during APK copy/resource enumeration, guards callbacks, and defers cache cleanup.
+- `ApkComponentExplorerActivity` now checks cancellation during APK copy/manifest parsing, guards callbacks, and defers cache cleanup.
+- `AssemblyComparisonActivity` now checks cancellation between inspection stages and during input copy, and suppresses callbacks after destruction; its temporary copies remain cleaned in the worker's `finally` block.
+- `DotNetDependencyActivity` now checks cancellation while reading saved reports and exporting reports; its UI callbacks already check activity lifecycle state.
 - `.github/workflows/phase1-android.yml` now inspects the actual debug and release APK ZIP entries, verifies that the packaged native libraries are ARM64-only and include all four expected libraries, measures compressed and uncompressed native payload bytes and APK file size, enforces a 100 MiB uncompressed native payload ceiling, and publishes `packaged-native-inventory.txt` as an artifact.
 - These M20 changes are implementation/workflow hardening only. They have not yet been validated by a successful Android build or runner-backed Actions execution. Other background activities still require a complete lifecycle/cancellation audit.
 
@@ -3417,6 +3422,11 @@ Additional M20 changes since the previous checkpoint:
 - `droidinspect/app/src/main/java/com/tanvir/droidinspect/DotNetResourceActivity.java`
 - `droidinspect/app/src/main/java/com/tanvir/droidinspect/ApkSigningActivity.java`
 - `droidinspect/app/src/main/java/com/tanvir/droidinspect/ApkSplitSetActivity.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/AssemblyExplorerActivity.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/ApkResourceCatalogActivity.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/ApkComponentExplorerActivity.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/AssemblyComparisonActivity.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/DotNetDependencyActivity.java`
 - `.github/workflows/phase1-android.yml`
 
 **Commits in this continuation (oldest to newest):**
@@ -3436,6 +3446,11 @@ Additional M20 changes since the previous checkpoint:
 - `0a97c550fc32b499c4f7397bde8f5ab827c29548` — managed resource activity lifecycle and cancellation hardening.
 - `d479886888b6f5d3dffb343d2e8bba472cf9bd8d` — APK signing worker cancellation and deferred cleanup.
 - `126da94834fac691bf1b5cc4210a59c167aacec5` — split APK worker cancellation and deferred cleanup.
+- `77caec12c0852865a510d9df9eedc51e91219cde` — assembly comparison cancellation and lifecycle guards.
+- `12155e51aab3457037e9c2fbaadc12a17e163334` — dependency report cancellation checks.
+- `79013720899ccd06f671cae27a9f72c0b81d5e23` — Assembly Explorer deferred working-copy cleanup.
+- `8681cc45aba997818d1e13430820fb3b4f060469` — APK resource catalog cancellation and cleanup.
+- `da83776b12c0316c3bc3a5711294a20e3610f891` — APK component explorer cancellation and cleanup.
 
 **CI evidence and limitation:**
 - The previously inspectable production attempts `43969379323` and `43969408209` ended in failure with no workflow steps and no artifacts. Their jobs did not produce a source compilation or test result; the handoff's runner-allocation diagnosis remains the best-supported explanation.
@@ -3446,7 +3461,7 @@ Additional M20 changes since the previous checkpoint:
 
 **Milestone state:**
 - **M19 — IN PROGRESS.** Focused host regressions pass, but APK/C#/.NET project reopen, process-restart behavior, Android UI integration, and real device project isolation/recovery remain unaccepted.
-- **M20 — IN PROGRESS.** Six APK/.NET activities have improved cancellation/cleanup handling and the production workflow has stronger packaged-payload assertions. Full activity lifecycle audit (including remaining .NET dependency and comparison workflows), large-file/device performance, actual native payload measurement, full transitive licensing, debug/release builds, signing/tamper checks, and CodeAssist reproducibility remain pending.
+- **M20 — IN PROGRESS.** Eleven APK/.NET activities have improved cancellation/cleanup handling and the production workflow has stronger packaged-payload assertions. Full activity lifecycle audit (including any remaining project, decompilation and diagnostic workers), large-file/device performance, actual native payload measurement, full transitive licensing, debug/release builds, signing/tamper checks, and CodeAssist reproducibility remain pending.
 - **M12–M18** remain implementation-integrated with consolidated device acceptance pending. M11 remains user-accepted; do not repeat its acceptance tests.
 
 **Exact next actions:**
