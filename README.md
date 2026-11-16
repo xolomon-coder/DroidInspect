@@ -3313,3 +3313,13 @@ Additional M20 changes since the previous checkpoint:
 - Licensing review remains incomplete: the checked-in notices identify direct ILSpy, .NET runtime/reference pack and Roslyn MIT notices, and the Android Gradle direct dependencies ARSCLib 1.4.0 and apksig 8.13.0 as Apache-2.0. The exact transitive NuGet graphs and resolved Gradle dependency graph have not been produced by runner-backed workflows, so complete redistribution compliance cannot yet be concluded.
 - The production manifest was rechecked: `android:allowBackup="false"` is present and no Internet permission is declared. This is a source-manifest observation, not packaged APK verification.
 - M19/M20 remain IN PROGRESS. The new bounded source-tree test has a local host PASS, but the full host suite, Android debug/release build, APK signing/tamper verification, native packaged-payload checks, transitive licensing review and device acceptance remain unverified.
+
+
+### M19 saved-project reopen integrity checks — 2026-11-16
+
+- Hardened `CSharpSourceWorkspace.open()`: a saved C# project is now rejected if its source directory or preserved `original/OriginalAssembly.bin` is missing, empty, or larger than the 512 MiB original-assembly limit. The last-project shortcut is enabled only when these required files are valid.
+- Hardened `DotNetDependencyWorkspace.open()`: a dependency project is rejected if its root assembly is missing, empty, or over 512 MiB, or if its local-dependency directory is missing. The last-project shortcut also checks these conditions.
+- These checks prevent incomplete workspace folders from appearing reopenable merely because a marker file exists. They are source-level validation changes; Android close/reopen acceptance remains pending.
+- Exact commits: `f433ea26b7f81bbbf6f88531daf4b5ad3afead71` (C# source project) and `76ca872d74b877646a57275cd1897e17062651bd` (.NET dependency project).
+- Production run [43916562562](https://github.com/xolomon-coder/DroidInspect/actions/runs/43916562562), attempt 1, targets the dependency-project validation commit. Job `133472163216` reports `runner_id=0`, blank runner name and no steps; there are no artifacts. This remains an Actions runner-allocation failure, not a compilation/test result. A retry was requested and still needs inspection.
+- M19 and M20 remain IN PROGRESS. Do not claim project reopen acceptance or production CI success until runner-backed and device evidence exists.
