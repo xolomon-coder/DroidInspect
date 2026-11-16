@@ -4,36 +4,57 @@ import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 
-/** Host-JVM regression tests for persistent project metadata and interrupted-operation recovery. */
+/** Host-JVM regression tests for project isolation, persistence and interrupted-operation recovery. */
 public final class ProjectWorkspaceMetadataSelfTest {
     public static void main(String[] args) throws Exception {
-        File root = Files.createTempDirectory("droidinspect-project-meta").toFile();
+        File parent = Files.createTempDirectory("droidinspect-project-meta").toFile();
+        File firstRoot = new File(parent, "project-one");
+        File secondRoot = new File(parent, "project-two");
+        require(firstRoot.mkdirs() && secondRoot.mkdirs(), "create isolated project roots");
         try {
-            ProjectWorkspaceMetadata store = new ProjectWorkspaceMetadata(root);
-            store.appendNote("Investigate assembly identity");
-            store.addBookmark("Serialize method", "0x06000001");
-            store.saveSearch("Newtonsoft", "types and methods");
-            store.beginOperation("REBUILD", "compile source project");
-            String interrupted = store.readOverview();
-            require(interrupted.contains("Investigate assembly identity"), "notes persist");
-            require(interrupted.contains("Serialize method"), "bookmarks persist");
-            require(interrupted.contains("Newtonsoft"), "saved searches persist");
-            require(interrupted.contains("RECOVERY NOTICE"), "interrupted operation is visible");
-            store.finishOperation("REBUILD", "compile failed safely");
-            String recovered = store.readOverview();
+            ProjectWorkspaceMetadata first = new ProjectWorkspaceMetadata(firstRoot);
+            ProjectWorkspaceMetadata second = new ProjectWorkspaceMetadata(secondRoot);
+
+            first.appendNote("Investigate assembly identity");
+            first.addBookmark("Serialize method", "0x06000001");
+            first.saveSearch("Newtonsoft", "types and methods");
+            first.beginOperation("REBUILD", "compile source project");
+
+            String interrupted = new ProjectWorkspaceMetadata(firstRoot).readOverview();
+            require(interrupted.contains("Investigate assembly identity"), "notes survive store recreation");
+            require(interrupted.contains("Serialize method"), "bookmarks survive store recreation");
+            require(interrupted.contains("Newtonsoft"), "saved searches survive store recreation");
+            require(interrupted.contains("RECOVERY NOTICE"), "interrupted operation survives store recreation");
+            require(interrupted.contains("STARTED"), "operation start is journaled");
+
+            String isolated = second.readOverview();
+            require(!isolated.contains("Investigate assembly identity"), "notes are project-isolated");
+            require(!isolated.contains("Serialize method"), "bookmarks are project-isolated");
+            require(!isolated.contains("Newtonsoft"), "saved searches are project-isolated");
+            require(!isolated.contains("RECOVERY NOTICE"), "recovery markers are project-isolated");
+
+            new ProjectWorkspaceMetadata(firstRoot).finishOperation("REBUILD", "compile failed safely");
+            String recovered = new ProjectWorkspaceMetadata(firstRoot).readOverview();
             require(!recovered.contains("RECOVERY NOTICE"), "completed operation clears recovery marker");
-            require(recovered.contains("FINISHED"), "operation history persists");
-            File note = new File(root, "notes.md");
+            require(recovered.contains("FINISHED"), "completion is journaled before marker removal");
+
+            File note = new File(firstRoot, "notes.md");
             String noteText = new String(Files.readAllBytes(note.toPath()), StandardCharsets.UTF_8);
             require(noteText.contains("Investigate assembly identity"), "note bytes survive reopen");
-            System.out.println("PASS: notes, bookmarks, saved searches, operation history and recovery marker");
+
+            File marker = new File(firstRoot, "operation-in-progress.txt");
+            require(!marker.exists(), "recovery marker removed only after completion record");
+
+            System.out.println("PASS: metadata reopen, project isolation, notes, bookmarks, searches and recovery journal");
         } finally {
-            delete(root);
+            delete(parent);
         }
     }
+
     private static void require(boolean condition, String message) {
         if (!condition) throw new AssertionError("FAIL: " + message);
     }
+
     private static void delete(File file) {
         File[] children = file.listFiles();
         if (children != null) for (File child : children) delete(child);
