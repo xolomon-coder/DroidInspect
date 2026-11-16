@@ -1,7 +1,9 @@
 package com.tanvir.droidinspect;
 
 import java.io.File;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 /** Host tests for bounded project discovery, ordering and incomplete-project reporting. */
@@ -12,13 +14,16 @@ public final class ProjectWorkspaceIndexSelfTest {
             File older = new File(root, "project_old");
             File newer = new File(root, "project_new");
             require(older.mkdirs() && newer.mkdirs(), "create project folders");
-            Files.write(new File(older, ".droidinspect-project").toPath(), "Old source\nformat=1\n".getBytes("UTF-8"));
-            Files.write(new File(newer, ".droidinspect-project").toPath(), "New source\nformat=1\n".getBytes("UTF-8"));
+            Files.write(new File(older, ".droidinspect-project").toPath(),
+                    "Old source\nformat=1\n".getBytes("UTF-8"));
+            Files.write(new File(newer, ".droidinspect-project").toPath(),
+                    "New source\nformat=1\n".getBytes("UTF-8"));
             new File(older, "src").mkdirs();
             new File(older, "original").mkdirs();
             Files.write(new File(older, "original/OriginalAssembly.bin").toPath(), new byte[]{1});
             Thread.sleep(15);
             Files.write(new File(newer, "src").toPath(), new byte[]{1});
+
             List<ProjectWorkspaceIndex.Entry> entries = ProjectWorkspaceIndex.scan(
                     root, ".droidinspect-project", "C# SOURCE",
                     new String[]{"src", "original/OriginalAssembly.bin"});
@@ -34,32 +39,42 @@ public final class ProjectWorkspaceIndexSelfTest {
             }
             require(incomplete, "incomplete project is retained and identified");
 
-            File late = null;
-            long baseTime = System.currentTimeMillis() + 100000L;
-            for (int i = 0; i <= ProjectWorkspaceIndex.MAX_SCANNED_ROOT_ENTRIES; i++) {
-                File folder = new File(root, String.format("unrelated_%04d", i));
-                require(folder.mkdir(), "create unrelated root entry " + i);
-                folder.setLastModified(baseTime + (i * 2000L));
-                if (i == ProjectWorkspaceIndex.MAX_SCANNED_ROOT_ENTRIES) late = folder;
+            File[] unrelated = new File[ProjectWorkspaceIndex.MAX_SCANNED_ROOT_ENTRIES + 1];
+            for (int i = 0; i < unrelated.length; i++) {
+                unrelated[i] = new File(root, String.format("unrelated_%04d", i));
+                require(unrelated[i].mkdir(), "create unrelated root entry " + i);
             }
-            require(late != null, "create root entry beyond scan limit");
-            Files.write(new File(late, ".droidinspect-project").toPath(),
+            Path firstUnvisited = null;
+            int position = 0;
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(root.toPath())) {
+                for (Path path : stream) {
+                    if (position++ == ProjectWorkspaceIndex.MAX_SCANNED_ROOT_ENTRIES) {
+                        firstUnvisited = path;
+                        break;
+                    }
+                }
+            }
+            require(firstUnvisited != null, "identify a root entry beyond the scan budget");
+            Files.write(firstUnvisited.resolve(".droidinspect-project"),
                     "Beyond scan limit\nformat=1\n".getBytes("UTF-8"));
-            late.setLastModified(baseTime - 100000L);
+
             List<ProjectWorkspaceIndex.Entry> bounded = ProjectWorkspaceIndex.scan(
                     root, ".droidinspect-project", "C# SOURCE", null);
             boolean discoveredLateProject = false;
             for (ProjectWorkspaceIndex.Entry entry : bounded)
-                if ("unrelated_2000".equals(entry.id)) discoveredLateProject = true;
+                if (firstUnvisited.getFileName().toString().equals(entry.id))
+                    discoveredLateProject = true;
             require(!discoveredLateProject,
-                    "project roots beyond the 2000-entry discovery budget are not scanned");
+                    "project root beyond the 2000-entry discovery budget is not scanned");
 
-            System.out.println("PASS: project discovery, marker names, readiness, recency and root-entry scan bound");
+            System.out.println("PASS: bounded root iteration, project readiness, marker names and recency");
         } finally { delete(root); }
     }
+
     private static void require(boolean value, String message) {
         if (!value) throw new AssertionError("FAIL: " + message);
     }
+
     private static void delete(File file) {
         File[] children = file.listFiles();
         if (children != null) for (File child : children) delete(child);
