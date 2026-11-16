@@ -3570,3 +3570,10 @@ Additional M20 changes since the previous checkpoint:
 - **M12–M18** remain implementation-integrated with consolidated device acceptance pending. **M11 remains user-accepted; do not repeat its acceptance tests.**
 
 **Exact next action:** Continue static review of remaining project and decompilation worker ownership/cancellation paths without speculative rewrites. When Actions runner allocation recovers, run the production workflow once, inspect every host test and build step plus every artifact, fix actual failures on main, and only then prepare the consolidated M12–M20 phone test session.
+### M12 output verification correction and latest CI result — 2026-11-17
+
+- Source review found that the C# editor's post-compilation output check only tested the DOS MZ signature while describing the result as a valid managed PE. An arbitrary native PE could therefore pass that UI-level check.
+- The production editor now reopens the compiler output through the existing bounded DotNetIlReader parser and requires a decoded assembly identity plus at least one indexed MethodDef before reporting managed-assembly verification success. Parse failures now return false.
+- This is a stronger structural check than MZ-only detection; it still does not prove runtime/behavioral compatibility or that the rebuilt DLL is a drop-in replacement.
+- Production run [43975093614](https://github.com/xolomon-coder/DroidInspect/actions/runs/43975093614) (#590), targeting commit 234e6d3ef838fe7ee6a2637449e0fd77d3526b8f, again failed before runner assignment (job 133676915084, runner_id=0, blank runner name, zero steps, no artifacts). The change has not yet been compiled or tested by CI.
+- M12 remains implementation-integrated but device acceptance is pending. M19 and M20 remain IN PROGRESS; no milestone is declared complete by this source correction.
