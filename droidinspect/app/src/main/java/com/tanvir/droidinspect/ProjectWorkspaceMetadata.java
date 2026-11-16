@@ -6,6 +6,8 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.UUID;
 
 /** Small, bounded, crash-tolerant metadata store shared by APK and .NET workspaces. */
@@ -65,6 +67,7 @@ final class ProjectWorkspaceMetadata {
         appendDirectory(out, "REPORTS", "reports");
         appendDirectory(out, "EXPORTS", "exports");
         appendDirectory(out, "BUILD OUTPUTS", "build");
+        appendRootFiles(out);
         return out.toString();
     }
 
@@ -101,6 +104,21 @@ final class ProjectWorkspaceMetadata {
         if (count == 0) out.append("(none)\n");
     }
 
+    private void appendRootFiles(StringBuilder out) {
+        out.append("\nPROJECT-ROOT REPORTS AND FILES\n");
+        File[] files = root.listFiles();
+        if (files == null) { out.append("(unavailable)\n"); return; }
+        int count = 0;
+        for (File file : files) {
+            if (file.isFile() && !file.getName().startsWith(".droidinspect")
+                    && !file.getName().endsWith(".tmp")) {
+                out.append(file.getName()).append("  •  ").append(file.length()).append(" bytes\n");
+                if (++count >= 100) { out.append("…list truncated at 100 files\n"); break; }
+            }
+        }
+        if (count == 0) out.append("(none)\n");
+    }
+
     private String readBounded(File file) throws IOException {
         if (!file.isFile()) return "";
         if (file.length() > MAX_TEXT_BYTES) throw new IOException(file.getName() + " exceeds the 1 MB metadata limit.");
@@ -128,8 +146,12 @@ final class ProjectWorkspaceMetadata {
                 output.flush();
                 output.getFD().sync();
             }
-            if (target.exists() && !target.delete()) throw new IOException("Cannot replace " + filename + ".");
-            if (!temporary.renameTo(target)) throw new IOException("Cannot activate saved " + filename + ".");
+            try {
+                Files.move(temporary.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING,
+                        StandardCopyOption.ATOMIC_MOVE);
+            } catch (java.nio.file.AtomicMoveNotSupportedException unsupported) {
+                Files.move(temporary.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
         } finally {
             if (temporary.exists()) temporary.delete();
         }
