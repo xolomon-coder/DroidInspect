@@ -29,6 +29,9 @@ import java.nio.file.Files;
 final class ApkProjectWorkspace {
     private static final long MAX_APK_BYTES = 512L * 1024L * 1024L;
     private static final int MAX_HISTORY_REVISIONS = 2;
+    private static final int MAX_PROJECT_DIRECTORY_ENTRIES = 2000;
+    private static final int MAX_PROJECT_REPORTS = 100;
+    private static final int MAX_PROJECT_TREE_DEPTH = 4;
     private final Context context;
     private final File root;
     private final File originalApk;
@@ -223,20 +226,13 @@ final class ApkProjectWorkspace {
         File snapshot = new File(historyDirectory,
                 "before-revision-" + (revision + 1) + "-" + System.currentTimeMillis() + ".apk");
         copyFile(workingApk, snapshot);
-        File[] history = historyDirectory.listFiles();
-        if (history == null) return;
-        ArrayList<File> files = new ArrayList<>();
-        for (File file : history) if (file.isFile() && file.getName().endsWith(".apk")) files.add(file);
-        Collections.sort(files, Comparator.comparingLong(File::lastModified).reversed());
+        List<File> files = BoundedProjectFiles.listFiles(historyDirectory, MAX_PROJECT_DIRECTORY_ENTRIES, ".apk");
         for (int i = MAX_HISTORY_REVISIONS; i < files.size(); i++) files.get(i).delete();
     }
 
-    List<File> listHistory() {
-        File[] files = historyDirectory.listFiles();
-        ArrayList<File> result = new ArrayList<>();
-        if (files != null) for (File file : files) if (file.isFile() && file.getName().endsWith(".apk")) result.add(file);
-        Collections.sort(result, Comparator.comparingLong(File::lastModified).reversed());
-        return result;
+    List<File> listHistory() throws IOException {
+        List<File> files = BoundedProjectFiles.listFiles(historyDirectory, MAX_PROJECT_DIRECTORY_ENTRIES, ".apk");
+        return new ArrayList<>(files.subList(0, Math.min(MAX_HISTORY_REVISIONS, files.size())));
     }
 
     synchronized File saveExportFromUri(Uri source, String requestedName) throws IOException {
@@ -305,30 +301,14 @@ final class ApkProjectWorkspace {
         return output;
     }
 
-    List<File> listReports() {
-        File[] files = reportsDirectory.listFiles();
-        ArrayList<File> result = new ArrayList<>();
-        if (files != null) for (File file : files) if (file.isFile()) result.add(file);
-        Collections.sort(result, Comparator.comparingLong(File::lastModified).reversed());
-        return result;
+    List<File> listReports() throws IOException {
+        List<File> files = BoundedProjectFiles.listFiles(
+                reportsDirectory, MAX_PROJECT_DIRECTORY_ENTRIES, null);
+        return new ArrayList<>(files.subList(0, Math.min(MAX_PROJECT_REPORTS, files.size())));
     }
 
-    List<String> listProjectTree() {
-        ArrayList<String> lines = new ArrayList<>();
-        appendTree(root, root, lines, 0);
-        return lines;
-    }
-
-    private void appendTree(File base, File current, List<String> lines, int depth) {
-        File[] files = current.listFiles();
-        if (files == null) return;
-        java.util.Arrays.sort(files, Comparator.comparing(File::getName));
-        for (File file : files) {
-            if (file.getName().equals(".droidinspect-apk-project")) continue;
-            String relative = base.toURI().relativize(file.toURI()).getPath();
-            lines.add(relative + (file.isDirectory() ? "/" : "  (" + file.length() + " bytes)"));
-            if (file.isDirectory() && depth < 4) appendTree(base, file, lines, depth + 1);
-        }
+    List<String> listProjectTree() throws IOException {
+        return BoundedProjectFiles.listTree(root, MAX_PROJECT_DIRECTORY_ENTRIES, MAX_PROJECT_TREE_DEPTH);
     }
 
     private void touch() throws IOException {
