@@ -167,6 +167,7 @@ public class DotNetDependencyActivity extends Activity {
             } catch (IOException ignored) { }
             final String output = result;
             runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
                 busy = false;
                 report.setText(output);
                 status.setText("Offline dependency analysis finished. Original assembly was not modified.");
@@ -212,6 +213,7 @@ public class DotNetDependencyActivity extends Activity {
                 }
                 final String message = result;
                 runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
                     busy = false;
                     showProjectReady();
                     status.setText(message);
@@ -236,6 +238,7 @@ public class DotNetDependencyActivity extends Activity {
                 }
                 final String error = errorText;
                 runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
                     busy = false;
                     setControls(true);
                     if (error == null) Toast.makeText(this, "Dependency report exported.", Toast.LENGTH_LONG).show();
@@ -252,7 +255,7 @@ public class DotNetDependencyActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
-        worker.shutdown();
+        worker.shutdownNow();
         super.onDestroy();
     }
 }
