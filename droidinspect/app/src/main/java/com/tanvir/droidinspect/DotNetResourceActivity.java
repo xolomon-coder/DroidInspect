@@ -17,17 +17,20 @@ import android.widget.Toast;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /** Lists and exports embedded ManifestResource payloads without modifying the source assembly. */
 public final class DotNetResourceActivity extends Activity {
     private static final int PICK_ASSEMBLY = 6201, CREATE_OUTPUT = 6202;
     private static final long MAX_INPUT = 512L * 1024L * 1024L;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private volatile boolean destroyed;
     private final ArrayList<ResourceItem> resources = new ArrayList<>();
     private File assemblyCopy;
     private TextView status, details;
@@ -125,6 +128,7 @@ public final class DotNetResourceActivity extends Activity {
                     byte[] buffer = new byte[32768];
                     int n;
                     while ((n = in.read(buffer)) != -1) {
+                        checkCancelled();
                         total += n;
                         if (total > MAX_INPUT) throw new IllegalArgumentException("Assembly exceeds the 512 MB inspection limit.");
                         out.write(buffer, 0, n);
@@ -139,6 +143,7 @@ public final class DotNetResourceActivity extends Activity {
                 copy = null;
                 if (old != null) old.delete();
                 runOnUiThread(() -> {
+                    if (destroyed || isFinishing() || isDestroyed()) return;
                     resources.clear();
                     resources.addAll(parsed);
                     selected = null;
@@ -156,6 +161,7 @@ public final class DotNetResourceActivity extends Activity {
                 String message = "RESOURCE INSPECTION FAILED: " + error.getClass().getSimpleName()
                         + ": " + (error.getMessage() == null ? "No details." : error.getMessage());
                 runOnUiThread(() -> {
+                    if (destroyed || isFinishing() || isDestroyed()) return;
                     status.setText(message);
                     chooseButton.setEnabled(true);
                 });
@@ -212,6 +218,7 @@ public final class DotNetResourceActivity extends Activity {
                 pendingBytes = bytes;
                 String name = safeFilename(selected.name);
                 runOnUiThread(() -> {
+                    if (destroyed || isFinishing() || isDestroyed()) return;
                     status.setText("Resource ready: " + bytes.length + " bytes. Choose where to save it.");
                     exportButton.setEnabled(true);
                     Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
@@ -222,6 +229,7 @@ public final class DotNetResourceActivity extends Activity {
                 });
             } catch (Exception error) {
                 runOnUiThread(() -> {
+                    if (destroyed || isFinishing() || isDestroyed()) return;
                     status.setText("EXTRACTION FAILED: " + error.getClass().getSimpleName()
                             + ": " + (error.getMessage() == null ? "No details." : error.getMessage()));
                     exportButton.setEnabled(true);
@@ -252,9 +260,28 @@ public final class DotNetResourceActivity extends Activity {
         }
     }
 
+    private static void checkCancelled() throws InterruptedIOException {
+        if (Thread.currentThread().isInterrupted())
+            throw new InterruptedIOException("Resource operation cancelled because the activity was closed.");
+    }
+
     @Override protected void onDestroy() {
-        super.onDestroy();
+        destroyed = true;
         worker.shutdownNow();
-        if (assemblyCopy != null) assemblyCopy.delete();
+        super.onDestroy();
+        Thread cleanup = new Thread(() -> {
+            try {
+                while (!worker.awaitTermination(1, TimeUnit.DAYS)) { }
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            File copy = assemblyCopy;
+            assemblyCopy = null;
+            if (copy != null) copy.delete();
+            pendingBytes = null;
+        }, "droidinspect-resource-cleanup");
+        cleanup.setDaemon(true);
+        cleanup.start();
     }
 }
