@@ -3586,3 +3586,56 @@ Additional M20 changes since the previous checkpoint:
 
 - The M12 project-operation journal now records SOURCE_COMPILE as PASS only when the native compiler reports compilation success **and** the independent managed PE/CLI re-open check succeeds. A native compiler PASS followed by Java-side structural verification failure is recorded as NOT PASS.
 - Production run [43975311959](https://github.com/xolomon-coder/DroidInspect/actions/runs/43975311959) (#593), targeting 465c6499b8bfbfcf3507821588268bb4ad3b4fd5, ended with runner_id=0, blank runner name, and zero executed steps. No artifacts were produced; source compilation remains unverified.
+### M19/M20 continuation — bounded source traversal and cancellable editor I/O — 2026-11-17
+
+**M19 source-tree and workspace hardening:**
+- BoundedSourceTree.scan() now enumerates each source directory with DirectoryStream<Path> rather than File.listFiles(). This avoids materializing an unbounded child array before enforcing the existing 10,000-node, 2,000-source-file, 16-level, 32 MiB-per-file and 128 MiB aggregate limits.
+- Symbolic-link entries are skipped during source-tree discovery. The existing canonical containment check remains as defense in depth.
+- Expanded BoundedSourceTreeSelfTest to create an external C# source directory and verify that a symbolic-link directory is excluded. The new regression has not yet executed because no runner-backed CI result is available for this continuation.
+- C# source imports now account for existing project bytes and file count, check thread interruption while copying, and roll back every file imported earlier in the same batch if a later import fails or cancellation occurs.
+- Source ZIP export checks interruption between files and while streaming file contents.
+
+**M20 lifecycle and UI-thread I/O hardening:**
+- DecompilationWorkspace checks interruption during selected-assembly copying and bundled .NET reference extraction. A cancelled staging extraction is removed without activating a partial reference directory.
+- CSharpDecompileActivity now interrupts cancellable preparation/source-workspace work when the screen is destroyed. A native decompilation already executing inside JNI may still finish; its try-with-resources cleanup remains responsible for removing the temporary workspace.
+- CSharpSourceWorkspace checks interruption while preserving the original assembly and writing source-project files. A cancelled project creation follows its existing failure cleanup path.
+- CSharpSourceEditorActivity now performs C# source import, source ZIP export, compatibility-report export and rebuilt-DLL export on a dedicated I/O executor rather than blocking the UI thread. Activity callbacks are weak-reference/lifecycle guarded, and the I/O executor is interrupted on teardown.
+- The source editor's import batch now rolls back already imported files on failure/cancellation, and the source-tree walker no longer allocates an unbounded directory listing.
+
+**Exact files changed in this continuation:**
+- droidinspect/app/src/main/java/com/tanvir/droidinspect/DecompilationWorkspace.java
+- droidinspect/app/src/main/java/com/tanvir/droidinspect/CSharpDecompileActivity.java
+- droidinspect/app/src/main/java/com/tanvir/droidinspect/CSharpSourceWorkspace.java
+- droidinspect/app/src/main/java/com/tanvir/droidinspect/BoundedSourceTree.java
+- tools/bounded-source-tree-test/BoundedSourceTreeSelfTest.java
+- droidinspect/app/src/main/java/com/tanvir/droidinspect/CSharpSourceEditorActivity.java
+
+**Commits in this continuation (oldest to newest):**
+- 291ca266eb88c2e313e2189f8fdf2fa7fb7cc48f — cancel interrupted decompilation workspace preparation.
+- 818d252af45635ca82da45641aba0c02596497b9 — interrupt cancellable decompiler preparation on teardown.
+- 56314a3c3bc80305f1e6d5a48c7af007679749fc — cancel interrupted C# source project copies.
+- 3bf7d61545f78dc59adb99265ddba0a0a8dc1d65 — bound source-tree traversal without unbounded directory arrays.
+- 26e6eb18edcff610662e4f92b391730f8ab4ae19 — test source-tree symlink exclusion.
+- 357ef554a2ba8701fef6d4ae9bc733f2aafa5324 — cancel and roll back interrupted C# source imports.
+- 32041fc0f10641e84f16b4fd37dd75227c57224b — move C# source import and export off the UI thread.
+
+**CI and verification state:**
+- The latest previously inspectable production run remains run 43975311959 (#593), targeting source commit 465c6499b8bfbfcf3507821588268bb4ad3b4fd5. Its job completed as failure with runner_id=0, no runner name, zero steps and no artifacts. It did not compile or test the source.
+- The new source commits trigger the main-branch production workflow because it runs on non-README pushes. In this session, the GitHub commit-status endpoint returned no status records for the new commits, and the available commit-workflow query exposes only pull-request-triggered runs; therefore no push-run ID/job record could be confirmed for these commits. Do not infer a build result from the commits.
+- M11/M12 proof workflows were inspected. Their latest previously recorded attempts 43867503469, 43867509159 and 43867535971 each have a failed job with no steps and no artifacts. No transitive NuGet graph or new proof artifact is claimed.
+- The expanded source-tree regression, source import rollback paths, Java/XML compile, debug/release APK builds, APK signing/tamper checks, packaged native inventory and SHA-256 generation remain unverified by a runner-backed execution.
+- Existing M19 focused project-index and project-metadata host tests remain prior PASS evidence only; this continuation has not rerun them. The new symlink regression is pending execution.
+- No transitive Gradle/NuGet license review, actual packaged native size measurement or final APK checksum is claimed.
+
+**Milestone state:**
+- **M19 — IN PROGRESS.** Project discovery/metadata bounds and C# source-tree traversal have been hardened. The new source-tree symlink regression and full host suite still require execution; project creation/reopen, process-restart persistence, cross-project isolation and interrupted-operation recovery still require Android integration/device acceptance.
+- **M20 — IN PROGRESS.** Additional decompiler/editor cancellation and background I/O paths are hardened. Full activity lifecycle review, runner-backed compilation, debug/release/package audits, signing/tamper verification, dependency/license review and device memory/performance testing remain open.
+- **M12–M18** remain implementation-integrated with consolidated device acceptance pending. **M11 remains user-accepted; do not repeat its acceptance tests.**
+
+**Exact next actions:**
+1. Obtain the main-branch production Actions run for commit 32041fc0f10641e84f16b4fd37dd75227c57224b and inspect its job, every host-test step and all artifacts. Do not retry while the job still reports runner_id=0 and zero steps.
+2. Continue the source audit of remaining production project/dependency workers and bounded file listings; fix only demonstrated defects.
+3. On the first runner-backed execution, resolve real source/test/build failures, then inspect the debug/release APKs, signatures, tamper rejection, ARM64 payload, dependency graphs, license notices and SHA-256 output.
+4. Only after cloud/host release verification, prepare the single consolidated M12–M20 Android 11 / CodeAssist device-testing session.
+
+**Stopping point:** Seven additional source/test commits are on main. M19/M20 remain unaccepted. The production CI and release gate remains unverified, and no new phone testing is requested yet.
