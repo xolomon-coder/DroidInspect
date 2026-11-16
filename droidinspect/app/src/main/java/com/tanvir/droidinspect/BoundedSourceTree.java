@@ -2,6 +2,10 @@ package com.tanvir.droidinspect;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.DirectoryIteratorException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -30,29 +34,33 @@ final class BoundedSourceTree {
                               long[] totalBytes, List<File> result) throws IOException {
         if (depth > MAX_DEPTH)
             throw new IOException("C# source folder nesting exceeds the " + MAX_DEPTH + " level safety limit.");
-        File[] children = directory.listFiles();
-        if (children == null) throw new IOException("Cannot read C# source project directory.");
-        for (File child : children) {
-            if (++visited[0] > MAX_VISITED_NODES)
-                throw new IOException("C# source project contains too many filesystem entries.");
-            File canonical = child.getCanonicalFile();
-            String prefix = root.getPath() + File.separator;
-            if (!canonical.getPath().startsWith(prefix))
-                throw new IOException("C# source entry resolves outside the project folder.");
-            if (child.isDirectory()) {
-                visit(root, child, depth + 1, visited, totalBytes, result);
-            } else if (child.isFile()
-                    && child.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".cs")) {
-                long size = child.length();
-                if (size > MAX_SOURCE_FILE_BYTES)
-                    throw new IOException("C# source file exceeds the 32 MB safety limit: " + child.getName());
-                totalBytes[0] += size;
-                if (totalBytes[0] > MAX_TOTAL_SOURCE_BYTES)
-                    throw new IOException("C# source project exceeds the 128 MB total safety limit.");
-                if (result.size() >= MAX_SOURCE_FILES)
-                    throw new IOException("C# source project exceeds the " + MAX_SOURCE_FILES + " file safety limit.");
-                result.add(child);
+        try (DirectoryStream<Path> children = Files.newDirectoryStream(directory.toPath())) {
+            for (Path childPath : children) {
+                if (++visited[0] > MAX_VISITED_NODES)
+                    throw new IOException("C# source project contains too many filesystem entries.");
+                if (Files.isSymbolicLink(childPath)) continue;
+                File child = childPath.toFile();
+                File canonical = child.getCanonicalFile();
+                String prefix = root.getPath() + File.separator;
+                if (!canonical.getPath().startsWith(prefix))
+                    throw new IOException("C# source entry resolves outside the project folder.");
+                if (child.isDirectory()) {
+                    visit(root, child, depth + 1, visited, totalBytes, result);
+                } else if (child.isFile()
+                        && child.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".cs")) {
+                    long size = child.length();
+                    if (size > MAX_SOURCE_FILE_BYTES)
+                        throw new IOException("C# source file exceeds the 32 MB safety limit: " + child.getName());
+                    totalBytes[0] += size;
+                    if (totalBytes[0] > MAX_TOTAL_SOURCE_BYTES)
+                        throw new IOException("C# source project exceeds the 128 MB total safety limit.");
+                    if (result.size() >= MAX_SOURCE_FILES)
+                        throw new IOException("C# source project exceeds the " + MAX_SOURCE_FILES + " file safety limit.");
+                    result.add(child);
+                }
             }
+        } catch (DirectoryIteratorException error) {
+            throw new IOException("Cannot read C# source project directory.", error);
         }
     }
 }
