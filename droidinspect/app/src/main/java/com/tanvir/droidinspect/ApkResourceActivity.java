@@ -65,6 +65,7 @@ public final class ApkResourceActivity extends Activity {
     private ApkModule apkModule;
     private ResourceEntry selectedResource;
     private Uri sourceUri;
+    private File sourceFile;
     private boolean returnOutputUri;
 
     @Override protected void onCreate(Bundle state) {
@@ -88,6 +89,16 @@ public final class ApkResourceActivity extends Activity {
         saveButton.setOnClickListener(v -> prepareModifiedApk());
 
         returnOutputUri = getIntent().getBooleanExtra("return_output_uri", false);
+        String filePath = getIntent().getStringExtra("apk_file_path");
+        if (filePath != null) {
+            sourceFile = new File(filePath);
+            if (!sourceFile.isFile()) {
+                status.setText("Project working APK file is unavailable.");
+                return;
+            }
+            loadApk();
+            return;
+        }
         String raw = getIntent().getStringExtra("apk_uri");
         if (raw == null) {
             status.setText("No APK document was supplied.");
@@ -110,7 +121,7 @@ public final class ApkResourceActivity extends Activity {
             ArrayList<String> foundLabels = new ArrayList<>();
             try {
                 sourceCopy = File.createTempFile("droidinspect-resource-", ".apk", getCacheDir());
-                long copied = copyUri(sourceUri, sourceCopy);
+                long copied = sourceFile == null ? copyUri(sourceUri, sourceCopy) : copyFile(sourceFile, sourceCopy);
                 apkModule = ApkModule.loadApkFile(sourceCopy);
                 // Load resources.arsc first so the APK's own resource package is linked.
                 TableBlock table = apkModule.getTableBlock();
@@ -220,6 +231,22 @@ public final class ApkResourceActivity extends Activity {
         resourceStringValue.setText(entry.getValueAsString());
         status.setText("Selected string resource: " + selectedResource.getName()
                 + " (only its default configuration will be changed)");
+    }
+
+    private long copyFile(File source, File destination) throws Exception {
+        long total = 0;
+        try (InputStream in = new FileInputStream(source);
+             FileOutputStream out = new FileOutputStream(destination)) {
+            byte[] buffer = new byte[32768];
+            int n;
+            while ((n = in.read(buffer)) != -1) {
+                total += n;
+                if (total > MAX_APK_BYTES) throw new IllegalArgumentException("Project APK exceeds the 512 MB editor limit.");
+                out.write(buffer, 0, n);
+            }
+            out.flush();
+        }
+        return total;
     }
 
     private long copyUri(Uri uri, File destination) throws Exception {
