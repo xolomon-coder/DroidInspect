@@ -190,12 +190,12 @@ jobs:
           fi
 
           mkdir -p artifacts
-          find droidinspect/app/src/main/jniLibs -type f -name '*.so' -printf '%P %s bytes\\n' \
+          find droidinspect/app/src/main/jniLibs -type f -name '*.so' -printf '%P %s bytes\n' \
             | sort | tee artifacts/native-payload-inventory.txt
-          NATIVE_BYTES="$(find droidinspect/app/src/main/jniLibs -type f -name '*.so' -printf '%s\\n' | awk '{ total += $1 } END { print total + 0 }')"
+          NATIVE_BYTES="$(find droidinspect/app/src/main/jniLibs -type f -name '*.so' -printf '%s\n' | awk '{ total += $1 } END { print total + 0 }')"
           echo "Native payload bytes: $NATIVE_BYTES" | tee -a artifacts/native-payload-inventory.txt
           test "$NATIVE_BYTES" -le 104857600
-          ABI_DIRS="$(find droidinspect/app/src/main/jniLibs -mindepth 1 -maxdepth 1 -type d -printf '%f\\n' | sort)"
+          ABI_DIRS="$(find droidinspect/app/src/main/jniLibs -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)"
           test "$ABI_DIRS" = "arm64-v8a"
 
           for APK in "$DEBUG_APK" "$RELEASE_APK"; do
