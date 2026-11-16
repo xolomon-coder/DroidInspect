@@ -21,6 +21,7 @@ import android.widget.Toast;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -31,6 +32,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.security.MessageDigest;
@@ -44,6 +46,7 @@ public final class AssemblyExplorerActivity extends Activity {
     private static final String[] SORTS = {"Name A-Z", "Metadata token", "Owner"};
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private volatile boolean destroyed;
     private final ArrayList<Entry> allEntries = new ArrayList<>();
     private final ArrayList<Entry> shownEntries = new ArrayList<>();
     private final ArrayList<String> labels = new ArrayList<>();
@@ -145,7 +148,7 @@ public final class AssemblyExplorerActivity extends Activity {
             final String meta = metadata;
             final DotNetIlReader.Result methods = il;
             runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) return;
+                if (destroyed || isFinishing() || isDestroyed()) return;
                 setBusy(false, error == null ? "Assembly indexing complete." : "Assembly indexing failed.");
                 if (error != null) {
                     status.setText("ASSEMBLY EXPLORER ERROR: " + error);
@@ -533,6 +536,7 @@ public final class AssemblyExplorerActivity extends Activity {
             byte[] buffer = new byte[32768];
             int count;
             while ((count = input.read(buffer)) != -1) {
+                checkCancelled();
                 total += count;
                 if (total > MAX_INPUT) throw new IllegalArgumentException("Assembly exceeds the 512 MB safety limit.");
                 stream.write(buffer, 0, count);
@@ -551,9 +555,27 @@ public final class AssemblyExplorerActivity extends Activity {
         super.onBackPressed();
     }
 
+    private static void checkCancelled() throws InterruptedIOException {
+        if (Thread.currentThread().isInterrupted())
+            throw new InterruptedIOException("Assembly exploration cancelled because the activity was closed.");
+    }
+
     @Override protected void onDestroy() {
+        destroyed = true;
         worker.shutdownNow();
-        if (sourceCopy != null) sourceCopy.delete();
         super.onDestroy();
+        Thread cleanup = new Thread(() -> {
+            try {
+                while (!worker.awaitTermination(1, TimeUnit.DAYS)) { }
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            File copy = sourceCopy;
+            sourceCopy = null;
+            if (copy != null) copy.delete();
+        }, "droidinspect-explorer-cleanup");
+        cleanup.setDaemon(true);
+        cleanup.start();
     }
 }
