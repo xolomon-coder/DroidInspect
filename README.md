@@ -3069,4 +3069,12 @@ The unified launcher currently indexes existing project types; it does not claim
 - Recovery completion now records the FINISHED history event before clearing the interrupted-operation marker, so a history-write failure cannot silently erase the recovery notice.
 - The project list explains tap-to-open and long-press metadata management.
 - Storage isolation and metadata/recovery regression were checked locally; the project-index host regression also passed locally. These local checks do not replace the required full GitHub Actions workflow.
-- Latest M19 implementation commit: `2d9cd652d48ba8821d9ec7d493c8831e91fa6bb2`. Production CI run [43852103192](https://github.com/xolomon-coder/DroidInspect/actions/runs/43852103192) failed on attempts 1 and 2 with `runner_id=0`, no steps, and no artifacts. The failure is runner allocation; source compilation has not yet been attempted by GitHub Actions.
+- Earlier M19 implementation checkpoint: `2d9cd652d48ba8821d9ec7d493c8831e91fa6bb2`. Production CI run [43852103192](https://github.com/xolomon-coder/DroidInspect/actions/runs/43852103192) failed on attempts 1 and 2 with `runner_id=0`, no steps, and no artifacts. The failure is runner allocation; source compilation has not yet been attempted by GitHub Actions.
+
+
+### M19 latest-main and CI retry checkpoint — 2026-11-16
+
+- Latest main commit at this checkpoint: `d14ee4946552c6cb78070b35f1c67d2f46f5203a`. It includes the M19 workspace-action wording update and the storage-isolation / recovery-history correction documented above.
+- Workflow run [43852294365](https://github.com/xolomon-coder/DroidInspect/actions/runs/43852294365) targeted this exact commit. Attempts 1, 2 and 3 all failed before a runner started. The final attempt's job `133247811273` has `runner_id=0`, an empty step list and no logs; the run produced zero artifacts.
+- This is conclusively a runner-allocation failure for this run, not a source-level build failure. No further immediate retries will be issued against the same unchanged commit; doing so has repeatedly produced the same no-runner result. Resume CI verification after a new runner becomes available or a fresh run can be allocated.
+- The local Java host checks recorded above passed, but they do not establish Android compilation or full workflow success. M19 remains IN PROGRESS and must not be marked complete until production CI executes all required steps and device acceptance is completed.
