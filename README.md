@@ -3033,3 +3033,12 @@ Known remaining M19 work:
 4. Complete a successful production Android CI run against the final M19 commit.
 
 The unified launcher currently indexes existing project types; it does not claim that all APK and .NET project operations have already been merged into one storage format. Existing source/dependency project formats remain separate and backward-compatible.
+
+
+### M19 persistent project records — implementation started
+
+- Added a shared, app-private metadata store for APK, C# source and offline .NET dependency project folders. It persists notes, bookmarks, saved searches, operation history, interrupted-operation markers, and inventories of existing report/export/build files without moving or duplicating original inputs.
+- Added project-workspace UI actions to add notes, bookmarks and saved searches, record an operation, and inspect stored project records. Long-press a recent project to manage its records; the workspace button opens the latest project's record tools.
+- Metadata writes use a temporary file, flush/sync and rename, with canonical project-folder containment and a 1 MB per-file / 1,000-record bound. Interrupted operations remain visible until explicitly marked finished.
+- Added host-JVM regression coverage for persistence, bookmarks/searches, operation history and interrupted-operation recovery.
+- Verification is pending until the complete Android workflow has run successfully; no milestone completion is claimed from source changes alone.
