@@ -3382,3 +3382,63 @@ Additional M20 changes since the previous checkpoint:
 - Do not request the consolidated M12–M20 phone acceptance session until runner-backed production verification and the remaining release audits are complete.
 
 **Stopping point:** The M19 root-directory scan is now genuinely bounded and both focused M19 host regressions pass locally. GitHub Actions still cannot allocate a runner; M19/M20 and release readiness remain unaccepted.
+
+### M19/M20 reliability continuation — 2026-11-17
+
+**Current source checkpoint:** `main` HEAD `96e6221fb538b264d2346a619ebc8e686b1a8ec0`. All changes in this continuation were committed directly to `main`; no alternate branch was created.
+
+**M19 bounded project discovery and metadata hardening:**
+- Reworked `ProjectWorkspaceIndex.scan()` to use `DirectoryStream` and stop after examining at most 2,000 root entries, regardless of whether those entries contain valid project markers. The 500-project result cap remains. Per-project timestamp traversal remains limited to 2,000 visited entries and depth 5.
+- Project-folder and recursive timestamp discovery now skip symbolic links. The required-path canonical containment check remains in place.
+- Reworked workspace inventory display to scan at most 1,000 directory entries and display at most 100 files per inventory, rather than materializing an unbounded `File.listFiles()` array.
+- Metadata reads now reject malformed UTF-8 instead of silently replacing invalid bytes. The 1 MiB per-file bound and canonical project-root containment are retained.
+- Expanded index regression coverage to verify the 2,000-root-entry cutoff and exclusion of a symbolic-link project.
+- Expanded metadata regression coverage for process/store recreation, project isolation, notes, bookmarks, saved searches, interrupted-operation recovery, bounded report listings, malformed UTF-8, oversized metadata, and symlink path escape.
+- Focused host tests were run in the available container: index regression **PASS**; metadata persistence/recovery and corruption-boundary regression **PASS**. These results do not establish Android UI/device acceptance or a runner-backed CI pass.
+
+**M20 lifecycle and packaged-payload hardening:**
+- `ApkResourceActivity` now checks worker interruption during APK copy, resource traversal and export loops; guards UI callbacks after activity destruction; and defers closing `ApkModule` / deleting working files until the worker has terminated, using a daemon cleanup thread rather than blocking the UI thread.
+- `ApkBuildPipelineActivity` now checks cancellation during both APK copy paths, discards a temporary original copy if its callback arrives after destruction, and waits for worker termination before deleting the retained original copy.
+- `.github/workflows/phase1-android.yml` now inspects the actual debug and release APK ZIP entries, verifies that the packaged native libraries are ARM64-only and include all four expected libraries, measures compressed and uncompressed native payload bytes and APK file size, enforces a 100 MiB uncompressed native payload ceiling, and publishes `packaged-native-inventory.txt` as an artifact.
+- These M20 changes are implementation/workflow hardening only. They have not yet been validated by a successful Android build or runner-backed Actions execution. Other background activities still require a complete lifecycle/cancellation audit.
+
+**Files changed in this continuation:**
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/ProjectWorkspaceIndex.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/ProjectWorkspaceMetadata.java`
+- `tools/project-workspace-index-test/ProjectWorkspaceIndexSelfTest.java`
+- `tools/project-workspace-test/ProjectWorkspaceMetadataSelfTest.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/ApkResourceActivity.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/ApkBuildPipelineActivity.java`
+- `.github/workflows/phase1-android.yml`
+
+**Commits in this continuation (oldest to newest):**
+- `9d670ba0415774ba4b3c2c67cedd0dcb6bf7f51d` — bounded project index directory iteration and symlink-safe traversal.
+- `7e8cdc02d8b3d41f6e966d5f8f2b5d892fcc4718` — deterministic root-budget regression.
+- `e3e0dd9c48e2f45f6de631413a74e115f84b7332` — bounded metadata listings and strict UTF-8 decoding.
+- `449b1360310b213f425c746b0f5132194be892e1` — corrupt, oversized and symlink metadata tests.
+- `2a495bdfb0d7a216ea4190c860d0c669a279c4e3` — clarify bounded index behavior.
+- `4c7f797176d1eaebf8c50e6e61da3e8654d1481b` — symlink project-index regression.
+- `f020eb05219e523668459c9924d3e7596218c137` — initial APK resource worker cleanup lifecycle change.
+- `79af5bb09b7e28a29bc25d2c545a2d3dc1b1d48f` — cancellation checks and lifecycle guards for APK resource operations.
+- `ad16b86c933b432553168531c18be3a1a96b6df7` — overflow-safe worker termination wait.
+- `01153352ac9abaffad0d3695f4fe23a02c5c0e53` — APK pipeline worker cleanup lifecycle change.
+- `7a21234e0a2a08424a2fab90e1e91fef23a98de6` — cancellation checks in both APK pipeline copy paths.
+- `96e6221fb538b264d2346a619ebc8e686b1a8ec0` — packaged native payload and ABI audit in production workflow.
+
+**CI evidence and limitation:**
+- The previously inspectable production attempts `43969379323` and `43969408209` ended in failure with no workflow steps and no artifacts. Their jobs did not produce a source compilation or test result; the handoff's runner-allocation diagnosis remains the best-supported explanation.
+- The commit status endpoint returned no status records for the latest workflow change commit. The available commit-workflow listing only exposes pull-request-triggered runs, so it cannot confirm the push-triggered production run for this checkpoint.
+- No successful runner-backed debug/release build, signing/tamper verification, packaged payload measurement, dependency graph artifact, or checksum artifact is claimed.
+
+**Milestone state:**
+- **M19 — IN PROGRESS.** Focused host regressions pass, but APK/C#/.NET project reopen, process-restart behavior, Android UI integration, and real device project isolation/recovery remain unaccepted.
+- **M20 — IN PROGRESS.** Two APK workflows have improved cancellation/cleanup handling and the production workflow has stronger packaged-payload assertions. Full activity lifecycle audit, large-file/device performance, actual native payload measurement, full transitive licensing, debug/release builds, signing/tamper checks, and CodeAssist reproducibility remain pending.
+- **M12–M18** remain implementation-integrated with consolidated device acceptance pending. M11 remains user-accepted; do not repeat its acceptance tests.
+
+**Exact next actions:**
+1. Obtain and inspect a runner-backed production Actions run for the latest `main` source. Confirm every host test, Android debug/release build, signing/tamper step, packaged-native inventory, dependency graph and SHA-256 artifact; fix actual failures and rerun.
+2. Continue the M20 lifecycle audit for the remaining APK signing/split and .NET processing activities; add cancellation and safe deferred cleanup where source inspection finds the same race.
+3. Complete the transitive Gradle/NuGet license review and record actual APK sizes, native ABI payload, and final artifact hashes.
+4. Only after cloud/host release verification, prepare the single consolidated M12–M20 Android 11 / CodeAssist testing session.
+
+**Stopping point:** M19 bounded discovery and metadata hardening have focused host PASS evidence. M20 has source-level lifecycle and packaged-payload improvements. The production CI/release gate remains unverified; neither M19 nor M20 is marked complete.
