@@ -3591,7 +3591,7 @@ Additional M20 changes since the previous checkpoint:
 **M19 source-tree and workspace hardening:**
 - BoundedSourceTree.scan() now enumerates each source directory with DirectoryStream<Path> rather than File.listFiles(). This avoids materializing an unbounded child array before enforcing the existing 10,000-node, 2,000-source-file, 16-level, 32 MiB-per-file and 128 MiB aggregate limits.
 - Symbolic-link entries are skipped during source-tree discovery. The existing canonical containment check remains as defense in depth.
-- Expanded BoundedSourceTreeSelfTest to create an external C# source directory and verify that a symbolic-link directory is excluded. The new regression has not yet executed because no runner-backed CI result is available for this continuation.
+- Expanded BoundedSourceTreeSelfTest to create an external C# source directory and verify that a symbolic-link directory is excluded. This regression has now passed in the local host JVM.
 - C# source imports now account for existing project bytes and file count, check thread interruption while copying, and roll back every file imported earlier in the same batch if a later import fails or cancellation occurs.
 - Source ZIP export checks interruption between files and while streaming file contents.
 
@@ -3623,12 +3623,12 @@ Additional M20 changes since the previous checkpoint:
 - The latest previously inspectable production run remains run 43975311959 (#593), targeting source commit 465c6499b8bfbfcf3507821588268bb4ad3b4fd5. Its job completed as failure with runner_id=0, no runner name, zero steps and no artifacts. It did not compile or test the source.
 - The new source commits trigger the main-branch production workflow because it runs on non-README pushes. In this session, the GitHub commit-status endpoint returned no status records for the new commits, and the available commit-workflow query exposes only pull-request-triggered runs; therefore no push-run ID/job record could be confirmed for these commits. Do not infer a build result from the commits.
 - M11/M12 proof workflows were inspected. Their latest previously recorded attempts 43867503469, 43867509159 and 43867535971 each have a failed job with no steps and no artifacts. No transitive NuGet graph or new proof artifact is claimed.
-- The expanded source-tree regression, source import rollback paths, Java/XML compile, debug/release APK builds, APK signing/tamper checks, packaged native inventory and SHA-256 generation remain unverified by a runner-backed execution.
-- Existing M19 focused project-index and project-metadata host tests remain prior PASS evidence only; this continuation has not rerun them. The new symlink regression is pending execution.
+- BoundedSourceTreeSelfTest, ProjectWorkspaceIndexSelfTest and ProjectWorkspaceMetadataSelfTest were compiled with javac --release 8 and all passed locally. Source import rollback paths, full host regressions, Android Java/XML compilation, debug/release APK builds, APK signing/tamper checks, packaged native inventory and SHA-256 generation remain unverified by a runner-backed execution.
+- Re-ran the focused M19 project-index and project-metadata host tests locally with Java 8 source compatibility: both PASS. The bounded C# source-tree test, including symlink exclusion, also PASS. The broader host regression suite still needs execution.
 - No transitive Gradle/NuGet license review, actual packaged native size measurement or final APK checksum is claimed.
 
 **Milestone state:**
-- **M19 — IN PROGRESS.** Project discovery/metadata bounds and C# source-tree traversal have been hardened. The new source-tree symlink regression and full host suite still require execution; project creation/reopen, process-restart persistence, cross-project isolation and interrupted-operation recovery still require Android integration/device acceptance.
+- **M19 — IN PROGRESS.** Project discovery/metadata bounds and C# source-tree traversal have been hardened. The three focused host regressions now pass locally; the remaining host suite, project creation/reopen, process-restart persistence, cross-project isolation and interrupted-operation recovery still require runner-backed and Android integration/device acceptance.
 - **M20 — IN PROGRESS.** Additional decompiler/editor cancellation and background I/O paths are hardened. Full activity lifecycle review, runner-backed compilation, debug/release/package audits, signing/tamper verification, dependency/license review and device memory/performance testing remain open.
 - **M12–M18** remain implementation-integrated with consolidated device acceptance pending. **M11 remains user-accepted; do not repeat its acceptance tests.**
 
