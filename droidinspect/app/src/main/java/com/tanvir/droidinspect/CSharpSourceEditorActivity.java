@@ -3,9 +3,12 @@ package com.tanvir.droidinspect;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.Context;
 import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.View;
@@ -18,12 +21,15 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
+import java.lang.ref.WeakReference;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class CSharpSourceEditorActivity extends Activity {
     private static final int REQUEST_IMPORT = 7101;
@@ -44,6 +50,7 @@ public class CSharpSourceEditorActivity extends Activity {
     private boolean dirty;
     private boolean compiling;
     private volatile boolean activityDestroyed;
+    private final ExecutorService compilerWorker = Executors.newSingleThreadExecutor();
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -219,27 +226,31 @@ public class CSharpSourceEditorActivity extends Activity {
         } catch (IOException metadataError) {
             status.setText("PROJECT HISTORY WARNING: " + metadataError.getMessage());
         }
-        new Thread(() -> {
+        final CSharpSourceWorkspace buildProject = project;
+        final Context appContext = getApplicationContext();
+        final WeakReference<CSharpSourceEditorActivity> reference = new WeakReference<>(this);
+        final Handler mainHandler = new Handler(Looper.getMainLooper());
+        compilerWorker.execute(() -> {
             String result;
             File output = null;
             try {
-                File references = DecompilationWorkspace.ensureReferences(getApplicationContext());
-                output = project.getBuildOutputFile();
+                File references = DecompilationWorkspace.ensureReferences(appContext);
+                output = buildProject.getBuildOutputFile();
                 String loadError = com.tanvir.m12poc.NativeBridge.getLoadError();
                 if (loadError != null) {
                     result = "M12 COMPILER UNAVAILABLE\n" + loadError;
                 } else {
                     result = com.tanvir.m12poc.NativeBridge.compile(
-                            project.getSourceRoot().getAbsolutePath(),
+                            buildProject.getSourceRoot().getAbsolutePath(),
                             output.getAbsolutePath(),
                             references.getAbsolutePath(),
-                            project.getOriginalAssemblyFile().getAbsolutePath());
+                            buildProject.getOriginalAssemblyFile().getAbsolutePath());
                     if (result == null) result = "M12 COMPILER ERROR: No result was returned.";
                     if (result.startsWith("M12 COMPILATION PASS")) {
                         if (!isManagedPe(output)) {
-                            result += "\nJAVA OUTPUT VERIFICATION FAIL: output is not a valid managed PE file.";
+                            result += "\nJAVA OUTPUT VERIFICATION FAIL: output is not a valid managed .NET assembly.";
                         } else {
-                            result += "\nJAVA OUTPUT VERIFICATION PASS: managed PE file exists; "
+                            result += "\nJAVA OUTPUT VERIFICATION PASS: managed PE/CLI assembly reopened; "
                                     + output.length() + " bytes.";
                         }
                     }
@@ -249,7 +260,7 @@ public class CSharpSourceEditorActivity extends Activity {
                         + (error.getMessage() == null ? "No additional details." : error.getMessage());
             }
             try {
-                new ProjectWorkspaceMetadata(project.getSourceRoot().getParentFile())
+                new ProjectWorkspaceMetadata(buildProject.getSourceRoot().getParentFile())
                         .finishOperation("SOURCE_COMPILE",
                                 result.startsWith("M12 COMPILATION PASS") ? "PASS" : "NOT PASS");
             } catch (IOException ignored) { }
@@ -267,18 +278,21 @@ public class CSharpSourceEditorActivity extends Activity {
             } catch (IOException reportError) {
                 // The visible report remains available even if report-file persistence fails.
             }
-            if (activityDestroyed) return;
-            runOnUiThread(() -> {
-                if (activityDestroyed || isFinishing() || isDestroyed()) return;
-                compiling = false;
-                compileButton.setEnabled(true);
-                lastBuildFile = built;
-                lastReportFile = built == null ? null : new File(built.getParentFile(), "M12-Build-Compatibility-Report.txt");
-                exportDllButton.setEnabled(isManagedPe(lastBuildFile));
-                exportReportButton.setEnabled(lastReportFile != null && lastReportFile.isFile());
-                status.setText(report);
+            mainHandler.post(() -> {
+                CSharpSourceEditorActivity activity = reference.get();
+                if (activity == null || activity.activityDestroyed
+                        || activity.isFinishing() || activity.isDestroyed()) return;
+                activity.compiling = false;
+                activity.compileButton.setEnabled(true);
+                activity.lastBuildFile = built;
+                activity.lastReportFile = built == null ? null
+                        : new File(built.getParentFile(), "M12-Build-Compatibility-Report.txt");
+                activity.exportDllButton.setEnabled(isManagedPe(activity.lastBuildFile));
+                activity.exportReportButton.setEnabled(activity.lastReportFile != null
+                        && activity.lastReportFile.isFile());
+                activity.status.setText(report);
             });
-        }, "DroidInspect-M12-Compiler").start();
+        });
     }
 
     private static boolean isManagedPe(File file) {
@@ -475,6 +489,8 @@ public class CSharpSourceEditorActivity extends Activity {
 
     @Override protected void onDestroy() {
         activityDestroyed = true;
+        // Native AOT compilation is synchronous and cannot be safely interrupted; let the worker finish its private output/report writes.
+        compilerWorker.shutdown();
         super.onDestroy();
     }
 
