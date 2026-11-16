@@ -18,11 +18,15 @@ import android.widget.TextView;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.zip.ZipFile;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class DexAnalysisActivity extends Activity {
     private static final long MAX_APK_COPY = 512L * 1024L * 1024L;
@@ -37,7 +41,9 @@ public class DexAnalysisActivity extends Activity {
     private ListView list;
     private Spinner packageSpinner;
     private String selectedPackage = "All packages";
-    private File apkCopy;
+    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private volatile boolean destroyed;
+    private volatile File apkCopy;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -74,7 +80,7 @@ public class DexAnalysisActivity extends Activity {
 
     private void analyze(Uri uri) {
         setBusy(true, "Copying APK and parsing DEX files…");
-        new Thread(() -> {
+        worker.execute(() -> {
             String failure = null;
             DexFileParser.Result result = null;
             try {
@@ -86,6 +92,7 @@ public class DexAnalysisActivity extends Activity {
                     byte[] buffer = new byte[32768];
                     int n;
                     while ((n = in.read(buffer)) != -1) {
+                        checkCancelled();
                         total += n;
                         if (total > MAX_APK_COPY) throw new IllegalArgumentException("APK exceeds the 512 MB inspection limit.");
                         out.write(buffer, 0, n);
@@ -98,6 +105,7 @@ public class DexAnalysisActivity extends Activity {
             final DexFileParser.Result parsed = result;
             final String error = failure;
             runOnUiThread(() -> {
+                if (destroyed || isFinishing() || isDestroyed()) return;
                 setBusy(false, error == null ? "DEX analysis finished." : "DEX analysis failed.");
                 if (error != null) {
                     summary.setText("DEX ANALYSIS FAILED\n\n" + error + "\n\nThe original APK was not modified.");
@@ -233,11 +241,30 @@ public class DexAnalysisActivity extends Activity {
         status.setText(message);
     }
 
+    private static void checkCancelled() throws InterruptedIOException {
+        if (Thread.currentThread().isInterrupted())
+            throw new InterruptedIOException("DEX analysis cancelled because the activity was closed.");
+    }
+
     @Override protected void onDestroy() {
+        destroyed = true;
+        worker.shutdownNow();
         super.onDestroy();
-        if (apkCopy != null) {
-            //noinspection ResultOfMethodCallIgnored
-            apkCopy.delete();
-        }
+        Thread cleanup = new Thread(() -> {
+            try {
+                while (!worker.awaitTermination(1, TimeUnit.DAYS)) { }
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            File copy = apkCopy;
+            apkCopy = null;
+            if (copy != null) {
+                //noinspection ResultOfMethodCallIgnored
+                copy.delete();
+            }
+        }, "droidinspect-dex-cleanup");
+        cleanup.setDaemon(true);
+        cleanup.start();
     }
 }
