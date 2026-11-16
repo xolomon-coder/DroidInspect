@@ -3673,7 +3673,7 @@ Additional M20 changes since the previous checkpoint:
 - APK project report display scans at most 2,000 entries and displays at most 100 reports.
 - APK project-tree display is limited to 2,000 total entries and four directory levels. Directory-read and safety-limit failures are surfaced to the user instead of silently producing an incomplete tree.
 - Added `BoundedProjectFilesSelfTest` for ordering, symlink exclusion where supported, scan-budget enforcement and tree enumeration. The production workflow now compiles and runs this test.
-- The new host test has **not yet been executed** in this session. The three earlier focused M19 host tests remain the only confirmed local PASS results; no result is inferred for this new test.
+- The new host test was compiled with `javac --release 8` and executed in the local host JVM: **PASS**. This is a host regression result, not GitHub Actions or Android device verification. The three earlier focused M19 host tests also remain PASS.
 
 **Exact files changed:**
 - `droidinspect/app/src/main/java/com/tanvir/droidinspect/BoundedProjectFiles.java`
