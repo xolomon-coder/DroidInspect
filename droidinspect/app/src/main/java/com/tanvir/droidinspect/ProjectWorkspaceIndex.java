@@ -14,6 +14,7 @@ import java.util.List;
 /** Bounded, deterministic index for app-private project folders. */
 final class ProjectWorkspaceIndex {
     private static final int MAX_PROJECTS = 500;
+    static final int MAX_SCANNED_ROOT_ENTRIES = 2000;
     private static final int MAX_VISITED_FILES = 2000;
 
     static final class Entry {
@@ -35,8 +36,10 @@ final class ProjectWorkspaceIndex {
         ArrayList<File> sorted = new ArrayList<>();
         Collections.addAll(sorted, folders);
         Collections.sort(sorted, Comparator.comparingLong(File::lastModified).reversed());
-        int visited = 0;
+        int scannedRoots = 0;
         for (File folder : sorted) {
+            if (scannedRoots >= MAX_SCANNED_ROOT_ENTRIES) break;
+            scannedRoots++;
             if (entries.size() >= MAX_PROJECTS) break;
             if (!folder.isDirectory()) continue;
             File marker = new File(folder, markerName);
@@ -52,7 +55,6 @@ final class ProjectWorkspaceIndex {
             long updated = latestModified(folder, 0, new int[]{0});
             entries.add(new Entry(folder.getName(), kind, name,
                     complete ? "READY" : "INCOMPLETE", updated));
-            if (++visited >= MAX_PROJECTS) break;
         }
         Collections.sort(entries, (a,b) -> Long.compare(b.updated, a.updated));
         return entries;
