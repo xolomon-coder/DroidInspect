@@ -85,6 +85,12 @@
         android:text="Guided APK Edit → Rebuild → Sign" />
 
     <Button
+        android:id="@+id/apkProjectWorkspaceButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Persistent APK Project Workspace" />
+
+    <Button
         android:id="@+id/apkSigningButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
