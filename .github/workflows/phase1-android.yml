@@ -225,6 +225,43 @@ jobs:
             ls -lh "$APK"
           done
 
+          python3 - "$DEBUG_APK" "$RELEASE_APK" <<'PY'
+          import os
+          import sys
+          import zipfile
+
+          expected = {
+              "libdroidinspect_engine.so",
+              "libdroidinspect_jni.so",
+              "libdroidinspect_m12_compiler.so",
+              "libdroidinspect_m12_jni.so",
+          }
+          with open("artifacts/packaged-native-inventory.txt", "w", encoding="utf-8") as report:
+              for apk in sys.argv[1:]:
+                  with zipfile.ZipFile(apk) as archive:
+                      libs = [entry for entry in archive.infolist()
+                              if entry.filename.startswith("lib/") and entry.filename.endswith(".so")]
+                      abis = {entry.filename.split("/")[1] for entry in libs
+                              if len(entry.filename.split("/")) >= 3}
+                      names = {entry.filename.rsplit("/", 1)[-1] for entry in libs}
+                      missing = expected - names
+                      assert not missing, f"{apk}: missing native libraries: {sorted(missing)}"
+                      assert abis == {"arm64-v8a"}, f"{apk}: unexpected native ABI set: {sorted(abis)}"
+                      uncompressed = sum(entry.file_size for entry in libs)
+                      compressed = sum(entry.compress_size for entry in libs)
+                      assert uncompressed <= 104857600, (
+                          f"{apk}: packaged native payload exceeds 100 MiB: {uncompressed} bytes")
+                      line = (f"{apk}: APK={os.path.getsize(apk)} bytes; ABI={','.join(sorted(abis))}; "
+                              f"native={uncompressed} bytes uncompressed / {compressed} bytes compressed")
+                      print(line)
+                      report.write(line + "\\n")
+                      for entry in sorted(libs, key=lambda item: item.filename):
+                          detail = (f"  {entry.filename}: {entry.file_size} bytes uncompressed / "
+                                    f"{entry.compress_size} bytes compressed")
+                          print(detail)
+                          report.write(detail + "\\n")
+          PY
+
           sha256sum "$DEBUG_APK" "$RELEASE_APK" artifacts/droidinspect-ci-signed.apk \
             | tee artifacts/SHA256SUMS.txt
 
@@ -237,6 +274,7 @@ jobs:
             artifacts/droidinspect-ci-signed.apk
             artifacts/release-runtime-dependencies.txt
             artifacts/native-payload-inventory.txt
+            artifacts/packaged-native-inventory.txt
             artifacts/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14
