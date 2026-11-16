@@ -14,6 +14,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -402,6 +403,7 @@ final class ApkProjectWorkspace {
             byte[] buffer = new byte[32768];
             int read;
             while ((read = in.read(buffer)) != -1) {
+                checkCancelled();
                 total += read;
                 if (total > limit) throw new IOException("APK exceeds the 512 MB project import limit.");
                 out.write(buffer, 0, read);
@@ -418,8 +420,14 @@ final class ApkProjectWorkspace {
         try (InputStream in = new FileInputStream(source); OutputStream out = new FileOutputStream(output)) {
             byte[] buffer = new byte[32768];
             int read;
-            while ((read = in.read(buffer)) != -1) out.write(buffer, 0, read);
+            while ((read = in.read(buffer)) != -1) {
+                checkCancelled();
+                out.write(buffer, 0, read);
+            }
             out.flush();
+        } catch (IOException error) {
+            output.delete();
+            throw error;
         }
     }
 
@@ -429,12 +437,16 @@ final class ApkProjectWorkspace {
             if (out == null) throw new IOException("Document provider did not create an output stream.");
             byte[] buffer = new byte[32768];
             int read;
-            while ((read = in.read(buffer)) != -1) out.write(buffer, 0, read);
+            while ((read = in.read(buffer)) != -1) {
+                checkCancelled();
+                out.write(buffer, 0, read);
+            }
             out.flush();
         }
     }
 
     private static void validateApk(File file) throws IOException {
+        checkCancelled();
         if (file == null || !file.isFile() || file.length() <= 0 || file.length() > MAX_APK_BYTES)
             throw new IOException("APK is empty or exceeds the 512 MB limit.");
         try (ZipFile zip = new ZipFile(file)) {
@@ -506,6 +518,11 @@ final class ApkProjectWorkspace {
     }
 
     private static String safe(String value) { return value == null ? "" : value; }
+
+    private static void checkCancelled() throws InterruptedIOException {
+        if (Thread.currentThread().isInterrupted())
+            throw new InterruptedIOException("APK project operation cancelled because the workspace activity was closed.");
+    }
 
     private static void deleteTree(File file) {
         if (file == null || !file.exists()) return;
