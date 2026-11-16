@@ -3233,3 +3233,14 @@ Additional M20 changes since the previous checkpoint:
 **Next exact action:** re-fetch `main`, inspect the workflow run associated with that exact commit, and retry the full production workflow when runner capacity is available. If a runner starts, inspect every step and log and fix the first real source/workflow failure on `main`. Do not mark M19/M20 complete or ask for the consolidated phone test until all cloud verification and remaining release audits are complete.
 
 **Stopping point:** privacy and CI audit hardening committed; GitHub Actions runner allocation remains the blocking infrastructure issue. No production CI PASS, final APK hash, final release readiness or consolidated device acceptance is claimed.
+
+
+### M20 transitive NuGet dependency inventory — 2026-11-16
+
+- Extended `.github/workflows/m11-nativeaot-poc.yml` to restore the ILSpy Native AOT engine for `linux-bionic-arm64`, capture `dotnet list package --include-transitive`, and publish `artifacts/m11-nuget-transitive-dependencies.txt`.
+- Extended `.github/workflows/m12-roslyn-compiler-poc.yml` to restore the Roslyn Native AOT compiler for `linux-bionic-arm64`, capture its transitive package graph, and publish `artifacts/m12-nuget-transitive-dependencies.txt`.
+- These inventories provide exact package names and versions as inputs to the remaining license review. They do not themselves establish each package's license expression or complete legal compliance; that review must be performed against the produced graphs and corresponding package metadata.
+- Latest source commit before this README update: `4d81991d55cd4ea189cae1b2cbd470688dfb239d`.
+- Main Android CI run `43867535926` and M12 Roslyn proof run `43867535971`, including attempt 2 of each, both failed before runner assignment. Raw job records show `runner_id=0`, empty steps and no runner name. The M12 package graph step has therefore not executed yet. No source/test/Native AOT failure is established by these runs.
+- The M11 workflow's new package-graph step is committed, but a matching run for this commit was not returned by the Actions query; do not claim that graph was generated.
+- M19/M20 remain IN PROGRESS. The production workflow and both native proof workflows still require runner-backed execution; full production CI and final device acceptance remain release gates.
