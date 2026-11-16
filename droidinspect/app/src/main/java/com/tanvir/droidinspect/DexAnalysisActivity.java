@@ -117,6 +117,9 @@ public class DexAnalysisActivity extends Activity {
                 report.append("DEX files found: ").append(parsed.dexCount).append('\n');
                 report.append("Classes parsed: ").append(parsed.totalClasses).append('\n');
                 report.append("Members indexed: ").append(parsed.totalMembers).append('\n');
+                int crossReferences = 0;
+                for (DexFileParser.ClassInfo info : parsed.classes) crossReferences += info.references.size();
+                report.append("Invoke cross-references indexed: ").append(crossReferences).append('\n');
                 report.append("Class limit: ").append(parsed.classLimitReached ? "REACHED" : "not reached").append('\n');
                 report.append("Member limit: ").append(parsed.memberLimitReached ? "REACHED" : "not reached").append("\n\n");
                 report.append("DEX FILE RESULTS\n");
@@ -138,12 +141,14 @@ public class DexAnalysisActivity extends Activity {
             boolean packageMatch = "All packages".equals(selectedPackage) || selectedPackage.equals(info.packageName);
             boolean textMatch = q.isEmpty() || info.className.toLowerCase(Locale.ROOT).contains(q)
                     || info.packageName.toLowerCase(Locale.ROOT).contains(q)
-                    || contains(info.fields, q) || contains(info.methods, q);
+                    || contains(info.fields, q) || contains(info.methods, q)
+                    || contains(info.references, q);
             boolean match = packageMatch && textMatch;
             if (match) {
                 shownClasses.add(info);
                 rows.add(info.className + "\n" + info.packageName + "  •  " + info.dexName
-                        + "\nFields: " + info.fields.size() + "   Methods: " + info.methods.size());
+                        + "\nFields: " + info.fields.size() + "   Methods: " + info.methods.size()
+                        + "   Calls: " + info.references.size());
             }
         }
         adapter.notifyDataSetChanged();
@@ -168,6 +173,13 @@ public class DexAnalysisActivity extends Activity {
         text.append("\nMETHODS (").append(info.methods.size()).append(")\n");
         if (info.methods.isEmpty()) text.append("(none)\n");
         for (String method : info.methods) text.append("• ").append(method).append('\n');
+        text.append("\nINVOKE CROSS-REFERENCES (").append(info.references.size()).append(")\n");
+        if (info.references.isEmpty()) text.append("(none indexed or no supported invoke instructions found)\n");
+        for (String reference : info.references) text.append("• ").append(reference).append('\n');
+        if (!info.referenceWarnings.isEmpty()) {
+            text.append("\nCROSS-REFERENCE WARNINGS\n");
+            for (String warning : info.referenceWarnings) text.append("• ").append(warning).append('\n');
+        }
         text.append("\nMethod bodies / Java decompilation: not implemented in this milestone build.");
         new AlertDialog.Builder(this).setTitle(info.className).setMessage(text.toString())
                 .setPositiveButton("Close", null).show();
