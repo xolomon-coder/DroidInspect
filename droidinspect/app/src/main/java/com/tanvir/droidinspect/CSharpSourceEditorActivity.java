@@ -147,6 +147,8 @@ public class CSharpSourceEditorActivity extends Activity {
         if (project == null || currentFile == null) return false;
         try {
             project.save(currentFile, editor.getText().toString());
+            new ProjectWorkspaceMetadata(project.getSourceRoot().getParentFile())
+                    .recordOperation("SOURCE_SAVE", currentFile.getName());
             dirty = false;
             updateDirtyState();
             status.setText("Saved " + currentFile.getName() + ". Original assembly and untouched decompilation remain unchanged.");
@@ -210,6 +212,12 @@ public class CSharpSourceEditorActivity extends Activity {
         compileButton.setEnabled(false);
         exportDllButton.setEnabled(false);
         status.setText("Compiling all project .cs files offline with Roslyn. This may take time on the first run…");
+        try {
+            new ProjectWorkspaceMetadata(project.getSourceRoot().getParentFile())
+                    .beginOperation("SOURCE_COMPILE", "Compile all C# project files");
+        } catch (IOException metadataError) {
+            status.setText("PROJECT HISTORY WARNING: " + metadataError.getMessage());
+        }
         new Thread(() -> {
             String result;
             File output = null;

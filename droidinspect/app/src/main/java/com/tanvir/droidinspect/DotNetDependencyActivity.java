@@ -135,6 +135,12 @@ public class DotNetDependencyActivity extends Activity {
         busy = true;
         setControls(false);
         status.setText("Resolving assembly references offline. Indexing the bundled .NET 11 reference pack and local dependencies…");
+        try {
+            new ProjectWorkspaceMetadata(project.getRootAssembly().getParentFile())
+                    .beginOperation("DEPENDENCY_RESOLUTION", "Resolve local references offline");
+        } catch (IOException metadataError) {
+            status.setText("PROJECT HISTORY WARNING: " + metadataError.getMessage());
+        }
         worker.execute(() -> {
             String result;
             try {
