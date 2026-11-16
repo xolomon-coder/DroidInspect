@@ -37,6 +37,11 @@ public final class ApkProjectWorkspaceActivity extends Activity {
         showHome();
     }
 
+    @Override protected void onResume() {
+        super.onResume();
+        if (project != null && status != null) refreshProjectStatus();
+    }
+
     private int dp(int value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
     }
