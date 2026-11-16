@@ -43,6 +43,7 @@ public class CSharpSourceEditorActivity extends Activity {
     private boolean loadingText;
     private boolean dirty;
     private boolean compiling;
+    private volatile boolean activityDestroyed;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -266,7 +267,9 @@ public class CSharpSourceEditorActivity extends Activity {
             } catch (IOException reportError) {
                 // The visible report remains available even if report-file persistence fails.
             }
+            if (activityDestroyed) return;
             runOnUiThread(() -> {
+                if (activityDestroyed || isFinishing() || isDestroyed()) return;
                 compiling = false;
                 compileButton.setEnabled(true);
                 lastBuildFile = built;
@@ -466,6 +469,11 @@ public class CSharpSourceEditorActivity extends Activity {
         editor.setEnabled(enabled);
         saveButton.setEnabled(false);
         compileButton.setEnabled(enabled && !compiling);
+    }
+
+    @Override protected void onDestroy() {
+        activityDestroyed = true;
+        super.onDestroy();
     }
 
     @Override public void onBackPressed() {
