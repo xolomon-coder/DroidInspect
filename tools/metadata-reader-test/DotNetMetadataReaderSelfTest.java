@@ -42,6 +42,7 @@ public final class DotNetMetadataReaderSelfTest {
                 require(report, "TypeDef token 0x02000001");
                 require(report, "Field token 0x04000001");
                 require(report, "MethodDef token 0x06000001");
+                require(report, "signature=empty");
                 require(report, "Property token 0x17000001");
                 require(report, "Event token 0x14000001");
                 require(report, "AssemblyRef token 0x23000001");
