@@ -5,8 +5,14 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryIteratorException;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.UUID;
 
@@ -14,6 +20,8 @@ import java.util.UUID;
 final class ProjectWorkspaceMetadata {
     private static final int MAX_TEXT_BYTES = 1024 * 1024;
     private static final int MAX_RECORDS = 1000;
+    private static final int MAX_DIRECTORY_ENTRIES_SCANNED = 1000;
+    private static final int MAX_DIRECTORY_FILES_SHOWN = 100;
     private final File root;
 
     ProjectWorkspaceMetadata(File projectRoot) throws IOException {
@@ -88,35 +96,46 @@ final class ProjectWorkspaceMetadata {
         out.append(value.isEmpty() ? "(none)\n" : value);
     }
 
-    private void appendDirectory(StringBuilder out, String heading, String directoryName) throws IOException {
+    private void appendDirectory(StringBuilder out, String heading, String directoryName)
+            throws IOException {
         File directory = child(directoryName);
         out.append("\n").append(heading).append("\n");
         if (!directory.isDirectory()) { out.append("(none)\n"); return; }
-        File[] files = directory.listFiles();
-        if (files == null) { out.append("(unavailable)\n"); return; }
-        int count = 0;
-        for (File file : files) {
-            if (file.isFile()) {
-                out.append(file.getName()).append("  •  ").append(file.length()).append(" bytes\n");
-                if (++count >= 100) { out.append("…list truncated at 100 files\n"); break; }
-            }
-        }
-        if (count == 0) out.append("(none)\n");
+        appendDirectoryEntries(out, directory);
     }
 
-    private void appendRootFiles(StringBuilder out) {
+    private void appendRootFiles(StringBuilder out) throws IOException {
         out.append("\nPROJECT-ROOT REPORTS AND FILES\n");
-        File[] files = root.listFiles();
-        if (files == null) { out.append("(unavailable)\n"); return; }
-        int count = 0;
-        for (File file : files) {
-            if (file.isFile() && !file.getName().startsWith(".droidinspect")
-                    && !file.getName().endsWith(".tmp")) {
+        appendDirectoryEntries(out, root);
+    }
+
+    private void appendDirectoryEntries(StringBuilder out, File directory) throws IOException {
+        int scanned = 0;
+        int shown = 0;
+        boolean truncated = false;
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory.toPath())) {
+            for (Path path : stream) {
+                if (scanned++ >= MAX_DIRECTORY_ENTRIES_SCANNED) {
+                    truncated = true;
+                    break;
+                }
+                if (Files.isSymbolicLink(path)) continue;
+                File file = path.toFile();
+                if (!file.isFile()) continue;
+                if (directory.equals(root) && (file.getName().startsWith(".droidinspect")
+                        || file.getName().endsWith(".tmp"))) continue;
+                if (shown >= MAX_DIRECTORY_FILES_SHOWN) {
+                    truncated = true;
+                    break;
+                }
                 out.append(file.getName()).append("  •  ").append(file.length()).append(" bytes\n");
-                if (++count >= 100) { out.append("…list truncated at 100 files\n"); break; }
+                shown++;
             }
+        } catch (DirectoryIteratorException error) {
+            throw new IOException("Cannot list project files in " + directory.getName(), error);
         }
-        if (count == 0) out.append("(none)\n");
+        if (shown == 0) out.append("(none)\n");
+        if (truncated) out.append("…listing truncated by safety limits\n");
     }
 
     private String readBounded(File file) throws IOException {
@@ -131,7 +150,14 @@ final class ProjectWorkspaceMetadata {
                     throw new IOException(file.getName() + " exceeds the 1 MB metadata limit.");
                 output.write(buffer, 0, count);
             }
-            return new String(output.toByteArray(), StandardCharsets.UTF_8);
+            try {
+                return StandardCharsets.UTF_8.newDecoder()
+                        .onMalformedInput(CodingErrorAction.REPORT)
+                        .onUnmappableCharacter(CodingErrorAction.REPORT)
+                        .decode(ByteBuffer.wrap(output.toByteArray())).toString();
+            } catch (CharacterCodingException corrupt) {
+                throw new IOException(file.getName() + " contains invalid UTF-8 metadata.", corrupt);
+            }
         }
     }
 
