@@ -3639,3 +3639,27 @@ Additional M20 changes since the previous checkpoint:
 4. Only after cloud/host release verification, prepare the single consolidated M12–M20 Android 11 / CodeAssist device-testing session.
 
 **Stopping point:** Seven additional source/test commits are on main. M19/M20 remain unaccepted. The production CI and release gate remains unverified, and no new phone testing is requested yet.
+
+### M20 continuation — dependency worker ownership and bounded local dependencies — 2026-11-17
+
+- DotNetDependencyActivity worker tasks now capture the application Context and active workspace rather than retaining the Activity. UI delivery uses a Handler plus WeakReference and suppresses callbacks after destruction.
+- Dependency resolution checks cancellation before entering the native resolver. If the Activity closes during cancellable preparation, the operation journal marker is intentionally left in place so the next project open can show the interrupted-operation recovery notice. A native resolver call already executing may finish; the worker can save its result without retaining the Activity.
+- DotNetDependencyWorkspace now lists local dependency assemblies with DirectoryStream, skips symbolic links, and enforces a 2,000-file project limit. Imports enforce the same count limit in addition to the existing 128 MiB per-file and 512 MiB batch bounds.
+- The activity/workspace changes are source-level only and have not yet passed Android compilation, host execution, or device testing.
+
+**Additional exact files changed:**
+- droidinspect/app/src/main/java/com/tanvir/droidinspect/DotNetDependencyActivity.java
+- droidinspect/app/src/main/java/com/tanvir/droidinspect/DotNetDependencyWorkspace.java
+
+**Additional commits (oldest to newest):**
+- b0b315eabd3ed07f576276cac9a4ee3c9629eb9b — detach dependency workers from destroyed Activity.
+- f38fe852f8ef5e8e868d8275c5840d085743b3b4 — fix dependency Activity file import.
+- d136de43b227fbc101298201091077bfbdcb9075 — bound local dependency project file enumeration.
+
+**Latest verification check:**
+- Current source HEAD before this README update: d136de43b227fbc101298201091077bfbdcb9075.
+- The combined commit-status endpoint returned no status records for that source commit. The production workflow is configured for non-README pushes, but the available GitHub Actions connector cannot enumerate push-triggered runs; no new run ID or runner-backed result is therefore claimed.
+- The last directly inspectable production job remains run 43975311959 (#593): completed failure, empty job-step list, no artifacts. The M11/M12 proof jobs 43867503469, 43867509159 and 43867535971 also have empty step lists and no artifacts.
+- Do not retry those infrastructure failures until a fresh Actions job shows runner assignment has recovered. No compilation/test PASS is inferred from an empty status response.
+
+**Milestone state:** M19 and M20 remain IN PROGRESS. The source-level bounds and lifecycle corrections above require execution by the full production CI and the consolidated Android device-testing session before acceptance.
