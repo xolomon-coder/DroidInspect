@@ -3385,7 +3385,7 @@ Additional M20 changes since the previous checkpoint:
 
 ### M19/M20 reliability continuation — 2026-11-17
 
-**Latest source checkpoint before this README-only update:** `da83776b12c0316c3bc3a5711294a20e3610f891`. The latest workflow change remains `96e6221fb538b264d2346a619ebc8e686b1a8ec0`. All source and workflow changes in this continuation were committed directly to `main`; this documentation update also targets `main`; no alternate branch was created.
+**Latest source checkpoint before this README-only update:** `4b5245533661153a638d8be366ebf57d2013d983`. The latest workflow change remains `96e6221fb538b264d2346a619ebc8e686b1a8ec0`. All source and workflow changes in this continuation were committed directly to `main`; this documentation update also targets `main`; no alternate branch was created.
 
 **M19 bounded project discovery and metadata hardening:**
 - Reworked `ProjectWorkspaceIndex.scan()` to use `DirectoryStream` and stop after examining at most 2,000 root entries, regardless of whether those entries contain valid project markers. The 500-project result cap remains. Per-project timestamp traversal remains limited to 2,000 visited entries and depth 5.
@@ -3447,7 +3447,7 @@ Additional M20 changes since the previous checkpoint:
 - `d479886888b6f5d3dffb343d2e8bba472cf9bd8d` — APK signing worker cancellation and deferred cleanup.
 - `126da94834fac691bf1b5cc4210a59c167aacec5` — split APK worker cancellation and deferred cleanup.
 - `77caec12c0852865a510d9df9eedc51e91219cde` — assembly comparison cancellation and lifecycle guards.
-- `12155e51aab3457037e9c2fbaadc12a17e163334` — dependency report cancellation checks.
+- `12155e51aab3457037e9c2fbaadc12a17e163334` and `4b5245533661153a638d8be366ebf57d2013d983` — dependency report export cancellation and UI-thread read correction.
 - `79013720899ccd06f671cae27a9f72c0b81d5e23` — Assembly Explorer deferred working-copy cleanup.
 - `8681cc45aba997818d1e13430820fb3b4f060469` — APK resource catalog cancellation and cleanup.
 - `da83776b12c0316c3bc3a5711294a20e3610f891` — APK component explorer cancellation and cleanup.
