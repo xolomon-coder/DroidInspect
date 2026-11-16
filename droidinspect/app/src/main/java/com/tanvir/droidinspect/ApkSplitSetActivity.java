@@ -156,7 +156,7 @@ public final class ApkSplitSetActivity extends Activity {
                             out.write(buffer, 0, n);
                         }
                     }
-                    infos.add(inspectSplit(copy));
+                    infos.add(inspectSplit(copy, queryName(uri)));
                 }
                 String output = buildReport(infos, total);
                 ArrayList<File> old = new ArrayList<>(copies);
@@ -177,9 +177,9 @@ public final class ApkSplitSetActivity extends Activity {
         });
     }
 
-    private SplitInfo inspectSplit(File file) throws Exception {
+    private SplitInfo inspectSplit(File file, String displayName) throws Exception {
         SplitInfo info = new SplitInfo();
-        info.file = file.getName();
+        info.file = displayName;
         info.size = file.length();
         ApkModule module = ApkModule.loadApkFile(file);
         module.initializeAndroidFramework((Integer) null);
@@ -219,6 +219,23 @@ public final class ApkSplitSetActivity extends Activity {
             }
         }
         return info;
+    }
+
+    private String queryName(Uri uri) {
+        android.database.Cursor cursor = null;
+        try {
+            cursor = getContentResolver().query(uri,
+                    new String[]{android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null);
+            if (cursor != null && cursor.moveToFirst()) {
+                int index = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+                if (index >= 0 && cursor.getString(index) != null) return cursor.getString(index);
+            }
+        } catch (Exception ignored) {
+        } finally {
+            if (cursor != null) cursor.close();
+        }
+        String fallback = uri.getLastPathSegment();
+        return fallback == null ? "Selected APK" : fallback;
     }
 
     private boolean isComponent(String tag) {
