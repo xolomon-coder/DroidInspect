@@ -24,10 +24,19 @@ public final class ProjectWorkspaceIndexSelfTest {
             Thread.sleep(15);
             Files.write(new File(newer, "src").toPath(), new byte[]{1});
 
+            File external = new File(root.getParentFile(), "droidinspect-external-project");
+            require(external.mkdir(), "create external project folder");
+            Files.write(new File(external, ".droidinspect-project").toPath(),
+                    "External project\\nformat=1\\n".getBytes("UTF-8"));
+            Files.createSymbolicLink(new File(root, "linked-external-project").toPath(),
+                    external.toPath());
+
             List<ProjectWorkspaceIndex.Entry> entries = ProjectWorkspaceIndex.scan(
                     root, ".droidinspect-project", "C# SOURCE",
                     new String[]{"src", "original/OriginalAssembly.bin"});
-            require(entries.size() == 2, "both marked projects indexed");
+            require(entries.size() == 2, "both marked projects indexed and symbolic-link project excluded");
+            for (ProjectWorkspaceIndex.Entry entry : entries)
+                require(!"linked-external-project".equals(entry.id), "symbolic-link project is not indexed");
             require("READY".equals(entries.get(0).state) || "READY".equals(entries.get(1).state),
                     "complete project is ready");
             boolean incomplete = false;
@@ -68,7 +77,10 @@ public final class ProjectWorkspaceIndexSelfTest {
                     "project root beyond the 2000-entry discovery budget is not scanned");
 
             System.out.println("PASS: bounded root iteration, project readiness, marker names and recency");
-        } finally { delete(root); }
+        } finally {
+            delete(root);
+            delete(new File(root.getParentFile(), "droidinspect-external-project"));
+        }
     }
 
     private static void require(boolean value, String message) {
