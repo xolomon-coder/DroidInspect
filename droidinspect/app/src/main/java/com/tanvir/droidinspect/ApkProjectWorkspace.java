@@ -190,9 +190,9 @@ final class ApkProjectWorkspace {
     }
 
     synchronized void restoreRevision(File snapshot) throws IOException {
-        beginOperationQuietly("APK_REVISION_RESTORE", "Restore a saved working revision");
         if (snapshot == null || !snapshot.isFile() || !snapshot.getCanonicalPath().startsWith(historyDirectory.getCanonicalPath() + File.separator))
             throw new IOException("Selected recovery revision is not inside this project's history folder.");
+        beginOperationQuietly("APK_REVISION_RESTORE", "Restore a saved working revision");
         File incoming = new File(new File(root, "working"), "working-restore.tmp");
         try {
             copyFile(snapshot, incoming);
