@@ -264,7 +264,7 @@ public class CSharpSourceEditorActivity extends Activity {
             try {
                 new ProjectWorkspaceMetadata(buildProject.getSourceRoot().getParentFile())
                         .finishOperation("SOURCE_COMPILE",
-                                result.startsWith("M12 COMPILATION PASS") ? "PASS" : "NOT PASS");
+                                result.startsWith("M12 COMPILATION PASS") && verifiedOutput ? "PASS" : "NOT PASS");
             } catch (IOException ignored) { }
             final String report = result;
             final File built = output;
