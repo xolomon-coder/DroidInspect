@@ -94,7 +94,7 @@ public final class DotNetMetadataReaderSelfTest {
                 | (1L << 21) | (1L << 23) | (1L << 26) | (1L << 27)
                 | (1L << 32) | (1L << 35) | (1L << 40) | (1L << 43);
         le64(t, valid); le64(t, 0);
-        for (int i = 0; i < 16; i++) le32(t, 1);
+        for (int i = 0; i < 17; i++) le32(t, 1);
 
         // Module: generation, name, MVID, EncId, EncBaseId.
         le16(t, 0); le16(t, module); le16(t, 1); le16(t, 0); le16(t, 0);
