@@ -1,11 +1,13 @@
 package com.tanvir.droidinspect;
 
-import android.app.Activity;\nimport android.app.AlertDialog;
+import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ArrayAdapter;
-import android.widget.Button;\nimport android.widget.EditText;\nimport android.widget.ScrollView;
+import android.widget.Button;
+import android.widget.EditText;\nimport android.widget.ScrollView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
