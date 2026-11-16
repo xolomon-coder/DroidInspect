@@ -240,7 +240,7 @@ public final class AssemblyComparisonActivity extends Activity {
         if ("ASSEMBLY REFERENCES".equals(heading)) return "MODULE REFERENCES";
         if ("TYPES AND MEMBERS".equals(heading)) return "PROPERTIES";
         if ("PROPERTIES".equals(heading)) return "EVENTS";
-        return "DECODE STATUS:";
+        return "Decode status:";
     }
 
     private Set<String> sectionEntries(String block) {
