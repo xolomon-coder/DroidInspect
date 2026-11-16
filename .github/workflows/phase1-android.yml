@@ -92,6 +92,14 @@ jobs:
             tools/assembly-bookmarks-test/AssemblyExplorerBookmarkStoreSelfTest.java
           java -cp /tmp/droidinspect-assembly-bookmarks-test com.tanvir.droidinspect.AssemblyExplorerBookmarkStoreSelfTest
 
+      - name: Test bounded C# source project traversal
+        run: |
+          mkdir -p /tmp/droidinspect-source-tree-test
+          javac -d /tmp/droidinspect-source-tree-test \
+            droidinspect/app/src/main/java/com/tanvir/droidinspect/BoundedSourceTree.java \
+            tools/bounded-source-tree-test/BoundedSourceTreeSelfTest.java
+          java -cp /tmp/droidinspect-source-tree-test com.tanvir.droidinspect.BoundedSourceTreeSelfTest
+
       - name: Test DEX parser on host JVM
         run: |
           mkdir -p /tmp/droidinspect-dex-test
