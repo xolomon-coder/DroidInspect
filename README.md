@@ -3042,3 +3042,12 @@ The unified launcher currently indexes existing project types; it does not claim
 - Metadata writes use a temporary file, flush/sync and rename, with canonical project-folder containment and a 1 MB per-file / 1,000-record bound. Interrupted operations remain visible until explicitly marked finished.
 - Added host-JVM regression coverage for persistence, bookmarks/searches, operation history and interrupted-operation recovery.
 - Verification is pending until the complete Android workflow has run successfully; no milestone completion is claimed from source changes alone.
+
+
+### M19 CI build-fix verification checkpoint — 2026-11-16
+
+- Implementation commit: `5fcdb23668db5a742929407a082507ebc41b0338`; follow-up corrections: `95bd0d176b423dcccc9de68d1cce497d0377a9f9`, `2aec9109a27c37e8290d5dd54d468990276830d7`, `ecb530dcde84701038000d740c9dcb5b8fe2e8bc`, and `b1ad85a95def00da17d19811dbb3d7803e1082d2`.
+- The shared metadata store and host regression step are present on `main`. The project activity import declarations were corrected after source review; metadata replacement was hardened to use atomic move where supported and safe replacement fallback.
+- Production workflow run [43850687677](https://github.com/xolomon-coder/DroidInspect/actions/runs/43850687677), attempt 1 and retry attempt 2, both failed before executing any job steps. The latest job ID `133242201075` reports `runner_id=0`, an empty step list, and no runner execution. This is an Actions runner-allocation/infrastructure failure; no host test, Android compile, APK signing, artifact, or source-failure conclusion can be inferred.
+- The failed job was explicitly rerun. Continue retrying when runner capacity is available, and inspect every job and artifact on each attempt. Do not mark this commit CI-verified until the complete workflow succeeds.
+- Device acceptance remains pending. This checkpoint records implementation and the CI blocker only; it is not an M19 completion claim.
