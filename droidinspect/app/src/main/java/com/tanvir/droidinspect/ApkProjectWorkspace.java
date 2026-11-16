@@ -226,6 +226,26 @@ final class ApkProjectWorkspace {
         return result;
     }
 
+    synchronized File saveExportFromUri(Uri source, String requestedName) throws IOException {
+        String filename = safeFilename(requestedName);
+        if (!filename.toLowerCase(java.util.Locale.ROOT).endsWith(".apk")) filename += ".apk";
+        File output = new File(exportsDirectory, filename);
+        File temp = new File(exportsDirectory, filename + ".tmp");
+        try {
+            copyUri(context, source, temp, MAX_APK_BYTES);
+            validateApk(temp);
+            if (output.exists() && !output.delete()) throw new IOException("Cannot replace existing project export.");
+            if (!temp.renameTo(output)) {
+                copyFile(temp, output);
+                temp.delete();
+            }
+            touch();
+            return output;
+        } finally {
+            if (temp.exists()) temp.delete();
+        }
+    }
+
     void exportWorking(Uri destination) throws IOException {
         copyToUri(workingApk, destination);
     }
