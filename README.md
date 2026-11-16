@@ -341,7 +341,7 @@ Build progressively, preserve existing work, verify actual functionality, mainta
 
 # DroidInspect — Product Specification and Development Plan
 
-Last project-plan update: 2026-11-16 (M12–M16 signature comparison and CI update)
+Last project-plan update: 2026-11-16 (M12–M17 APK/DEX implementation and CI update)
 
 ## 1. App Goal
 
@@ -618,7 +618,7 @@ The long-term roadmap has **20 milestones**, grouped into eight phases. M1–M10
 
 ### Phase 7 — Advanced APK workflows
 
-**M17 — Advanced APK inspection and DEX analysis**
+**M17 — Advanced APK inspection and DEX analysis (IN PROGRESS — COMPONENT/PERMISSION EXPLORER, SPLIT-SET INVENTORY, AND DEX INVOKE CROSS-REFERENCES IMPLEMENTED; CI PASS; DEVICE ACCEPTANCE PENDING)**
 - Extend the existing M2 APK inspection and M4 DEX browsing foundations; do not recreate completed features.
 - Improve package/component navigation, manifest and permission analysis, multi-DEX handling, resource mapping, global search, and cross-reference navigation.
 - Add robust handling for split APKs, large inputs, malformed structures, and unsupported formats where feasible.
@@ -650,7 +650,7 @@ The long-term roadmap has **20 milestones**, grouped into eight phases. M1–M10
 ## 4.1 Development Log — 2026-11-16
 
 Latest inspected repository branch: `main`.
-Latest inspected HEAD at this documentation update: `cfd01a98ca8629f85978a03c286ab6b8213d84b2`.
+Latest inspected HEAD at this documentation update: `9b22ab2488e68f7add77f900327c5a5727c541b1`.
 
 ### M12/M13 verification evidence
 - Commit `7922a821cc5a4a5912b75e61ae64a281bbd9202c`: reject compiler output paths that equal the preserved original assembly.
@@ -683,6 +683,14 @@ Latest inspected HEAD at this documentation update: `cfd01a98ca8629f85978a03c286
 - M16 device acceptance remains pending. Original assemblies are read-only and resource export writes to a separately selected destination.- Commits `bcd327d0faea78c5e7354a023ed8d5244b563485`, `416da91f3c6762b2e83e2d574829119d44d7ef12`, `eeb23bac879ee29512287786bd6abcb904ff3b96`, and `631022b56b18bb2fac378deb065efce55b2f65c4`: extract the pure structural/IL diff engine, connect it to the Android screen, and add host regression coverage for added, removed, changed, unchanged, and unavailable IL records.
 - Android CI run [43780703602](https://github.com/xolomon-coder/DroidInspect/actions/runs/43780703602) completed SUCCESS on `631022b56b18bb2fac378deb065efce55b2f65c4`. All host parser, resource-integrity, comparison-diff, IL and DEX tests passed; debug/release Android builds, APK signing/tamper checks, native payload checks, offline permission audit, and artifact upload passed. Artifact `DroidInspect-Phase3-builds` was published (69,565,674 bytes; SHA-256 `1e70edb27aaaebaa8a6b45d4ef35f09d8229b7efdbe499a39da667bd8b12fdb2`).
 - The production manifest and permission audit remains offline; no Internet permission was added. Device acceptance for M12–M16 is pending the consolidated final test session.
+
+### M17 implementation — 2026-11-16
+- Commits `1a5e1fea15ab6cb00e12a54675ba604c42541412`, `1774ad73d12fe1a8709f5f63959361e4e94d1c92`, `257af2d361318046b4e104f617bda3135e05a1e4`, and `ec98a2e8d31e91b8ce07bf645a3434bd71bd7387`: add a structured searchable APK manifest explorer for activities, activity aliases, services, receivers, providers, permissions, features, SDK declarations, exported/enabled state, component permissions, authorities, intent filters, actions, and categories.
+- Commits `8bb3b034e72cc55dbdb1f1ebb0af00411c843328`, `54451e966b10f72eba470c194e686d514d18b0f2`, `a2a35ebbd1f9122a3a162e1c4b76ece7e3f98d40`, `e7dc3b896fe5e5e47ee36e199124f6276d52d70f`, `8f5bf4778ad36c7278fdc176b0fb0fa5d6426d6c`, and `9b22ab2488e68f7add77f900327c5a5727c541b1`: add multi-select split APK set inventory, base/split identity and version consistency checks, split-name/feature/config metadata, uses-split dependencies, component/permission/DEX/resource-package counts, safety limits, and source filename reporting.
+- Commits `6906cf075cac077ba20f26166f5ca11f4acba512`, `776a8dc89d1ef71a840d852349004469c26af462`, `72513854ab33a4a4eff8b247721e69049d1d44e9`, `f652a23d32f6b00f81bde1073f3515333b86a2e0`, `715f99b0908c23142f6de46c6b38936e57b35a44`, and `b22a7af7be02e360b04b10e912cdcc056f58804c`: scan supported DEX invoke instructions into caller-to-target cross-reference records, expose references in class details and global search, add per-class/global caps, and make rejected DEX parsing roll back cross-reference counts transactionally.
+- The DEX synthetic fixture now contains an actual `invoke-static` instruction. Host tests verify target resolution and ensure references from a malformed DEX are rolled back. The parser remains read-only and does not decompile Java source.
+- Android CI run [43782215711](https://github.com/xolomon-coder/DroidInspect/actions/runs/43782215711) completed SUCCESS on `9b22ab2488e68f7add77f900327c5a5727c541b1`. Host metadata/resource/IL/comparison/DEX tests passed; Android debug/release builds, signing/tamper checks, native payload checks, offline permission audit, and artifact upload passed. Artifact `DroidInspect-Phase3-builds` was published (69,594,616 bytes; SHA-256 `801055aba6655f34ea3ebd2b2d52308e40b2c4b5bac9532f68cb6be4ff0b8e12`).
+- M17 remains in progress: split APK support currently inventories and checks a selected set but does not merge/install it or parse the combined split DEX/resource graph; resource-to-code mapping and broader cross-reference coverage remain outstanding. DEX cross-reference indexing is capped at 2,000 records per class and 100,000 total. Root-level multidex files are handled independently; malformed DEX entries are rejected transactionally. Device verification on representative APK families remains pending.
 
 ## 5. Development and Creation Process
 
