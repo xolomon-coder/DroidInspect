@@ -39,6 +39,11 @@ public final class ProjectWorkspaceActivity extends Activity {
         showProjects();
     }
 
+    @Override protected void onResume() {
+        super.onResume();
+        if (root != null) showProjects();
+    }
+
     private int dp(int n) { return (int)(n * getResources().getDisplayMetrics().density + 0.5f); }
 
     private void showProjects() {
