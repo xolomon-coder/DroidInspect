@@ -37,6 +37,8 @@ public final class DexFileParser {
         public boolean membersTruncated;
         public final List<String> fields = new ArrayList<>();
         public final List<String> methods = new ArrayList<>();
+        public final List<String> references = new ArrayList<>();
+        public final List<String> referenceWarnings = new ArrayList<>();
 
         ClassInfo(String dex, String descriptor, String access, String superClass) {
             this.dexName = dex;
@@ -232,7 +234,7 @@ public final class DexFileParser {
             if (i == directMethods) methodIndex = 0;
             methodIndex += uleb(raf, c, length);
             int flags = uleb(raf, c, length);
-            uleb(raf, c, length); // code_off; instructions are not decompiled in M4 structural mode.
+            int codeOff = uleb(raf, c, length);
             if (methodIndex < 0 || methodIndex >= methodCount) throw new IOException("Method index out of bounds.");
             if (info.methods.size() < MAX_MEMBERS_PER_CLASS && result.totalMembers < MAX_TOTAL_MEMBERS) {
                 long m = methodOff + methodIndex * 8L;
@@ -243,10 +245,105 @@ public final class DexFileParser {
                 String signature = protoSignature(raf, protoOff, proto, typeStrings, stringOffsets, strings, length);
                 info.methods.add(accessFlags(flags) + signature + " " + methodName);
                 result.totalMembers++;
+                if (codeOff != 0 && info.references.size() < 2000) {
+                    String caller = info.className + "->" + methodName + signature;
+                    try {
+                        scanInvokeReferences(raf, codeOff, length, caller, info, typeStrings,
+                                stringOffsets, strings, protoOff, protoCount, methodOff, methodCount);
+                    } catch (Exception scanError) {
+                        if (info.referenceWarnings.size() < 20)
+                            info.referenceWarnings.add(caller + ": " + safeMessage(scanError));
+                    }
+                }
             } else {
                 info.membersTruncated = true;
             }
         }
+    }
+
+    private static void scanInvokeReferences(RandomAccessFile raf, long codeOff, long length,
+            String caller, ClassInfo info, int[] typeStrings, int[] stringOffsets,
+            Map<Integer, String> strings, long protoOff, int protoCount,
+            long methodOff, int methodCount) throws Exception {
+        if (codeOff < 0 || codeOff > length - 16) throw new IOException("code_item header is out of bounds.");
+        long instructionCount = u32(raf, codeOff + 12);
+        long instructionStart = codeOff + 16;
+        if (instructionCount > 1000000L || instructionCount * 2L > length - instructionStart)
+            throw new IOException("code_item instruction array is invalid or exceeds scan limit.");
+        long cursor = 0;
+        while (cursor < instructionCount && info.references.size() < 2000) {
+            int unit = u16(raf, instructionStart + cursor * 2L);
+            if (unit == 0x0100) {
+                if (cursor + 2 > instructionCount) throw new IOException("Truncated packed-switch payload.");
+                long size = u16(raf, instructionStart + (cursor + 1) * 2L);
+                long width = 4L + size * 2L;
+                if (width > instructionCount - cursor) throw new IOException("Packed-switch payload exceeds code_item.");
+                cursor += width;
+                continue;
+            }
+            if (unit == 0x0200) {
+                if (cursor + 2 > instructionCount) throw new IOException("Truncated sparse-switch payload.");
+                long size = u16(raf, instructionStart + (cursor + 1) * 2L);
+                long width = 2L + size * 4L;
+                if (width > instructionCount - cursor) throw new IOException("Sparse-switch payload exceeds code_item.");
+                cursor += width;
+                continue;
+            }
+            if (unit == 0x0300) {
+                if (cursor + 4 > instructionCount) throw new IOException("Truncated array-data payload.");
+                int elementWidth = u16(raf, instructionStart + (cursor + 1) * 2L);
+                long size = u32(raf, instructionStart + (cursor + 2) * 2L);
+                if (elementWidth <= 0 || size > 100000000L) throw new IOException("Invalid array-data payload size.");
+                long dataUnits = (size * elementWidth + 1L) / 2L;
+                long width = 4L + dataUnits;
+                if (width > instructionCount - cursor) throw new IOException("Array-data payload exceeds code_item.");
+                cursor += width;
+                continue;
+            }
+
+            int opcode = unit & 0xff;
+            int width = instructionWidth(opcode);
+            if (width <= 0 || width > instructionCount - cursor)
+                throw new IOException("Instruction stream is truncated at code unit " + cursor + ".");
+            if ((opcode >= 0x6e && opcode <= 0x72)
+                    || (opcode >= 0x74 && opcode <= 0x78)
+                    || opcode == 0xfa || opcode == 0xfb) {
+                int targetIndex = u16(raf, instructionStart + (cursor + 1) * 2L);
+                if (targetIndex < 0 || targetIndex >= methodCount)
+                    throw new IOException("Invoke method index is out of bounds: " + targetIndex);
+                long target = methodOff + targetIndex * 8L;
+                int targetClass = u16(raf, target);
+                int targetProto = u16(raf, target + 2);
+                int targetNameIndex = (int) u32(raf, target + 4);
+                if (targetClass >= typeStrings.length || targetProto >= protoCount
+                        || targetNameIndex < 0 || targetNameIndex >= stringOffsets.length)
+                    throw new IOException("Invoke target metadata is invalid.");
+                String owner = javaName(string(raf, typeStrings[targetClass], stringOffsets, strings, length));
+                String name = string(raf, targetNameIndex, stringOffsets, strings, length);
+                String signature = protoSignature(raf, protoOff, targetProto, typeStrings, stringOffsets, strings, length);
+                String reference = caller + "  ->  " + owner + "->" + name + signature;
+                if (!info.references.contains(reference)) info.references.add(reference);
+            }
+            cursor += width;
+        }
+    }
+
+    static int instructionWidth(int opcode) {
+        if (opcode == 0x18) return 5;
+        if (opcode == 0xfa || opcode == 0xfb) return 4;
+        if ((opcode >= 0x14 && opcode <= 0x14) || opcode == 0x17 || opcode == 0x1b
+                || (opcode >= 0x24 && opcode <= 0x26) || (opcode >= 0x2a && opcode <= 0x2c)
+                || (opcode >= 0x6e && opcode <= 0x72) || (opcode >= 0x74 && opcode <= 0x78)
+                || opcode == 0xfc || opcode == 0xfd) return 3;
+        if (opcode == 0x13 || opcode == 0x15 || opcode == 0x16 || opcode == 0x19
+                || opcode == 0x1a || opcode == 0x1c || opcode == 0x1f || opcode == 0x20
+                || opcode == 0x22 || opcode == 0x23 || opcode == 0x29
+                || (opcode >= 0x2d && opcode <= 0x3d)
+                || (opcode >= 0x44 && opcode <= 0x6d)
+                || (opcode >= 0x90 && opcode <= 0xaf)
+                || (opcode >= 0xd0 && opcode <= 0xe2)
+                || opcode == 0xfe || opcode == 0xff) return 2;
+        return 1;
     }
 
     private static String protoSignature(RandomAccessFile raf, long protoOff, int proto,
