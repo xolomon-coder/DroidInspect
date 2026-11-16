@@ -3261,3 +3261,43 @@ Additional M20 changes since the previous checkpoint:
 - The main workflow's M19/M20 host tests, Android debug/release builds, signing/tamper checks, native payload checks and checksum generation therefore remain unexecuted for this source state.
 - The M12 proof workflow retry `43867535971` also failed before runner allocation. The M11/M12 transitive package graph artifacts have not yet been generated.
 - No CI PASS or final release status is claimed. Continue with runner-backed verification when GitHub Actions allocates a runner; keep all work on `main`.
+
+
+### M19–M20 source-tree bounds and CI retry checkpoint — 2026-11-16
+
+**Latest source change**
+- Added `BoundedSourceTree.java` and routed C# project source discovery through it.
+- C# source enumeration now enforces a maximum of 2,000 source files, 10,000 visited filesystem entries, 16 directory levels, 32 MiB per source file, and 128 MiB total source bytes. Canonical-path validation rejects source entries that resolve outside the project root.
+- C# source reads and writes now enforce the existing 32 MiB per-file limit before materializing or replacing source content. The original assembly remains separately stored and unchanged by source editing.
+- Added `tools/bounded-source-tree-test/BoundedSourceTreeSelfTest.java` covering normal nested discovery, oversized source rejection and excessive nesting rejection.
+- Added the new host test to `.github/workflows/phase1-android.yml` before the DEX parser regression.
+
+**Exact changed paths**
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/CSharpSourceWorkspace.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/BoundedSourceTree.java` (new)
+- `tools/bounded-source-tree-test/BoundedSourceTreeSelfTest.java` (new)
+- `.github/workflows/phase1-android.yml`
+
+**Local test evidence**
+- The bounded source-tree regression was compiled with `javac` and executed in the available host container.
+- Result: `PASS: bounded C# source discovery, nested files, file-size and depth limits`.
+- This is host-side evidence for the new scanner/test only. It is not a complete repository host-test pass, Android Gradle build, APK integrity/signing pass, or device acceptance.
+
+**Production Actions evidence**
+- Source/workflow commit: `bc9a5917f745a7c012e2d3ea94d2f7b9665b2fa1`.
+- Production run [43915982432](https://github.com/xolomon-coder/DroidInspect/actions/runs/43915982432), attempt 1, targets that commit. Raw job ID `133470117181` reports `runner_id=0`, blank runner name, an empty step list, and no artifacts. This is a runner-allocation failure; none of the host-test or Android build steps executed.
+- A retry of the failed job was requested. Its result must be inspected before making any CI claim.
+- The immediately preceding run [43867895539](https://github.com/xolomon-coder/DroidInspect/actions/runs/43867895539), attempt 3, also had `runner_id=0`, no steps and no artifacts.
+
+**Milestone state**
+- M19 remains IN PROGRESS: metadata persistence/isolation and project indexing tests are present, but the complete CI host suite and APK/C#/dependency close-reopen/recovery acceptance remain outstanding.
+- M20 remains IN PROGRESS: the source-tree bounds and earlier lifecycle, offline, native payload and artifact audits are implemented, but the full runner-backed build/audit, transitive license review, low-memory/large-file device evidence, CodeAssist reproducibility and regression are not yet verified.
+- No production CI PASS, final APK hash, final release readiness or M19/M20 completion is claimed.
+
+**Next action**
+1. Inspect the retry of run `43915982432` and every job's raw runner assignment, steps, logs and artifacts.
+2. If a runner executes, diagnose and fix any real test/build failure on `main`, then rerun the complete production workflow.
+3. If runner allocation again fails before steps, retain that as an infrastructure blocker; do not misreport it as a source failure or repeatedly claim a retry is verification.
+4. Continue the M20 dependency/license and APK/.NET regression audit. Only after full cloud verification should the single consolidated M12–M20 Android device session be requested.
+
+**Stopping point:** C# source workspace file/depth/total-size bounds and a host regression are committed; production CI runner allocation is still unverified.
