@@ -3244,3 +3244,11 @@ Additional M20 changes since the previous checkpoint:
 - Main Android CI run `43867535926` and M12 Roslyn proof run `43867535971`, including attempt 2 of each, both failed before runner assignment. Raw job records show `runner_id=0`, empty steps and no runner name. The M12 package graph step has therefore not executed yet. No source/test/Native AOT failure is established by these runs.
 - The M11 workflow's new package-graph step is committed, but a matching run for this commit was not returned by the Actions query; do not claim that graph was generated.
 - M19/M20 remain IN PROGRESS. The production workflow and both native proof workflows still require runner-backed execution; full production CI and final device acceptance remain release gates.
+
+
+### Latest Actions retry — 2026-11-16
+
+- Production Android CI run `43867674091` targets commit `e975020161e6651755488b3cccb5c21c48b593b4`. Attempt 1 and retry attempt 2 both ended with `runner_id=0`, blank runner name and empty steps; no artifacts were produced.
+- M12 Native AOT proof run `43867535971`, including retry attempt 2, has the same no-runner result. Its newly added transitive NuGet graph command has not executed.
+- The M11 workflow file now contains the corresponding ILSpy/.NET Native AOT package-graph capture and artifact upload step, but no matching M11 workflow run was observed in the queried run set; do not claim that its dependency inventory was generated.
+- These results add no source compilation, host-test, native publish, APK build, signing or licensing pass evidence. The runner allocation issue remains the active blocker.
