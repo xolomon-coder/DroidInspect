@@ -3131,3 +3131,80 @@ M19 and M20 are being completed as one final integration phase, while retaining 
 6. On final completion, update README with exact commit, all CI run IDs/conclusions, artifacts and hashes, supported limitations, exact files/changes, and the stopping point. Deliver the GitHub `main.zip` and concise CodeAssist build/install instructions. Do not use a temporary APK artifact as the normal delivery.
 
 **Current stopping point:** M19/M20 integration and CI verification. Next work is to inspect the detailed failure state for run `43863445524`, then continue the M19/M20 verification/fix loop. No consolidated device acceptance or final release PASS is claimed.
+
+
+---
+
+### M19–M20 continuation — persistence tests, lifecycle hardening and CI audit expansion (2026-11-16)
+
+**Latest source checkpoint**
+- Branch: `main`.
+- Latest source commit before this README update: `5fbdd872fa4cfcb5f9c2a314f0f36a66c5d16ad4`.
+- Production package remains `com.tanvir.droidinspect`.
+- No alternate branch was created.
+
+**M19 persistence regression expansion**
+- Updated `tools/project-workspace-test/ProjectWorkspaceMetadataSelfTest.java`.
+- The host regression now recreates the metadata-store object before reading records, verifies that notes/bookmarks/searches/recovery markers persist across store recreation, and verifies that two project roots do not share notes, bookmarks, saved searches or interrupted-operation state.
+- It checks that STARTED and FINISHED events are recorded and that the recovery marker is removed only after completion is recorded.
+- This test is added to the existing production host-test workflow. It has not yet executed in CI because the current Actions jobs did not obtain a runner.
+
+**M20 background lifecycle hardening**
+Updated production Java files:
+- `AssemblyExplorerActivity.java`: background worker is interrupted on Activity destruction and its UI completion callback checks Activity lifecycle state.
+- `CSharpSourceEditorActivity.java`: compiler completion is prevented from updating a destroyed editor; the compile operation can continue in the background to finish its output and operation journal. The native compiler itself does not expose a guaranteed immediate cancellation contract.
+- `DotNetDependencyActivity.java`: dependency-project creation now uses the Activity's managed executor; UI callbacks are guarded and the executor is interrupted on destruction.
+- `ApkBuildPipelineActivity.java`: all background UI completion callbacks check that the Activity is still alive; the worker is interrupted on destruction.
+- `ApkProjectWorkspaceActivity.java`: all project-operation callbacks check Activity lifecycle state; the worker is interrupted on destruction.
+- These are source-level lifecycle corrections. They are not Android runtime/device verification.
+
+**M20 CI audit expansion**
+Updated `.github/workflows/phase1-android.yml`:
+- Captures the resolved Gradle `releaseRuntimeClasspath` dependency graph for later licensing review.
+- Checks both debug and unsigned release APK outputs exist and pass ZIP integrity checks.
+- Checks the required ARM64 native libraries are present in both APK variants.
+- Checks the source and packaged manifests remain free of Internet permission.
+- Records the native shared-library inventory and enforces a 100 MiB source native-payload ceiling.
+- Records SHA-256 hashes for debug, unsigned release and CI-signed APK outputs.
+- Uploads the dependency graph, native inventory and checksum manifest with the APK verification artifacts.
+- This expanded workflow has not yet executed; its checks and artifacts remain pending CI runner availability.
+
+**Static M20 audit findings**
+- Android configuration: `minSdk 26`, `compileSdk 36`, `targetSdk 36`, Java 8 source/target; Gradle Android plugin 8.13.0 and Gradle 8.13 are configured.
+- Native packaging currently contains ARM64 only. The four production shared libraries total **81,306,496 bytes (77.54 MiB)** before APK packaging: decompiler engine 45,966,680 bytes, compiler engine 35,316,984 bytes, and the two JNI shims 11,032 and 11,800 bytes.
+- `DotNetIlReader` uses random-access PE reads, a 512 MiB file ceiling, 256 KiB method-body ceiling, 4 KiB editable-IL ceiling, and bounded method/instruction display counts rather than loading an entire assembly into one byte array.
+- APK and .NET input pipelines retain explicit size bounds and separate working/output copies. The Android manifest contains no declared Internet permission.
+- The repository contains `THIRD-PARTY-NOTICES.md`. That notice records MIT license text for ILSpy and .NET Native AOT/reference components, and explicitly leaves the exact transitive Native AOT/NuGet dependency graph review open. ARSCLib 1.4.0 and apksig 8.13.0 are documented in the project dependency notes as Apache-2.0.
+- Static source/configuration review does not establish real-device peak memory, low-storage behavior, thermal performance, Android lifecycle behavior, or CodeAssist reproducibility. These remain final acceptance tasks.
+
+**Production CI evidence and runner blocker**
+- Runs `43863445524` (old documented checkpoint) and `43865488417` (README checkpoint) both failed with no executable job steps and no artifacts.
+- Rerunning `43865488417` produced attempt 2, which again had no steps or artifacts.
+- The expanded M19 host-test commit `832039f0ada178563085cbf13d3e4b6f7e7c5860` triggered run `43866160965`; its job also had no steps and no artifacts.
+- Lifecycle and workflow-audit commits triggered run `43866734077` against `5fbdd872fa4cfcb5f9c2a314f0f36a66c5d16ad4`. The raw GitHub job record confirms `runner_id=0`, blank runner name, empty `steps`, completion in approximately two seconds, and no artifacts. This is direct evidence that the job did not execute on a runner; it is not evidence of a source compilation or host-test failure.
+- No current M19/M20 production Android build, signing/tamper verification, host-test execution or APK hash has been proven by these runs. Older successful M17/M18 runs predate the current source and do not satisfy this gate.
+
+**Exact changed paths in this continuation**
+- `tools/project-workspace-test/ProjectWorkspaceMetadataSelfTest.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/AssemblyExplorerActivity.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/CSharpSourceEditorActivity.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/DotNetDependencyActivity.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/ApkBuildPipelineActivity.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/ApkProjectWorkspaceActivity.java`
+- `.github/workflows/phase1-android.yml`
+- `README.md` (this checkpoint)
+
+**Current milestone status**
+- M19: implementation and host regression coverage expanded; CI execution and actual Android project close/reopen/recovery acceptance remain pending.
+- M20: lifecycle guards and CI audit coverage expanded; CI execution, complete transitive license review, low-memory/performance evidence, and final regression remain pending.
+- M12–M18 limitations listed above remain unchanged. Do not repeat M11 acceptance.
+- Do not start the consolidated device-testing session until a complete production CI run succeeds. Then test all remaining M12–M20 device acceptance points once, in one consolidated session.
+
+**Next exact action**
+1. Re-fetch `main` HEAD and inspect the latest run for that exact SHA.
+2. Retry the full workflow when a GitHub-hosted runner can be allocated. For every attempt, inspect raw job details, all steps/logs and artifacts. A failed run with `runner_id=0` is an infrastructure allocation failure; a run with executed steps must be diagnosed from its actual first failing step.
+3. If source/test/build failures occur, fix them directly on `main`, update this README and rerun the complete workflow.
+4. Once CI succeeds, inspect the dependency graph, APK outputs, ABI inventory, permissions, signature/tamper checks and SHA-256 manifest. Complete the remaining licensing and performance review before final device handoff.
+5. Only then provide the latest `main.zip`, exact CodeAssist build/install instructions and one consolidated M12–M20 device test plan.
+
+**Stopping point:** M19/M20 source hardening and CI audit expansion are committed; production CI remains blocked before runner execution. No final release PASS or device acceptance is claimed.
