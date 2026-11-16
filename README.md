@@ -3078,3 +3078,20 @@ The unified launcher currently indexes existing project types; it does not claim
 - Workflow run [43852294365](https://github.com/xolomon-coder/DroidInspect/actions/runs/43852294365) targeted this exact commit. Attempts 1, 2 and 3 all failed before a runner started. The final attempt's job `133247811273` has `runner_id=0`, an empty step list and no logs; the run produced zero artifacts.
 - This is conclusively a runner-allocation failure for this run, not a source-level build failure. No further immediate retries will be issued against the same unchanged commit; doing so has repeatedly produced the same no-runner result. Resume CI verification after a new runner becomes available or a fresh run can be allocated.
 - The local Java host checks recorded above passed, but they do not establish Android compilation or full workflow success. M19 remains IN PROGRESS and must not be marked complete until production CI executes all required steps and device acceptance is completed.
+
+
+### Combined M19–M20 integration work — 2026-11-16
+
+M19 and M20 are being completed as one final integration phase, while retaining separate exit criteria.
+
+**M19 workspace refinement**
+- Assembly Explorer bookmarks are now persisted per assembly content identity (SHA-256), rather than in one global SharedPreferences set. Different assemblies therefore cannot mix metadata-token bookmarks; bookmarks survive closing and reopening the Explorer and remain private to the app.
+- Added bounded token validation, a 5,000-bookmark cap, atomic file replacement, and a host-JVM regression test for persistence, isolation, removal and invalid-token rejection.
+- Updated .github/workflows/phase1-android.yml to execute the new bookmark-store host regression.
+- This supplements the unified APK/C#/.NET project index and shared notes/bookmarks/search/history/recovery records. It does not yet establish full close/reopen acceptance on Android, and interrupted-operation notices are recovery records rather than automatic rollback snapshots.
+
+**M20 integration status**
+- Existing safety boundaries remain: bounded APK/PE inputs, background workers for assembly indexing and dependency resolution, separate working/output files, offline-only production permissions, and ARM64 native payload checks in CI.
+- Remaining M20 work includes a systematic large-input/low-memory review, cancellation/lifecycle review for long-running operations, Android/ABI compatibility and CodeAssist reproducibility evidence, licensing/dependency-size audit, and final cross-workflow regression.
+- The production CI workflow for commit 67665bdec726dba5e2998b8c9898459a5459f933 (run https://github.com/xolomon-coder/DroidInspect/actions/runs/43863286380) again failed before runner allocation: job 133285312446 has runner_id=0, no steps and no runner logs. No host tests or Android build ran. This is an Actions infrastructure failure, not a source-level pass or failure.
+- M19 and M20 remain IN PROGRESS. Do not begin the consolidated phone acceptance session until the final implementation and a complete production CI run are available. Android device acceptance is necessarily a final user-device gate and cannot be truthfully claimed by cloud source changes.
