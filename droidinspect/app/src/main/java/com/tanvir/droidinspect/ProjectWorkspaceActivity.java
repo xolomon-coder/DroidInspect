@@ -140,15 +140,19 @@ public final class ProjectWorkspaceActivity extends Activity {
             return;
         }
         String[] actions = {"View project notes, bookmarks and history",
-                "Add note", "Add bookmark", "Save search", "Record operation / recovery status"};
+                "Add note", "Add bookmark", "Save search", "Record operation / recovery status",
+                "Mark last operation finished"};
         new AlertDialog.Builder(this).setTitle(entry.kind + " — " + entry.name)
                 .setItems(actions, (dialog, which) -> {
                     if (which == 0) showOverview(metadata);
                     else if (which == 1) promptMetadata(metadata, "Add project note", "Note text", value -> metadata.appendNote(value));
                     else if (which == 2) promptPair(metadata, "Add bookmark", "Label", "Target / token / file", (a,b) -> metadata.addBookmark(a,b));
                     else if (which == 3) promptPair(metadata, "Save search", "Search query", "Search scope", (a,b) -> metadata.saveSearch(a,b));
-                    else promptPair(metadata, "Record operation", "Operation", "Details", (a,b) -> {
+                    else if (which == 4) promptPair(metadata, "Record operation", "Operation", "Details", (a,b) -> {
                         metadata.beginOperation(a,b);
+                    });
+                    else promptPair(metadata, "Finish operation", "Operation", "Result / details", (a,b) -> {
+                        metadata.finishOperation(a,b);
                     });
                 }).show();
     }
