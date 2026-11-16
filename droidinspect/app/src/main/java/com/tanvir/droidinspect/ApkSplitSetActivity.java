@@ -240,12 +240,16 @@ public final class ApkSplitSetActivity extends Activity {
             if (info.splitName.isEmpty()) bases++;
             else if (!splitNames.add(info.splitName)) out.append("WARNING: duplicate split name: ").append(info.splitName).append('\n');
         }
-        out.append("Package identities: ").append(packageNames.size()).append(packageNames.size() == 1 ? " (consistent)" : " (MISMATCH)").append('\n');
-        out.append("Version codes: ").append(versions.size()).append(versions.size() == 1 ? " (consistent)" : " (MISMATCH / unknown)").append('\n');
+        boolean packageKnown = packageNames.size() == 1 && !packageNames.contains("(unknown)");
+        boolean versionKnown = versions.size() == 1 && !versions.contains(-1L);
+        out.append("Package identities: ").append(packageNames.size())
+                .append(packageKnown ? " (consistent)" : " (MISMATCH / unknown)").append('\n');
+        out.append("Version codes: ").append(versions.size())
+                .append(versionKnown ? " (consistent)" : " (MISMATCH / unknown)").append('\n');
         out.append("Base APK candidates: ").append(bases).append('\n');
         if (bases != 1) out.append("WARNING: a conventional split set should contain exactly one base APK.\n");
-        if (packageNames.size() != 1 || versions.size() != 1)
-            out.append("WARNING: these files may not belong to the same installable package version.\n");
+        if (!packageKnown || !versionKnown)
+            out.append("WARNING: these files may not belong to the same installable package version, or identity data is unavailable.\n");
 
         for (SplitInfo info : infos) {
             out.append("\n").append("==================================================\n");
