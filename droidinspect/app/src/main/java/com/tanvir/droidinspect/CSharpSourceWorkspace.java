@@ -148,34 +148,45 @@ final class CSharpSourceWorkspace {
 
     List<File> importFiles(Context context, List<Uri> uris) throws IOException {
         ArrayList<File> imported = new ArrayList<>();
+        List<File> existing = listSourceFiles();
         long total = 0;
+        for (File file : existing) total += file.length();
         byte[] buffer = new byte[32768];
-        for (Uri uri : uris) {
-            if (uri == null) continue;
-            String name = safeFileName(queryName(context, uri));
-            if (!name.toLowerCase(java.util.Locale.ROOT).endsWith(".cs")) continue;
-            File target = uniqueTarget(name);
-            long copied = 0;
-            try (InputStream input = context.getContentResolver().openInputStream(uri);
-                 OutputStream output = new FileOutputStream(target)) {
-                if (input == null) throw new IOException("Cannot open selected source file: " + name);
-                int count;
-                while ((count = input.read(buffer)) != -1) {
-                    copied += count;
-                    total += count;
-                    if (copied > MAX_SOURCE_FILE || total > MAX_PROJECT_IMPORT)
-                        throw new IOException("Source import exceeds the 32 MB per-file or 128 MB total safety limit.");
-                    output.write(buffer, 0, count);
+        try {
+            for (Uri uri : uris) {
+                checkCancelled();
+                if (uri == null) continue;
+                String name = safeFileName(queryName(context, uri));
+                if (!name.toLowerCase(java.util.Locale.ROOT).endsWith(".cs")) continue;
+                if (existing.size() + imported.size() >= BoundedSourceTree.MAX_SOURCE_FILES)
+                    throw new IOException("C# source project exceeds the " + BoundedSourceTree.MAX_SOURCE_FILES + " file safety limit.");
+                File target = uniqueTarget(name);
+                long copied = 0;
+                try (InputStream input = context.getContentResolver().openInputStream(uri);
+                     OutputStream output = new FileOutputStream(target)) {
+                    if (input == null) throw new IOException("Cannot open selected source file: " + name);
+                    int count;
+                    while ((count = input.read(buffer)) != -1) {
+                        checkCancelled();
+                        copied += count;
+                        total += count;
+                        if (copied > MAX_SOURCE_FILE || total > MAX_PROJECT_IMPORT)
+                            throw new IOException("Source import exceeds the 32 MB per-file or 128 MB total project safety limit.");
+                        output.write(buffer, 0, count);
+                    }
+                    output.flush();
+                } catch (IOException error) {
+                    target.delete();
+                    throw error;
                 }
-                output.flush();
-            } catch (IOException error) {
-                target.delete();
-                throw error;
+                imported.add(target);
             }
-            imported.add(target);
+            if (imported.isEmpty()) throw new IOException("No .cs files were selected.");
+            return imported;
+        } catch (IOException error) {
+            for (File file : imported) file.delete();
+            throw error;
         }
-        if (imported.isEmpty()) throw new IOException("No .cs files were selected.");
-        return imported;
     }
 
     void exportZip(OutputStream destination) throws IOException {
@@ -184,10 +195,14 @@ final class CSharpSourceWorkspace {
         ZipOutputStream zip = new ZipOutputStream(destination);
         byte[] buffer = new byte[32768];
         for (File file : files) {
+            checkCancelled();
             zip.putNextEntry(new ZipEntry(relativePath(sourceRoot, file)));
             try (InputStream input = new FileInputStream(file)) {
                 int count;
-                while ((count = input.read(buffer)) != -1) zip.write(buffer, 0, count);
+                while ((count = input.read(buffer)) != -1) {
+                    checkCancelled();
+                    zip.write(buffer, 0, count);
+                }
             }
             zip.closeEntry();
         }
