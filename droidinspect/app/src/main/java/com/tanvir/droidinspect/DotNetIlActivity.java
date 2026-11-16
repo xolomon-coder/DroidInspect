@@ -20,9 +20,11 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -42,6 +44,7 @@ public final class DotNetIlActivity extends Activity {
     private TextView report;
     private TextView status;
     private ProgressBar progress;
+    private volatile boolean destroyed;
     private File sourceCopy;
     private File pendingOutput;
 
@@ -87,6 +90,7 @@ public final class DotNetIlActivity extends Activity {
             final String error = failure;
             final DotNetIlReader.Result result = parsed;
             runOnUiThread(() -> {
+                if (destroyed || isFinishing() || isDestroyed()) return;
                 setBusy(false, error == null ? "IL analysis complete." : "IL analysis failed.");
                 if (error != null) {
                     report.setText("IL ANALYSIS FAILED\n\n" + error + "\n\nThe source assembly was not modified.");
@@ -161,6 +165,7 @@ public final class DotNetIlActivity extends Activity {
             final File ready = output;
             final String error = failure;
             runOnUiThread(() -> {
+                if (destroyed || isFinishing() || isDestroyed()) { if (ready != null) ready.delete(); return; }
                 setBusy(false, error == null
                         ? "Edited assembly reopened and verified. Choose an export location."
                         : "IL edit refused or failed.");
@@ -210,6 +215,7 @@ public final class DotNetIlActivity extends Activity {
             final File ready = output;
             final String error = failure;
             runOnUiThread(() -> {
+                if (destroyed || isFinishing() || isDestroyed()) { if (ready != null) ready.delete(); return; }
                 setBusy(false, error == null ? "Modified assembly reopened and verified. Choose an export location." : "Rename refused or failed.");
                 if (error != null || ready == null) {
                     new AlertDialog.Builder(this).setTitle("Rename not applied")
@@ -251,6 +257,7 @@ public final class DotNetIlActivity extends Activity {
             }
             final String error = failure;
             runOnUiThread(() -> {
+                if (destroyed || isFinishing() || isDestroyed()) return;
                 setBusy(false, error == null
                         ? "Export complete. Reopen the output to inspect the modified method."
                         : "Export failed: " + error);
@@ -268,6 +275,7 @@ public final class DotNetIlActivity extends Activity {
             byte[] buffer = new byte[32768];
             int n;
             while ((n = in.read(buffer)) != -1) {
+                checkCancelled();
                 total += n;
                 if (total > MAX_INPUT) throw new IllegalArgumentException("Assembly exceeds the 512 MB safety limit.");
                 out.write(buffer, 0, n);
@@ -291,10 +299,30 @@ public final class DotNetIlActivity extends Activity {
 
     private static String safe(String value) { return value == null ? "unknown" : value; }
 
+    private static void checkCancelled() throws InterruptedIOException {
+        if (Thread.currentThread().isInterrupted())
+            throw new InterruptedIOException("Assembly operation cancelled because the activity was closed.");
+    }
+
     @Override protected void onDestroy() {
-        super.onDestroy();
+        destroyed = true;
         worker.shutdownNow();
-        if (sourceCopy != null) sourceCopy.delete();
-        deletePendingOutput();
+        super.onDestroy();
+        Thread cleanup = new Thread(() -> {
+            try {
+                while (!worker.awaitTermination(1, TimeUnit.DAYS)) { }
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            File source = sourceCopy;
+            sourceCopy = null;
+            if (source != null) source.delete();
+            File pending = pendingOutput;
+            pendingOutput = null;
+            if (pending != null) pending.delete();
+        }, "droidinspect-il-cleanup");
+        cleanup.setDaemon(true);
+        cleanup.start();
     }
 }
