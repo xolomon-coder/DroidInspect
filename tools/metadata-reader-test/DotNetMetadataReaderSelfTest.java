@@ -42,7 +42,9 @@ public final class DotNetMetadataReaderSelfTest {
                 require(report, "TypeDef token 0x02000001");
                 require(report, "Field token 0x04000001");
                 require(report, "MethodDef token 0x06000001");
-                require(report, "signature=empty");
+                require(report, "signature=0x0608");
+                require(report, "signature=0x000001");
+                require(report, "signature=0x080E00");
                 require(report, "Property token 0x17000001");
                 require(report, "Event token 0x14000001");
                 require(report, "AssemblyRef token 0x23000001");
@@ -83,7 +85,7 @@ public final class DotNetMetadataReaderSelfTest {
         int moduleRefName = strings.add("native.dll");
         int resourceName = strings.add("TestNamespace.SampleResource");
         byte[] stringHeap = strings.bytes();
-        byte[] blobHeap = new byte[]{0};
+        byte[] blobHeap = new byte[]{0, 2, 0x06, 0x08, 3, 0, 0, 1, 3, 0x08, 0x0E, 0};
         byte[] guidHeap = new byte[16];
         for (int i = 0; i < guidHeap.length; i++) guidHeap[i] = (byte)(i + 1);
 
@@ -103,10 +105,10 @@ public final class DotNetMetadataReaderSelfTest {
         le16(t, 4); le16(t, typeRefName); le16(t, namespace);
         // TypeDef: flags, name, namespace, extends, FieldList, MethodList.
         le32(t, 1); le16(t, type); le16(t, namespace); le16(t, 0); le16(t, 1); le16(t, 1);
-        // Field: flags, name, signature.
-        le16(t, 6); le16(t, field); le16(t, 0);
-        // MethodDef: RVA, ImplFlags, Flags, Name, Signature, ParamList.
-        le32(t, 0); le16(t, 0); le16(t, 6); le16(t, method); le16(t, 0); le16(t, 1);
+        // Field: flags, name, signature blob (FIELD, I4).
+        le16(t, 6); le16(t, field); le16(t, 1);
+        // MethodDef: RVA, ImplFlags, Flags, Name, signature blob (default, no args, void), ParamList.
+        le32(t, 0); le16(t, 0); le16(t, 6); le16(t, method); le16(t, 4); le16(t, 1);
         // MemberRef: parent TypeDef row 1, name, signature blob.
         le16(t, 4); le16(t, memberRefName); le16(t, 0);
         // StandAloneSig: signature blob.
@@ -117,8 +119,8 @@ public final class DotNetMetadataReaderSelfTest {
         le16(t, 0); le16(t, eventName); le16(t, 4);
         // PropertyMap: parent TypeDef row, first Property row.
         le16(t, 1); le16(t, 1);
-        // Property: flags, name, type signature blob.
-        le16(t, 0); le16(t, property); le16(t, 0);
+        // Property: flags, name, signature blob.
+        le16(t, 0); le16(t, property); le16(t, 8);
         // ModuleRef: name.
         le16(t, moduleRefName);
         // TypeSpec: signature blob.
