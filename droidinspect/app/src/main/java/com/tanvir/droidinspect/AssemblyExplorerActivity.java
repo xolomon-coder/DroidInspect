@@ -145,6 +145,7 @@ public final class AssemblyExplorerActivity extends Activity {
             final String meta = metadata;
             final DotNetIlReader.Result methods = il;
             runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
                 setBusy(false, error == null ? "Assembly indexing complete." : "Assembly indexing failed.");
                 if (error != null) {
                     status.setText("ASSEMBLY EXPLORER ERROR: " + error);
@@ -551,7 +552,7 @@ public final class AssemblyExplorerActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
-        worker.shutdown();
+        worker.shutdownNow();
         if (sourceCopy != null) sourceCopy.delete();
         super.onDestroy();
     }
