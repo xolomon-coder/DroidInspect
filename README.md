@@ -3467,7 +3467,7 @@ Additional M20 changes since the previous checkpoint:
 
 **Exact next actions:**
 1. Obtain and inspect a runner-backed production Actions run for the latest `main` source. Confirm every host test, Android debug/release build, signing/tamper step, packaged-native inventory, dependency graph and SHA-256 artifact; fix actual failures and rerun.
-2. Continue the M20 lifecycle audit for remaining .NET dependency/comparison and other processing activities; add cancellation and safe deferred cleanup where source inspection finds the same race.
+2. Finish the remaining M20 lifecycle sweep across project, diagnostic and decompilation workers; add cancellation and safe deferred cleanup only where source inspection finds an actual race, then review all touched Java activities for compilation consistency.
 3. Complete the transitive Gradle/NuGet license review and record actual APK sizes, native ABI payload, and final artifact hashes.
 4. Only after cloud/host release verification, prepare the single consolidated M12–M20 Android 11 / CodeAssist testing session.
 
