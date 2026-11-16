@@ -377,7 +377,7 @@ final class DotNetMetadataReader {
     }
 
     private void decodeManifestResources(StringBuilder out) throws Exception {
-        out.append("\\nMANIFEST RESOURCES (").append(rows[40]).append(")\\n");
+        out.append("\nMANIFEST RESOURCES (").append(rows[40]).append(")\n");
         int limit = (int) Math.min(rows[40], 2000);
         long size = rowSize(40);
         for (int i = 0; i < limit; i++) {
@@ -395,10 +395,10 @@ final class DotNetMetadataReader {
                     .append("; flags=0x").append(hex(flags))
                     .append("; implementation=").append(kind);
             if (row > 0) out.append(" row=").append(row);
-            out.append(')').append('\\n');
+            out.append(')').append('\n');
         }
-        if (rows[40] > limit) out.append("… ").append(rows[40] - limit).append(" additional resource rows omitted.\\n");
-        if (rows[40] == 0) out.append("No manifest resource metadata rows found.\\n");
+        if (rows[40] > limit) out.append("… ").append(rows[40] - limit).append(" additional resource rows omitted.\n");
+        if (rows[40] == 0) out.append("No manifest resource metadata rows found.\n");
     }
 
     private long decodeTypeDefOrRefToken(long coded) {
