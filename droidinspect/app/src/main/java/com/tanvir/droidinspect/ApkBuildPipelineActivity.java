@@ -414,6 +414,7 @@ public final class ApkBuildPipelineActivity extends Activity {
             byte[] buffer = new byte[32768];
             int read;
             while ((read = in.read(buffer)) != -1) {
+                checkCancelled();
                 total += read;
                 if (total > MAX_APK_BYTES) throw new IllegalArgumentException("APK exceeds the 512 MB pipeline limit.");
                 stream.write(buffer, 0, read);
