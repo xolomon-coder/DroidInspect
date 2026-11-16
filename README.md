@@ -3663,3 +3663,44 @@ Additional M20 changes since the previous checkpoint:
 - Do not retry those infrastructure failures until a fresh Actions job shows runner assignment has recovered. No compilation/test PASS is inferred from an empty status response.
 
 **Milestone state:** M19 and M20 remain IN PROGRESS. The source-level bounds and lifecycle corrections above require execution by the full production CI and the consolidated Android device-testing session before acceptance.
+
+### M19 continuation — bounded APK project history, reports and tree — 2026-11-17
+
+**Source audit finding and correction:**
+- The APK project workspace still used unbounded `File.listFiles()` in revision-history pruning, revision-history display, report listing and recursive project-tree display.
+- Added `BoundedProjectFiles`, which uses `DirectoryStream`, excludes symbolic links, enforces a global directory-entry budget, checks canonical containment during tree traversal, and sorts bounded results.
+- APK revision history now scans at most 2,000 directory entries and exposes the newest two snapshots. History pruning retains the two newest APK snapshots.
+- APK project report display scans at most 2,000 entries and displays at most 100 reports.
+- APK project-tree display is limited to 2,000 total entries and four directory levels. Directory-read and safety-limit failures are surfaced to the user instead of silently producing an incomplete tree.
+- Added `BoundedProjectFilesSelfTest` for ordering, symlink exclusion where supported, scan-budget enforcement and tree enumeration. The production workflow now compiles and runs this test.
+- The new host test has **not yet been executed** in this session. The three earlier focused M19 host tests remain the only confirmed local PASS results; no result is inferred for this new test.
+
+**Exact files changed:**
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/BoundedProjectFiles.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/ApkProjectWorkspace.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/ApkProjectWorkspaceActivity.java`
+- `tools/bounded-project-files-test/BoundedProjectFilesSelfTest.java`
+- `.github/workflows/phase1-android.yml`
+
+**Commits on main (oldest to newest):**
+- `8fa1be55c0db3aac816c3cceae7bd987fb82904b` — add bounded APK project inventory helper.
+- `1c41df35533ddd46c4ffe2462078d9c96bd06abb` — add host regression test.
+- `30cb1c324cf6928bc2e246df169ffc0b511b81db` — bound APK project history, reports and tree listings.
+- `4d9f40e7685088610c5ecdf2b393895094f4b0e9` — handle inventory safety-limit/read errors in the project UI.
+- `e216e249e6101f73a8d3f08717c4183546d85d17` — add the regression suite to production CI.
+
+**Verification state:**
+- Current source/workflow checkpoint: `e216e249e6101f73a8d3f08717c4183546d85d17` on `main`.
+- No host execution or Android build is claimed for these latest changes.
+- The GitHub connector can inspect known workflow run IDs and jobs but does not expose repository-wide push-run enumeration. The commit-status query returned no status records, and the commit-workflow query returned no runs because it only exposes pull-request-triggered runs. This is not evidence of a successful build.
+- The previously inspectable production run `43975311959` remains a runner-allocation failure with zero steps and no artifacts. No retry was issued without evidence that runner assignment had recovered.
+- The new production workflow step will run `BoundedProjectFilesSelfTest` alongside the existing host suites when a runner is assigned.
+
+**Milestone state:** M19 remains IN PROGRESS. APK project directory inventory is now bounded at the source level, but the new host regression, full host suite, project persistence/reopen/isolation/recovery and Android acceptance remain pending. M20 remains IN PROGRESS; lifecycle audit and runner-backed build/release verification remain open. M12–M18 device acceptance remains pending; M11 remains accepted.
+
+**Exact next actions:**
+1. Continue the remaining M20 worker/lifecycle audit and inspect all remaining project/diagnostic/decompilation file operations for demonstrated defects.
+2. Obtain and inspect a fresh production Actions run when available; verify runner assignment, all test steps, debug/release APKs and every audit artifact.
+3. Run the new bounded-project-files test and complete host regressions before preparing the consolidated M12–M20 phone test session.
+
+**Stopping point:** APK project history, report and tree enumeration have been converted to bounded, symlink-safe scans and the new test is wired into production CI. No runner-backed or device acceptance is yet recorded.
