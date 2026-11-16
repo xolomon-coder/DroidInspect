@@ -13,9 +13,9 @@ public final class DexFileParserSelfTest {
         try {
             byte[] dex = minimalDexWithSplitMemberLists();
             byte[] malformedAfterPartialParse = dex.clone();
-            // class_data starts at 236; the direct-method index_diff is byte 8.
-            // Force an invalid method reference after class and field metadata was already read.
-            malformedAfterPartialParse[244] = 5;
+            // class_data starts at 236; the virtual-method index_diff is byte 12.
+            // The direct method is parsed and its invoke reference indexed before this invalid index.
+            malformedAfterPartialParse[248] = 5;
 
             try (ZipOutputStream zip = new ZipOutputStream(new FileOutputStream(apk))) {
                 zip.putNextEntry(new ZipEntry("classes.dex"));
@@ -49,6 +49,7 @@ public final class DexFileParserSelfTest {
             check(info.references.get(0).contains("x.A->ping"), "cross-reference should identify caller method");
             check(info.references.get(0).contains("x.A->run"), "cross-reference should resolve target method");
             check(result.totalMembers == 4, "member index count excludes rejected DEX partial data");
+            check(result.totalReferences == 1, "cross-reference counts from rejected DEX entries must roll back transactionally");
             check(result.dexReports.size() == 3, "each DEX entry should have a report");
             check(result.dexReports.get(0).contains("PASS"), "valid DEX should pass");
             check(result.dexReports.get(1).contains("REJECTED"), "invalid member index should be rejected");
