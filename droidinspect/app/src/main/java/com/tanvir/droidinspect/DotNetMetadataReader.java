@@ -320,8 +320,10 @@ final class DotNetMetadataReader {
             int shown = (int) Math.min(Math.min(next - first, 200), rows[23] + 1 - first);
             for (int j = 0; j < shown; j++) {
                 long propertyRow = tableBase[23] + (first - 1 + j) * propertySize;
+                int propertySignature = indexBlob(propertyRow + 2 + stringWidth());
                 o.append("   Property: ").append(str(indexString(propertyRow + 2)))
-                        .append(" (Property token 0x").append(hex(0x17000000L | (first + j))).append(')')
+                        .append(" (Property token 0x").append(hex(0x17000000L | (first + j)))
+                        .append("; signature=").append(signatureHex(propertySignature)).append(')')
                         .append('\n');
             }
             if (next - first > shown) {
@@ -415,12 +417,15 @@ final class DotNetMetadataReader {
         int count=(int)Math.min(Math.min(next-first,cap),rows[table]+1-first);
         for(int j=0;j<count;j++){
             long p=tableBase[table]+(first-1+j)*size;
-            int name= table==4 ? indexString(p+2) : indexString(p+8);
+            int name = table == 4 ? indexString(p + 2) : indexString(p + 8);
+            int signature = table == 4 ? indexBlob(p + 2 + stringWidth())
+                    : indexBlob(p + 8 + stringWidth());
             long row = first + j;
             long token = (table == 4 ? 0x04000000L : 0x06000000L) | row;
             o.append("   ").append(label).append(": ").append(str(name))
                     .append(" (").append(label).append(table == 4 ? " token 0x" : "Def token 0x")
-                    .append(hex(token)).append(')').append('\n');
+                    .append(hex(token)).append("; signature=").append(signatureHex(signature)).append(')')
+                    .append('\n');
         }
         if(next-first>count)o.append("   … additional ").append(label.toLowerCase(Locale.ROOT)).append(" entries omitted\n");
     }
@@ -536,8 +541,21 @@ final class DotNetMetadataReader {
         else if((first&0xC0)==0x80) length=((first&0x3F)<<8)|b(p++);
         else if((first&0xE0)==0xC0) length=((long)(first&0x1F)<<24)|((long)b(p++)<<16)|((long)b(p++)<<8)|b(p++);
         else return 0;
-        return length>Integer.MAX_VALUE?0:(int)length;
+        if (length > Integer.MAX_VALUE || length > blobSize - (p - blobBase)) return 0;
+        return (int) length;
     }
+
+    private String signatureHex(int index) throws Exception {
+        if (index <= 0) return "empty";
+        byte[] bytes = blobBytes(index);
+        if (bytes.length == 0) return "unavailable";
+        StringBuilder value = new StringBuilder("0x");
+        int limit = Math.min(bytes.length, 64);
+        for (int i = 0; i < limit; i++) value.append(String.format(Locale.ROOT, "%02X", bytes[i] & 255));
+        if (bytes.length > limit) value.append("…(").append(bytes.length).append(" bytes)");
+        return value.toString();
+    }
+
     private String str(int index)throws Exception{
         if(index==0||stringsBase==0||index>=stringsSize)return "";
         long p=stringsBase+index; ByteArrayOutputStream bytes=new ByteArrayOutputStream();
