@@ -1,9 +1,12 @@
 package com.tanvir.droidinspect;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ScrollView;
@@ -14,6 +17,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.io.OutputStream;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -28,6 +32,7 @@ public class DotNetDependencyActivity extends Activity {
     private Button importButton, resolveButton, exportButton;
     private DotNetDependencyWorkspace project;
     private boolean busy;
+    private volatile boolean destroyed;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -63,25 +68,27 @@ public class DotNetDependencyActivity extends Activity {
     private void createProject(Uri uri) {
         busy = true;
         status.setText("Copying selected assembly into a private offline dependency project…");
+        final Context appContext = getApplicationContext();
+        final Handler ui = new Handler(Looper.getMainLooper());
+        final WeakReference<DotNetDependencyActivity> reference = new WeakReference<>(this);
         worker.execute(() -> {
             DotNetDependencyWorkspace created = null;
             String errorText = null;
             try {
-                created = DotNetDependencyWorkspace.create(getApplicationContext(), uri);
+                created = DotNetDependencyWorkspace.create(appContext, uri);
             } catch (Exception error) {
                 errorText = error.getClass().getSimpleName() + ": " + error.getMessage();
             }
             final DotNetDependencyWorkspace result = created;
             final String error = errorText;
-            runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) return;
-                busy = false;
+            postToUi(ui, reference, activity -> {
+                activity.busy = false;
                 if (result != null) {
-                    project = result;
-                    showProjectReady();
+                    activity.project = result;
+                    activity.showProjectReady();
                 } else {
-                    status.setText("Could not create dependency project: " + error);
-                    setControls(false);
+                    activity.status.setText("Could not create dependency project: " + error);
+                    activity.setControls(false);
                 }
             });
         });
@@ -143,37 +150,46 @@ public class DotNetDependencyActivity extends Activity {
         } catch (IOException metadataError) {
             status.setText("PROJECT HISTORY WARNING: " + metadataError.getMessage());
         }
+        final DotNetDependencyWorkspace activeProject = project;
+        final Context appContext = getApplicationContext();
+        final Handler ui = new Handler(Looper.getMainLooper());
+        final WeakReference<DotNetDependencyActivity> reference = new WeakReference<>(this);
         worker.execute(() -> {
             String result;
             try {
+                checkCancelled();
                 String loadError = com.tanvir.m12poc.NativeBridge.getLoadError();
                 if (loadError != null) throw new IOException(loadError);
-                java.io.File references = DecompilationWorkspace.ensureReferences(getApplicationContext());
+                java.io.File references = DecompilationWorkspace.ensureReferences(appContext);
+                checkCancelled();
                 result = com.tanvir.m12poc.NativeBridge.resolveDependencies(
-                        project.getRootAssembly().getAbsolutePath(),
-                        project.getDependencyDirectory().getAbsolutePath(),
+                        activeProject.getRootAssembly().getAbsolutePath(),
+                        activeProject.getDependencyDirectory().getAbsolutePath(),
                         references.getAbsolutePath());
                 if (result == null) result = "M13 DEPENDENCY RESOLVER ERROR: No result was returned.";
-                project.saveReport(result);
+                activeProject.saveReport(result);
+            } catch (InterruptedIOException cancelled) {
+                // Keep the in-progress journal marker so the next project open can report recovery.
+                return;
             } catch (Throwable error) {
+                if (Thread.currentThread().isInterrupted()) return;
                 result = "DROIDINSPECT — OFFLINE .NET DEPENDENCY RESOLUTION\nRESULT: FAIL\n"
                         + error.getClass().getSimpleName() + ": "
                         + (error.getMessage() == null ? "No additional details." : error.getMessage());
-                try { project.saveReport(result); } catch (Exception ignored) { }
+                try { activeProject.saveReport(result); } catch (Exception ignored) { }
             }
             try {
-                new ProjectWorkspaceMetadata(project.getRootAssembly().getParentFile())
+                new ProjectWorkspaceMetadata(activeProject.getRootAssembly().getParentFile())
                         .finishOperation("DEPENDENCY_RESOLUTION",
                                 result.contains("RESULT: FAIL") ? "FAIL" : "COMPLETED");
             } catch (IOException ignored) { }
             final String output = result;
-            runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) return;
-                busy = false;
-                report.setText(output);
-                status.setText("Offline dependency analysis finished. Original assembly was not modified.");
-                setControls(true);
-                exportButton.setEnabled(project.getReportFile().isFile());
+            postToUi(ui, reference, activity -> {
+                activity.busy = false;
+                activity.report.setText(output);
+                activity.status.setText("Offline dependency analysis finished. Original assembly was not modified.");
+                activity.setControls(true);
+                activity.exportButton.setEnabled(activeProject.getReportFile().isFile());
             });
         });
     }
@@ -202,22 +218,25 @@ public class DotNetDependencyActivity extends Activity {
             busy = true;
             setControls(false);
             status.setText("Importing selected local dependency files into private storage…");
+            final DotNetDependencyWorkspace activeProject = project;
+            final Context appContext = getApplicationContext();
+            final Handler ui = new Handler(Looper.getMainLooper());
+            final WeakReference<DotNetDependencyActivity> reference = new WeakReference<>(this);
             worker.execute(() -> {
                 String result;
                 try {
-                    List<java.io.File> imported = project.importDependencies(getApplicationContext(), uris);
-                    new ProjectWorkspaceMetadata(project.getRootAssembly().getParentFile())
+                    List<java.io.File> imported = activeProject.importDependencies(appContext, uris);
+                    new ProjectWorkspaceMetadata(activeProject.getRootAssembly().getParentFile())
                             .recordOperation("DEPENDENCY_IMPORT", imported.size() + " file(s)");
                     result = "Imported " + imported.size() + " local dependency file(s).";
                 } catch (Exception error) {
                     result = "DEPENDENCY IMPORT FAILED: " + error.getMessage();
                 }
                 final String message = result;
-                runOnUiThread(() -> {
-                    if (isFinishing() || isDestroyed()) return;
-                    busy = false;
-                    showProjectReady();
-                    status.setText(message);
+                postToUi(ui, reference, activity -> {
+                    activity.busy = false;
+                    activity.showProjectReady();
+                    activity.status.setText(message);
                 });
             });
         } else if (requestCode == REQUEST_EXPORT_REPORT) {
@@ -225,10 +244,14 @@ public class DotNetDependencyActivity extends Activity {
             if (destination == null) return;
             busy = true;
             setControls(false);
+            final File reportFile = project.getReportFile();
+            final Context appContext = getApplicationContext();
+            final Handler ui = new Handler(Looper.getMainLooper());
+            final WeakReference<DotNetDependencyActivity> reference = new WeakReference<>(this);
             worker.execute(() -> {
                 String errorText = null;
-                try (FileInputStream input = new FileInputStream(project.getReportFile());
-                     OutputStream output = getContentResolver().openOutputStream(destination)) {
+                try (FileInputStream input = new FileInputStream(reportFile);
+                     OutputStream output = appContext.getContentResolver().openOutputStream(destination)) {
                     if (output == null) throw new IOException("Cannot open report export destination.");
                     byte[] buffer = new byte[8192];
                     int count;
@@ -238,15 +261,29 @@ public class DotNetDependencyActivity extends Activity {
                     errorText = error.getMessage();
                 }
                 final String error = errorText;
-                runOnUiThread(() -> {
-                    if (isFinishing() || isDestroyed()) return;
-                    busy = false;
-                    setControls(true);
-                    if (error == null) Toast.makeText(this, "Dependency report exported.", Toast.LENGTH_LONG).show();
-                    else status.setText("REPORT EXPORT FAILED: " + error);
+                postToUi(ui, reference, activity -> {
+                    activity.busy = false;
+                    activity.setControls(true);
+                    if (error == null) Toast.makeText(activity, "Dependency report exported.", Toast.LENGTH_LONG).show();
+                    else activity.status.setText("REPORT EXPORT FAILED: " + error);
                 });
             });
         }
+    }
+
+    private interface UiAction {
+        void run(DotNetDependencyActivity activity);
+    }
+
+    private static void postToUi(Handler handler,
+                                 WeakReference<DotNetDependencyActivity> reference,
+                                 UiAction action) {
+        handler.post(() -> {
+            DotNetDependencyActivity activity = reference.get();
+            if (activity == null || activity.destroyed
+                    || activity.isFinishing() || activity.isDestroyed()) return;
+            action.run(activity);
+        });
     }
 
     private void setControls(boolean ready) {
@@ -261,6 +298,7 @@ public class DotNetDependencyActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        destroyed = true;
         worker.shutdownNow();
         super.onDestroy();
     }
