@@ -3409,6 +3409,7 @@ Additional M20 changes since the previous checkpoint:
 - `AssemblyComparisonActivity` now checks cancellation between inspection stages and during input copy, and suppresses callbacks after destruction; its temporary copies remain cleaned in the worker's `finally` block.
 - `DotNetDependencyActivity` now checks cancellation while reading saved reports and exporting reports; its UI callbacks already check activity lifecycle state.
 - `.github/workflows/phase1-android.yml` now inspects the actual debug and release APK ZIP entries, verifies that the packaged native libraries are ARM64-only and include all four expected libraries, measures compressed and uncompressed native payload bytes and APK file size, enforces a 100 MiB uncompressed native payload ceiling, and publishes `packaged-native-inventory.txt` as an artifact.
+- Existing input bounds reviewed during this pass include 512 MiB for individual APK/managed-assembly imports, 16 MiB for imported signing keystores, 512 MiB per split APK with a 1 GiB total split-set cap, 128 MiB for one extracted embedded .NET resource, and 1 MiB per workspace metadata file. Device-level peak-memory/performance validation remains pending.
 - These M20 changes are implementation/workflow hardening only. They have not yet been validated by a successful Android build or runner-backed Actions execution. Other background activities still require a complete lifecycle/cancellation audit.
 
 **Files changed in this continuation:**
