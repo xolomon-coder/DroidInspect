@@ -341,7 +341,7 @@ Build progressively, preserve existing work, verify actual functionality, mainta
 
 # DroidInspect — Product Specification and Development Plan
 
-Last project-plan update: 2026-11-16 (M12–M15 implementation and CI update)
+Last project-plan update: 2026-11-16 (M12–M16 implementation and CI update)
 
 ## 1. App Goal
 
@@ -598,7 +598,7 @@ The long-term roadmap has **20 milestones**, grouped into eight phases. M1–M10
 - Add opt-in online-assisted retrieval only with explicit consent, trusted sources, integrity/provenance reporting, licensing checks, and no automatic upload of inspected files.
 - Exit criteria: representative dependency graphs resolve accurately or produce precise, actionable unresolved/mismatch reports; no silent incompatible substitutions.
 
-**M14 — Assembly Explorer and advanced IL Viewer (IN PROGRESS — NAMESPACE TREE ADDED; LATEST CI PENDING)**
+**M14 — Assembly Explorer and advanced IL Viewer (IN PROGRESS — NAMESPACE TREE ADDED; ANDROID CI PASS; DEVICE ACCEPTANCE PENDING)**
 - Extend the existing metadata and IL browsing foundations into a navigable assembly tree: assemblies, modules, namespaces, types, fields, properties, events, methods, and references.
 - Improve method navigation, token/RVA display, raw IL inspection, instruction bytes, operands, and cross-reference navigation.
 - Add filters, sorting, bookmarks, and contextual search without removing current inspection/editing behavior.
@@ -610,7 +610,7 @@ The long-term roadmap has **20 milestones**, grouped into eight phases. M1–M10
 - Preserve original assemblies and untouched decompilation output; save edits as separate source files.
 - Exit criteria: multi-file source projects can be edited and saved reliably on the phone, with editor usability and memory behavior tested on-device.
 
-**M16 — Assembly comparison and resource extraction**
+**M16 — Assembly comparison and resource extraction (IN PROGRESS — STRUCTURAL COMPARISON AND EMBEDDED RESOURCE EXPORT IMPLEMENTED; CI PASS; INTEGRITY/DEVICE ACCEPTANCE PENDING)**
 - Compare two assemblies by identity, references, types, members, signatures, metadata, and supported IL changes.
 - Present additions, removals, and modifications without implying semantic equivalence where only structural comparison is available.
 - Browse and extract supported embedded resources to separate user-selected output files; preserve original inputs.
@@ -650,7 +650,7 @@ The long-term roadmap has **20 milestones**, grouped into eight phases. M1–M10
 ## 4.1 Development Log — 2026-11-16
 
 Latest inspected repository branch: `main`.
-Latest inspected HEAD at this documentation update: `687d994eda328a1ca6b32e7f40d1f46fd9f9df86`.
+Latest inspected HEAD at this documentation update: `4a0e99310d6ea9184511b2bcd6c09cd31122ecfa`.
 
 ### M12/M13 verification evidence
 - Commit `7922a821cc5a4a5912b75e61ae64a281bbd9202c`: reject compiler output paths that equal the preserved original assembly.
@@ -663,10 +663,22 @@ Latest inspected HEAD at this documentation update: `687d994eda328a1ca6b32e7f40d
 - M13 host tests now distinguish exact local resolution from framework compatibility. A .NET 8 target against the bundled .NET 11 reference profile is reported as INCOMPLETE even when its discovered dependency resolves exactly.
 
 ### M14/M15 implementation
-- Commit `687d994eda328a1ca6b32e7f40d1f46fd9f9df86`: add namespace entries and namespace-to-type navigation in Assembly Explorer; Android CI is running for this latest change.
+- Commit `687d994eda328a1ca6b32e7f40d1f46fd9f9df86`: add namespace entries and namespace-to-type navigation in Assembly Explorer.
 - Commits `33123c8b6437b80766da0a9df39f1326afd9e2a8`, `b4fc6c5a8bf000950c8d3b327afa4b42f51636c2`, and `be80028b884cf509c1c5b2814de81b79f77f4481`: add lightweight offline C# syntax highlighting, line numbers, current-file find/replace, and retain the existing source-file selector as the lightweight file navigator.
-- Android CI run [43777281953](https://github.com/xolomon-coder/DroidInspect/actions/runs/43777281953) passed for the M15 editor build. A later full Android CI run for the namespace-navigation change is pending at the time of this update.
-- No M12–M15 device acceptance is claimed. Device-only usability, performance, compiler execution, and integration tests remain reserved for the consolidated final device session.
+- Android CI run [43777578124](https://github.com/xolomon-coder/DroidInspect/actions/runs/43777578124) passed for namespace navigation; Android CI run [43777648793](https://github.com/xolomon-coder/DroidInspect/actions/runs/43777648793) passed for the M15 editor and documentation integration.
+- M14/M15 remain implementation-in-progress: advanced metadata/signature cross-reference coverage, editor tabs and phone usability still require work and/or device verification.
+
+### M16 implementation — 2026-11-16
+- Commits `4a8a3b206605e1dbc2198b2cbc641ea571f8f64f`, `c3b73b2b99a0600c6fe6782fefd3a44d15e250a2`, `9bce646a913d8281041246fec5aff904b8f7e245`, `b2323399309cc737d378af0bbc6129a54ad8d17d`, `eaa64fd8b186fe812e97d60a1b56d16c5226ffff`, and `3488e8495a9db0178dfb99fc759da06dc5b64682`: add the production structural assembly comparison screen, compare identity/reference/type/member/property/event metadata and raw IL body records, and expose it in the main menu.
+- Commits `4f033b684a68496ac7d6c337738e79e76fd34058`, `2014a5b4ba3be0e1f8839630edaa93301d0aa9d5`, `ea7aa263b961d01cb9b100cfcdf1f3942b7e5291`, `288325ee497811c5bdd24e128415694821e1f619`, `a7d202b7de4d03c533d758a117cc3bdb38f1dd6c`, `6ce33b76ff48978fc96e06ead3f57d35e9f96e00`, and `255befbf8d88c84214d786676c6f7f4f3717decc`: decode ManifestResource metadata, add bounds-checked embedded resource extraction, add a production resource browser/export screen, and add its main-menu entry.
+- Commits `e78a2e3737ae61842c65a7ec44352cf7726b4a6f`, `2486f2965a0c35627f495977dea92a405339bdc3`, `05d3db809cb29c1fd40f28b4ed95d7acc9ec9d99`, and `4a0e99310d6ea9184511b2bcd6c09cd31122ecfa`: correct metadata decoder newline handling and add a synthetic ManifestResource metadata fixture with embedded-resource assertions.
+- Android CI run [43779727702](https://github.com/xolomon-coder/DroidInspect/actions/runs/43779727702) completed SUCCESS on commit `4a0e99310d6ea9184511b2bcd6c09cd31122ecfa`. Host metadata/IL/DEX tests, Android debug and release builds, APK signing/tamper checks, production native payload checks, and offline permission checks passed. Artifact `DroidInspect-Phase3-builds` was published (69,561,735 bytes; SHA-256 `99dc462b7bec74b561ff2a1b4a592f8edc59652115bd59ed52b0910175ecba7e`).
+- M16 is not complete yet: current comparison is structural, not semantic; signature-level comparison is not implemented; parser display caps can omit records; linked resources are listed but not exported; the synthetic fixture verifies resource metadata decoding, but end-to-end embedded payload extraction integrity still needs a dedicated automated fixture and final device verification. Original inputs are copied to cache and never opened for writing.
+- The production manifest and permission audit remains offline; no Internet permission was added. Device acceptance for M12–M16 is pending the consolidated final test session.
+
+## 5. Development and Creation Process
+
+This is the required process for building DroidInspect:
 
 ## 5. Development and Creation Process
 
