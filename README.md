@@ -3688,9 +3688,10 @@ Additional M20 changes since the previous checkpoint:
 - `30cb1c324cf6928bc2e246df169ffc0b511b81db` — bound APK project history, reports and tree listings.
 - `4d9f40e7685088610c5ecdf2b393895094f4b0e9` — handle inventory safety-limit/read errors in the project UI.
 - `e216e249e6101f73a8d3f08717c4183546d85d17` — add the regression suite to production CI.
+- `10894133b8bcaf542f9b1e58b6c2c9ff5fdc03d6` — scan existing APK history before creating the next snapshot.
 
 **Verification state:**
-- Current source/workflow checkpoint: `e216e249e6101f73a8d3f08717c4183546d85d17` on `main`.
+- Current source/workflow checkpoint: `10894133b8bcaf542f9b1e58b6c2c9ff5fdc03d6` on `main`.
 - No host execution or Android build is claimed for these latest changes.
 - The GitHub connector can inspect known workflow run IDs and jobs but does not expose repository-wide push-run enumeration. The commit-status query returned no status records, and the commit-workflow query returned no runs because it only exposes pull-request-triggered runs. This is not evidence of a successful build.
 - The previously inspectable production run `43975311959` remains a runner-allocation failure with zero steps and no artifacts. No retry was issued without evidence that runner assignment had recovered.
