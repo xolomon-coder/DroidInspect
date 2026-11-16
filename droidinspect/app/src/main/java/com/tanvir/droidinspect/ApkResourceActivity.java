@@ -65,6 +65,7 @@ public final class ApkResourceActivity extends Activity {
     private ApkModule apkModule;
     private ResourceEntry selectedResource;
     private Uri sourceUri;
+    private boolean returnOutputUri;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -86,6 +87,7 @@ public final class ApkResourceActivity extends Activity {
         saveButton.setEnabled(false);
         saveButton.setOnClickListener(v -> prepareModifiedApk());
 
+        returnOutputUri = getIntent().getBooleanExtra("return_output_uri", false);
         String raw = getIntent().getStringExtra("apk_uri");
         if (raw == null) {
             status.setText("No APK document was supplied.");
@@ -364,6 +366,10 @@ public final class ApkResourceActivity extends Activity {
             status.setText("Save cancelled. The original APK remains unchanged.");
             deletePendingOutput();
             saveButton.setEnabled(true);
+            if (returnOutputUri) {
+                setResult(RESULT_CANCELED);
+                finish();
+            }
             return;
         }
         Uri destination = data.getData();
@@ -387,6 +393,17 @@ public final class ApkResourceActivity extends Activity {
                 else summary.append("\n\nEXPORT FAILED: " + failure);
                 deletePendingOutput();
                 saveButton.setEnabled(true);
+                if (returnOutputUri) {
+                    Intent result = new Intent();
+                    if (failure == null) {
+                        result.setData(destination);
+                        result.putExtra("exported_apk_uri", destination.toString());
+                        setResult(RESULT_OK, result);
+                    } else {
+                        setResult(RESULT_CANCELED);
+                    }
+                    finish();
+                }
             });
         });
     }
