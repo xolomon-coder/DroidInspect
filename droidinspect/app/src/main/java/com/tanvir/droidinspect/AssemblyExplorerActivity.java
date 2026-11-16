@@ -33,6 +33,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.security.MessageDigest;
 
 /** Metadata-token Assembly Explorer layered over the existing bounded PE and IL readers. */
 public final class AssemblyExplorerActivity extends Activity {
@@ -53,6 +54,7 @@ public final class AssemblyExplorerActivity extends Activity {
     private TextView title, status;
     private Button backButton;
     private File sourceCopy;
+    private AssemblyExplorerBookmarkStore bookmarkStore;
     private String currentOwner;
     private String currentNamespace;
 
@@ -133,6 +135,7 @@ public final class AssemblyExplorerActivity extends Activity {
             try {
                 sourceCopy = File.createTempFile("droidinspect-explorer-", ".bin", getCacheDir());
                 copyUri(uri, sourceCopy);
+                bookmarkStore = new AssemblyExplorerBookmarkStore(getFilesDir(), sha256(sourceCopy));
                 metadata = FileInspectionEngine.inspectPe(sourceCopy, sourceCopy.getName());
                 il = DotNetIlReader.read(sourceCopy);
             } catch (Exception error) {
@@ -472,17 +475,38 @@ public final class AssemblyExplorerActivity extends Activity {
     }
 
     private Set<String> getBookmarks() {
-        return new HashSet<>(getSharedPreferences("assembly_explorer_bookmarks", MODE_PRIVATE)
-                .getStringSet("tokens", new HashSet<>()));
+        if (bookmarkStore == null) return new HashSet<>();
+        try {
+            return bookmarkStore.read();
+        } catch (Exception error) {
+            status.setText("BOOKMARK STORAGE WARNING: " + safe(error.getMessage()));
+            return new HashSet<>();
+        }
     }
 
     private void toggleBookmark(String token) {
-        Set<String> bookmarks = getBookmarks();
-        if (bookmarks.contains(token)) bookmarks.remove(token);
-        else bookmarks.add(token);
-        getSharedPreferences("assembly_explorer_bookmarks", MODE_PRIVATE)
-                .edit().putStringSet("tokens", bookmarks).apply();
-        filter();
+        if (bookmarkStore == null) {
+            Toast.makeText(this, "Assembly bookmark storage is not ready.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        try {
+            bookmarkStore.toggle(token);
+            filter();
+        } catch (Exception error) {
+            Toast.makeText(this, "Could not save bookmark: " + safe(error.getMessage()), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private static String sha256(File file) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        try (InputStream input = new java.io.FileInputStream(file)) {
+            byte[] buffer = new byte[32768];
+            int count;
+            while ((count = input.read(buffer)) != -1) digest.update(buffer, 0, count);
+        }
+        StringBuilder hex = new StringBuilder(64);
+        for (byte value : digest.digest()) hex.append(String.format(Locale.ROOT, "%02x", value & 0xff));
+        return hex.toString();
     }
 
     private void copyToken(String token) {
