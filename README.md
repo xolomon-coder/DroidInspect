@@ -3095,3 +3095,39 @@ M19 and M20 are being completed as one final integration phase, while retaining 
 - Remaining M20 work includes a systematic large-input/low-memory review, cancellation/lifecycle review for long-running operations, Android/ABI compatibility and CodeAssist reproducibility evidence, licensing/dependency-size audit, and final cross-workflow regression.
 - The production CI workflow for commit 67665bdec726dba5e2998b8c9898459a5459f933 (run https://github.com/xolomon-coder/DroidInspect/actions/runs/43863286380) again failed before runner allocation: job 133285312446 has runner_id=0, no steps and no runner logs. No host tests or Android build ran. This is an Actions infrastructure failure, not a source-level pass or failure.
 - M19 and M20 remain IN PROGRESS. Do not begin the consolidated phone acceptance session until the final implementation and a complete production CI run are available. Android device acceptance is necessarily a final user-device gate and cannot be truthfully claimed by cloud source changes.
+
+
+### Latest main checkpoint and new-chat handoff — 2026-11-16
+
+**Repository state checked before this note**
+- Branch: `main` only; no alternate development branch is to be created.
+- HEAD: `db04a0c228d8813fe442f99283a110b73f3b40dc` — “Document combined M19 M20 integration checkpoint”.
+- The M12 editor XML correction from `android:hintTextColor` to `android:textColorHint` is present in the current source.
+- The production manifest remains offline-only; do not add Internet permission without explicit user approval.
+
+**Milestone position**
+- M11: accepted by the user; preserve it and do not repeat its device test unnecessarily.
+- M12: production C# source workspace, offline Roslyn compiler wiring, separate rebuilt DLL output, original-assembly preservation and structural compatibility report are implemented. Cloud proof runs are recorded above. Remaining limitations include the single bundled .NET 11 reference profile, unresolved Native AOT trim-analysis warnings (IL2091, IL2050, IL2072), and final Android-device compiler execution. Do not claim universal .NET project recompilation or runtime replacement compatibility.
+- M13: offline dependency resolver and exact-identity/framework warning behavior are implemented with host coverage. The bundled framework profile remains .NET 11.0; additional framework packs and device acceptance remain pending.
+- M14/M15: namespace/type navigation and the lightweight C# editor improvements are implemented. Advanced cross-reference coverage, tabs and device usability still need review/acceptance.
+- M16: structural assembly comparison and bounded embedded-resource extraction are implemented with host tests. It is not semantic equivalence; linked-resource export and full human-readable signature decoding remain limitations.
+- M17: implementation complete for the supported scope, with host/CI evidence recorded above. Split APK inventory does not merge/install splits or produce a combined split graph; resource-to-code mapping and some DEX reference kinds are unsupported.
+- M18: implementation complete for supported manifest/package/version and named string-resource edits, guided rebuild/sign/verify workflow and conservative update compatibility assessment. DEX bytecode editing is not supported; device acceptance remains pending.
+- M19: unified APK/.NET project launcher, shared project metadata, bounded project discovery, notes/bookmarks/saved searches, operation history/recovery markers and assembly-scoped bookmarks are implemented. Host checks are recorded as local passes, but the latest complete production Android CI has not been verified. Final Android close/reopen/recovery acceptance remains pending.
+- M20: final integration and hardening is still in progress. Complete the systematic large-input/low-memory, cancellation/lifecycle, Android/ABI and CodeAssist reproducibility, licensing/dependency-size, permissions and regression audits. Keep unsupported cases explicit.
+
+**Latest production Android CI state**
+- Run [43863445524](https://github.com/xolomon-coder/DroidInspect/actions/runs/43863445524) targets HEAD `db04a0c228d8813fe442f99283a110b73f3b40dc` and is marked `failure`.
+- The GitHub Actions job listing returned a completed failed job but no step details (`steps: null`). Therefore the available record does not establish whether the runner started or whether source compilation was attempted. Do not label this as a source build failure, runner-allocation failure, or PASS without retrieving job details/logs.
+- Earlier runs in this M19/M20 batch also show repeated failures before useful step evidence was available. Do not infer a successful Android build from the older M17/M18 green runs; those predate the current M19/M20 changes.
+- Immediate next action: retrieve the detailed job/run record and logs for run `43863445524`. If no runner executed the job, wait for runner capacity and trigger a fresh main-branch run. If steps did execute, diagnose the first real failing step, fix it on `main`, and rerun the full required workflow. Inspect every job and artifact; never stop after merely triggering Actions.
+
+**Required continuation for the next chat**
+1. Re-fetch the current `main` HEAD and read this README before editing; the commit above is a checkpoint, not a guarantee that main has not advanced.
+2. Continue M19/M20 from the existing implementation. Do not recreate completed milestones, restart M11, or begin a new branch.
+3. Finish the M19 project-state persistence/reopen/recovery tests and M20 reliability, compatibility, licensing, permissions, payload-size and performance audits. Preserve original APKs/assemblies and all existing production features.
+4. Resolve and obtain a successful full production Android CI run against the final source, including host regressions, debug/release Android builds, signing/tamper verification, native ABI/payload checks, offline permission audit and artifact verification.
+5. Do not start the consolidated phone test until implementation and cloud verification are complete. Then provide one consolidated device test plan covering the remaining M12–M20 acceptance points; the user prefers to test once at the end.
+6. On final completion, update README with exact commit, all CI run IDs/conclusions, artifacts and hashes, supported limitations, exact files/changes, and the stopping point. Deliver the GitHub `main.zip` and concise CodeAssist build/install instructions. Do not use a temporary APK artifact as the normal delivery.
+
+**Current stopping point:** M19/M20 integration and CI verification. Next work is to inspect the detailed failure state for run `43863445524`, then continue the M19/M20 verification/fix loop. No consolidated device acceptance or final release PASS is claimed.
