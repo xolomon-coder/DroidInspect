@@ -265,7 +265,7 @@ public final class AssemblyComparisonActivity extends Activity {
         out.append("Baseline entries: ").append(left.size()).append("; candidate entries: ").append(right.size()).append('\n');
         out.append("Added in candidate: ").append(added.size()).append('\n');
         for (String item : added) out.append("  + ").append(item).append('\n');
-        out.append("Removed from candidate: ").append(removed.size()).append('\n");
+        out.append("Removed from candidate: ").append(removed.size()).append('\n');
         for (String item : removed) out.append("  - ").append(item).append('\n');
         if (added.isEmpty() && removed.isEmpty()) out.append("No structural line differences detected.\n");
         out.append('\n');
