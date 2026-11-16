@@ -252,19 +252,12 @@ public final class ApkBuildPipelineActivity extends Activity {
                     showError(failure);
                     return;
                 }
-                boolean samePackage = originalPackage.equals(pkg) && !"(unknown)".equals(pkg);
-                boolean higherVersion = originalVersionCode >= 0 && versionCode > originalVersionCode;
-                boolean signerMatch = !originalSigners.isEmpty() && originalSigners.equals(signers);
-                String compatibility;
-                if (samePackage && higherVersion && signerMatch)
-                    compatibility = "Potential update-compatible package identity (device/runtime checks still required).";
-                else if (!samePackage)
-                    compatibility = "NOT an update of the original package: package identity changed.";
-                else if (!signerMatch)
-                    compatibility = "NOT update-compatible with the original signing identity: signer certificate differs or original signer was unavailable.";
-                else if (!higherVersion)
-                    compatibility = "Not a version-code upgrade over the original APK.";
-                else compatibility = "Update compatibility is unresolved.";
+                ApkUpdateCompatibility.Assessment assessment = ApkUpdateCompatibility.assess(
+                        originalPackage, originalVersionCode, originalSigners, pkg, versionCode, signers);
+                boolean samePackage = assessment.samePackage;
+                boolean higherVersion = assessment.higherVersion;
+                boolean signerMatch = assessment.signerMatch;
+                String compatibility = assessment.explanation;
 
                 StringBuilder finalReport = new StringBuilder("\nFINAL SIGNED OUTPUT\n");
                 finalReport.append("Signature verification: ").append(signaturePass ? "PASS" : "FAIL").append('\n');
