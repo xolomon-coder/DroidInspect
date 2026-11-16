@@ -50,6 +50,7 @@ public final class ApkSigningActivity extends Activity {
     private ProgressBar progress;
     private File apkFile, keyStoreFile, signedFile;
     private boolean generatedKey;
+    private boolean returnSignedUri;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -76,6 +77,9 @@ public final class ApkSigningActivity extends Activity {
         verifyButton.setOnClickListener(v -> verifyApk());
         exportButton.setOnClickListener(v -> exportSigned());
         updateButtons();
+        returnSignedUri = getIntent().getBooleanExtra("return_signed_apk", false);
+        String initialApk = getIntent().getStringExtra("apk_uri");
+        if (initialApk != null) loadApkUri(Uri.parse(initialApk));
     }
 
     private void pick(int request, String mime) {
@@ -90,7 +94,12 @@ public final class ApkSigningActivity extends Activity {
         super.onActivityResult(request, result, data);
         if (request == SAVE_APK) {
             if (result != RESULT_OK || data == null || data.getData() == null) {
-                status.setText("Export cancelled; original APK remains unchanged."); return;
+                status.setText("Export cancelled; original APK remains unchanged.");
+                if (returnSignedUri) {
+                    setResult(RESULT_CANCELED);
+                    finish();
+                }
+                return;
             }
             Uri destination = data.getData();
             setBusy(true, "Exporting verified signed APK…");
@@ -107,6 +116,17 @@ public final class ApkSigningActivity extends Activity {
                 runOnUiThread(() -> {
                     setBusy(false, failure == null ? "Signed APK exported." : "Export failed: " + failure);
                     if (failure != null) showError(failure);
+                    if (returnSignedUri) {
+                        Intent result = new Intent();
+                        if (failure == null) {
+                            result.setData(destination);
+                            result.putExtra("signed_apk_uri", destination.toString());
+                            setResult(RESULT_OK, result);
+                        } else {
+                            setResult(RESULT_CANCELED);
+                        }
+                        finish();
+                    }
                 });
             });
             return;
@@ -114,26 +134,7 @@ public final class ApkSigningActivity extends Activity {
         if (result != RESULT_OK || data == null || data.getData() == null) return;
         Uri uri = data.getData();
         if (request == PICK_APK) {
-            setBusy(true, "Copying selected APK…");
-            worker.execute(() -> {
-                File copy = null;
-                String error = null;
-                try {
-                    copy = copyDocument(uri, ".apk", MAX_APK);
-                    if (!isZip(copy)) throw new IllegalArgumentException("Selected file is not a readable APK/ZIP archive.");
-                } catch (Exception e) { error = message(e); if (copy != null) copy.delete(); copy = null; }
-                final File ready = copy; final String failure = error;
-                runOnUiThread(() -> {
-                    setBusy(false, failure == null ? "APK ready." : "APK selection failed.");
-                    if (failure == null) {
-                        if (apkFile != null) apkFile.delete();
-                        apkFile = ready;
-                        selectedApk.setText("APK: " + ready.getName() + " (" + ready.length() + " bytes)");
-                        if (signedFile != null) { signedFile.delete(); signedFile = null; }
-                    } else showError(failure);
-                    updateButtons();
-                });
-            });
+            loadApkUri(uri);
         } else if (request == PICK_KEYSTORE) {
             setBusy(true, "Copying keystore into private app cache…");
             worker.execute(() -> {
@@ -152,6 +153,29 @@ public final class ApkSigningActivity extends Activity {
                 });
             });
         }
+    }
+
+    private void loadApkUri(Uri uri) {
+        setBusy(true, "Copying selected APK…");
+        worker.execute(() -> {
+            File copy = null;
+            String error = null;
+            try {
+                copy = copyDocument(uri, ".apk", MAX_APK);
+                if (!isZip(copy)) throw new IllegalArgumentException("Selected file is not a readable APK/ZIP archive.");
+            } catch (Exception e) { error = message(e); if (copy != null) copy.delete(); copy = null; }
+            final File ready = copy; final String failure = error;
+            runOnUiThread(() -> {
+                setBusy(false, failure == null ? "APK ready." : "APK selection failed.");
+                if (failure == null) {
+                    if (apkFile != null) apkFile.delete();
+                    apkFile = ready;
+                    selectedApk.setText("APK: " + ready.getName() + " (" + ready.length() + " bytes)");
+                    if (signedFile != null) { signedFile.delete(); signedFile = null; }
+                } else showError(failure);
+                updateButtons();
+            });
+        });
     }
 
     private File copyDocument(Uri uri, String suffix, long limit) throws Exception {
