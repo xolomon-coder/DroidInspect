@@ -297,21 +297,25 @@ final class ApkProjectWorkspace {
     }
 
     private void saveMetadata(long rev, String originalHash, String workingHash) throws IOException {
+        File metadata = new File(root, "project.properties");
+        Properties previous = metadata.isFile() ? loadProperties(metadata) : new Properties();
         Properties p = new Properties();
         p.setProperty("id", id);
         p.setProperty("name", name);
-        p.setProperty("created", String.valueOf(root.lastModified()));
+        p.setProperty("created", previous.getProperty("created", String.valueOf(System.currentTimeMillis())));
         p.setProperty("updated", String.valueOf(System.currentTimeMillis()));
         p.setProperty("revision", String.valueOf(rev));
         p.setProperty("originalSha256", originalHash);
         p.setProperty("workingSha256", workingHash);
         File temp = new File(root, "project.properties.tmp");
         try (FileOutputStream out = new FileOutputStream(temp)) { p.store(out, "DroidInspect APK project"); }
-        File metadata = new File(root, "project.properties");
-        if (metadata.exists() && !metadata.delete()) throw new IOException("Cannot update project metadata.");
         if (!temp.renameTo(metadata)) {
-            copyFile(temp, metadata);
-            temp.delete();
+            if (metadata.exists() && !metadata.delete())
+                throw new IOException("Cannot replace existing project metadata.");
+            if (!temp.renameTo(metadata)) {
+                copyFile(temp, metadata);
+                temp.delete();
+            }
         }
         revision = rev;
     }
