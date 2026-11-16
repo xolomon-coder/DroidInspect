@@ -12,6 +12,7 @@ import android.widget.Toast;
 
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -99,6 +100,7 @@ public class DotNetDependencyActivity extends Activity {
                     byte[] saved = new byte[(int) Math.min(project.getReportFile().length(), 2L * 1024L * 1024L)];
                     int offset = 0;
                     while (offset < saved.length) {
+                        checkCancelled();
                         int count = input.read(saved, offset, saved.length - offset);
                         if (count < 0) break;
                         offset += count;
@@ -231,7 +233,7 @@ public class DotNetDependencyActivity extends Activity {
                     if (output == null) throw new IOException("Cannot open report export destination.");
                     byte[] buffer = new byte[8192];
                     int count;
-                    while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+                    while ((count = input.read(buffer)) != -1) { checkCancelled(); output.write(buffer, 0, count); }
                     output.flush();
                 } catch (Exception error) {
                     errorText = error.getMessage();
@@ -252,6 +254,11 @@ public class DotNetDependencyActivity extends Activity {
         importButton.setEnabled(ready && !busy);
         resolveButton.setEnabled(ready && !busy);
         exportButton.setEnabled(ready && !busy && project != null && project.getReportFile().isFile());
+    }
+
+    private static void checkCancelled() throws InterruptedIOException {
+        if (Thread.currentThread().isInterrupted())
+            throw new InterruptedIOException("Dependency workspace operation cancelled because the activity was closed.");
     }
 
     @Override protected void onDestroy() {
