@@ -52,6 +52,9 @@ public final class DotNetMetadataReaderSelfTest {
                 require(report, "MethodSpec token 0x2B000001");
                 require(report, "ModuleRef token 0x1A000001");
                 require(report, "StandAloneSig token 0x11000001");
+                require(report, "MANIFEST RESOURCES (1)");
+                require(report, "TestNamespace.SampleResource");
+                require(report, "implementation=embedded");
                 if (report.contains("Metadata decoding: INCOMPLETE")) {
                     throw new AssertionError(report);
                 }
@@ -77,6 +80,7 @@ public final class DotNetMetadataReaderSelfTest {
         int typeRefName = strings.add("ExternalType");
         int memberRefName = strings.add("Call");
         int moduleRefName = strings.add("native.dll");
+        int resourceName = strings.add("TestNamespace.SampleResource");
         byte[] stringHeap = strings.bytes();
         byte[] blobHeap = new byte[]{0};
         byte[] guidHeap = new byte[16];
@@ -88,7 +92,7 @@ public final class DotNetMetadataReaderSelfTest {
         long valid = (1L << 0) | (1L << 1) | (1L << 2) | (1L << 4) | (1L << 6)
                 | (1L << 10) | (1L << 17) | (1L << 18) | (1L << 20)
                 | (1L << 21) | (1L << 23) | (1L << 26) | (1L << 27)
-                | (1L << 32) | (1L << 35) | (1L << 43);
+                | (1L << 32) | (1L << 35) | (1L << 40) | (1L << 43);
         le64(t, valid); le64(t, 0);
         for (int i = 0; i < 16; i++) le32(t, 1);
 
@@ -124,6 +128,8 @@ public final class DotNetMetadataReaderSelfTest {
         // AssemblyRef: version, flags, key/token, name, culture, hash.
         le16(t, 4); le16(t, 0); le16(t, 0); le16(t, 0); le32(t, 0);
         le16(t, 0); le16(t, reference); le16(t, 0); le16(t, 0);
+        // ManifestResource: offset, flags, name, Implementation (0 = embedded).
+        le32(t, 0); le32(t, 1); le16(t, resourceName); le16(t, 0);
         // MethodSpec: MethodDef row 1 encoded with tag 0, instantiation blob.
         le16(t, 2); le16(t, 0);
 
