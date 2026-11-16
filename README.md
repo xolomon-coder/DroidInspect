@@ -3633,7 +3633,7 @@ Additional M20 changes since the previous checkpoint:
 - **M12–M18** remain implementation-integrated with consolidated device acceptance pending. **M11 remains user-accepted; do not repeat its acceptance tests.**
 
 **Exact next actions:**
-1. Obtain the main-branch production Actions run for commit 32041fc0f10641e84f16b4fd37dd75227c57224b and inspect its job, every host-test step and all artifacts. Do not retry while the job still reports runner_id=0 and zero steps.
+1. Obtain the main-branch production Actions run for the latest source commit d136de43b227fbc101298201091077bfbdcb9075 and inspect its job, every host-test step and all artifacts. Do not retry while the job still reports runner_id=0 and zero steps.
 2. Continue the source audit of remaining production project/dependency workers and bounded file listings; fix only demonstrated defects.
 3. On the first runner-backed execution, resolve real source/test/build failures, then inspect the debug/release APKs, signatures, tamper rejection, ARM64 payload, dependency graphs, license notices and SHA-256 output.
 4. Only after cloud/host release verification, prepare the single consolidated M12–M20 Android 11 / CodeAssist device-testing session.
