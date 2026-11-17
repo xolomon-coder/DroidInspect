@@ -48,6 +48,24 @@ public final class ProjectWorkspaceIndexSelfTest {
             }
             require(incomplete, "incomplete project is retained and identified");
 
+            File linkedRequiredProject = new File(root, "project_linked_required");
+            require(linkedRequiredProject.mkdir(), "create project with linked required path");
+            Files.write(new File(linkedRequiredProject, ".droidinspect-project").toPath(),
+                    "Linked required path\\nformat=1\\n".getBytes("UTF-8"));
+            File internalTarget = new File(linkedRequiredProject, "target.bin");
+            Files.write(internalTarget.toPath(), new byte[]{1});
+            Files.createSymbolicLink(new File(linkedRequiredProject, "src").toPath(),
+                    internalTarget.toPath());
+            List<ProjectWorkspaceIndex.Entry> linkedRequired = ProjectWorkspaceIndex.scan(
+                    root, ".droidinspect-project", "C# SOURCE", new String[]{"src"});
+            boolean linkedPathIncomplete = false;
+            for (ProjectWorkspaceIndex.Entry entry : linkedRequired) {
+                if ("project_linked_required".equals(entry.id))
+                    linkedPathIncomplete = "INCOMPLETE".equals(entry.state);
+            }
+            require(linkedPathIncomplete,
+                    "required project paths reject symbolic links even when targets remain inside the project");
+            
             File[] unrelated = new File[ProjectWorkspaceIndex.MAX_SCANNED_ROOT_ENTRIES + 1];
             for (int i = 0; i < unrelated.length; i++) {
                 unrelated[i] = new File(root, String.format("unrelated_%04d", i));

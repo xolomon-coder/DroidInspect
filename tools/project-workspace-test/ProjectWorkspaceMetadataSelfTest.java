@@ -73,6 +73,15 @@ public final class ProjectWorkspaceMetadataSelfTest {
             expectIOException(() -> new ProjectWorkspaceMetadata(linkedRoot).readOverview(),
                     "metadata symlink cannot escape project root");
 
+            File internalLinkRoot = new File(parent, "internal-link-project");
+            require(internalLinkRoot.mkdir(), "create in-project metadata symlink fixture");
+            File internalTarget = new File(internalLinkRoot, "internal-target.txt");
+            Files.write(internalTarget.toPath(), "must not be treated as notes".getBytes(StandardCharsets.UTF_8));
+            Files.createSymbolicLink(new File(internalLinkRoot, "notes.md").toPath(),
+                    internalTarget.toPath());
+            expectIOException(() -> new ProjectWorkspaceMetadata(internalLinkRoot).readOverview(),
+                    "metadata rejects symlinks even when their target is inside the project");
+
             File linkedWorkspaceRoot = new File(parent, "linked-workspace-root");
             Files.createSymbolicLink(linkedWorkspaceRoot.toPath(), firstRoot.toPath());
             expectIOException(() -> new ProjectWorkspaceMetadata(linkedWorkspaceRoot).readOverview(),

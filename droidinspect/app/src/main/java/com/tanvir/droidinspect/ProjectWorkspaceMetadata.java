@@ -186,8 +186,14 @@ final class ProjectWorkspaceMetadata {
     }
 
     private File child(String name) throws IOException {
-        File file = new File(root, name).getCanonicalFile();
-        if (!file.getPath().startsWith(root.getPath() + File.separator))
+        if (name == null || name.isEmpty() || name.indexOf('/') >= 0 || name.indexOf('\\\\') >= 0
+                || Files.isSymbolicLink(root.toPath()) || !root.isDirectory())
+            throw new IOException("Metadata path or project folder is unsafe.");
+        File candidate = new File(root, name);
+        if (Files.isSymbolicLink(candidate.toPath()))
+            throw new IOException("Metadata file is a symbolic link: " + name);
+        File file = candidate.getCanonicalFile();
+        if (!root.equals(file.getParentFile()))
             throw new IOException("Metadata path escaped the project folder.");
         return file;
     }

@@ -65,9 +65,7 @@ final class ProjectWorkspaceIndex {
             boolean complete = true;
             if (requiredPaths != null) for (String relative : requiredPaths) {
                 if (relative == null || relative.trim().isEmpty()) continue;
-                File required = new File(folder, relative).getCanonicalFile();
-                if (!required.getPath().startsWith(folder.getCanonicalPath() + File.separator)
-                        || !required.exists()) complete = false;
+                if (!hasSafeRequiredPath(folder, relative)) complete = false;
             }
             long updated = latestModified(folder, 0, new int[]{0});
             entries.add(new Entry(folder.getName(), kind, name,
@@ -99,6 +97,25 @@ final class ProjectWorkspaceIndex {
         }
         Collections.sort(entries, (a,b) -> Long.compare(b.updated, a.updated));
         return entries;
+    }
+
+    private static boolean hasSafeRequiredPath(File folder, String relative) throws IOException {
+        if (relative == null || relative.trim().isEmpty()) return false;
+        String normalized = relative.replace('\\\\', '/');
+        if (normalized.startsWith("/") || normalized.indexOf('\\0') >= 0) return false;
+        File canonicalRoot = folder.getCanonicalFile();
+        File current = folder;
+        for (String segment : normalized.split("/")) {
+            if (segment.isEmpty() || ".".equals(segment) || "..".equals(segment)) return false;
+            File next = new File(current, segment);
+            Path nextPath = next.toPath();
+            if (Files.isSymbolicLink(nextPath)
+                    || !Files.exists(nextPath, java.nio.file.LinkOption.NOFOLLOW_LINKS)) return false;
+            File canonical = next.getCanonicalFile();
+            if (!canonical.getPath().startsWith(canonicalRoot.getPath() + File.separator)) return false;
+            current = next;
+        }
+        return true;
     }
 
     private static String readName(File marker, String fallback) {
