@@ -331,19 +331,19 @@ public final class ApkProjectWorkspaceActivity extends Activity {
                 });
             });
         } else if (request == PICK_IMPORT) {
-            runProjectAction("Importing new working APK revision…", () -> {
-                project.replaceWorkingFromUri(uri);
+            runProjectAction("Importing new working APK revision…", active -> {
+                active.replaceWorkingFromUri(uri);
                 return "New working APK imported. Previous working APK was saved to history.";
             });
         } else if (request == PICK_EXPORT) {
-            runProjectAction("Exporting working APK…", () -> {
-                project.exportWorking(uri);
+            runProjectAction("Exporting working APK…", active -> {
+                active.exportWorking(uri);
                 return "Working APK exported. Project copy remains unchanged.";
             });
         } else if (request == PICK_REPORT_EXPORT && pendingReport != null) {
             File reportFile = pendingReport;
-            runProjectAction("Exporting project report…", () -> {
-                project.exportFile(reportFile, uri);
+            runProjectAction("Exporting project report…", active -> {
+                active.exportFile(reportFile, uri);
                 return "Project report exported.";
             });
         }
