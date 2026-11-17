@@ -563,21 +563,21 @@ public final class ApkResourceActivity extends Activity {
     private static void closeModule(ApkModule module, Throwable primaryFailure) {
         if (module == null) return;
         try { module.close(); }
-        catch (Exception | RuntimeException cleanupError) {
+        catch (Exception | Error cleanupError) {
             if (primaryFailure != null) primaryFailure.addSuppressed(cleanupError);
         }
     }
 
     private static void closeModuleQuietly(ApkModule module) {
         if (module == null) return;
-        try { module.close(); } catch (Exception | RuntimeException ignored) { }
+        try { module.close(); } catch (Exception | Error ignored) { }
     }
 
     private static void deleteTemporaryFile(File file, Throwable primaryFailure) {
         if (file == null) return;
         try {
             Files.deleteIfExists(file.toPath());
-        } catch (IOException | RuntimeException cleanupError) {
+        } catch (IOException | RuntimeException | Error cleanupError) {
             IOException reported = new IOException(
                     "Could not remove temporary APK resource file: " + file.getName(), cleanupError);
             if (primaryFailure != null) primaryFailure.addSuppressed(reported);
