@@ -233,7 +233,7 @@ public final class AssemblyComparisonActivity extends Activity {
     }
 
     private static String buildReport(String leftName, String rightName, String leftMetadata, String rightMetadata,
-                               DotNetIlReader.Result leftIl, DotNetIlReader.Result rightIl) 
+                               DotNetIlReader.Result leftIl, DotNetIlReader.Result rightIl) {
         StringBuilder out = new StringBuilder();
         out.append("DROIDINSPECT — STRUCTURAL ASSEMBLY COMPARISON\n\n");
         out.append("BASELINE: ").append(leftName).append("\nCANDIDATE: ").append(rightName).append("\n\n");
