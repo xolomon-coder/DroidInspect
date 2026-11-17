@@ -63,10 +63,7 @@ final class CSharpSourceWorkspace {
             project.write(new File(root, ".droidinspect-project"), safeDisplay + "\nformat=1\n");
             remember(context, id);
             return project;
-        } catch (IOException error) {
-            cleanupFailedCreation(root, base, error);
-            throw error;
-        } catch (RuntimeException error) {
+        } catch (IOException | RuntimeException | Error error) {
             cleanupFailedCreation(root, base, error);
             throw error;
         }
@@ -188,11 +185,12 @@ final class CSharpSourceWorkspace {
                         output.write(buffer, 0, count);
                     }
                     output.flush();
-                } catch (IOException error) {
+                } catch (IOException | RuntimeException | Error error) {
                     try {
                         Files.deleteIfExists(target.toPath());
-                    } catch (IOException cleanupError) {
-                        error.addSuppressed(cleanupError);
+                    } catch (IOException | SecurityException cleanupError) {
+                        error.addSuppressed(new IOException(
+                                "Could not remove partial C# source import: " + target.getName(), cleanupError));
                     }
                     throw error;
                 }
@@ -200,7 +198,7 @@ final class CSharpSourceWorkspace {
             }
             if (imported.isEmpty()) throw new IOException("No .cs files were selected.");
             return imported;
-        } catch (IOException error) {
+        } catch (IOException | RuntimeException | Error error) {
             BoundedProjectFiles.rollbackDirectChildren(sourceRoot, imported, error);
             throw error;
         }

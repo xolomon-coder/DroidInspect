@@ -108,13 +108,14 @@ final class ApkProjectWorkspace {
             project.saveMetadata(0, sha256(project.originalApk), sha256(project.workingApk));
             remember(context, id);
             return project;
-        } catch (Exception error) {
+        } catch (Exception | Error error) {
             try {
                 BoundedProjectFiles.deleteTreeForRollback(root, base, MAX_PROJECT_DIRECTORY_ENTRIES);
             } catch (IOException cleanupError) {
                 error.addSuppressed(cleanupError);
             }
             if (error instanceof IOException) throw (IOException) error;
+            if (error instanceof Error) throw (Error) error;
             throw new IOException("APK project creation failed: " + safe(error.getMessage()), error);
         }
     }

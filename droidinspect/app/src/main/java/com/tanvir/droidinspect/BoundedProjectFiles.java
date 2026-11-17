@@ -159,10 +159,12 @@ final class BoundedProjectFiles {
 
     /**
      * Best-effort transaction rollback for files created directly in one trusted app-private
-     * directory. Files.deleteIfExists deletes a symbolic link itself rather than following it.
-     * Cleanup failures are attached to the original import failure and never hide it.
+     * directory. The primary failure may be an I/O error, unchecked exception or fatal error.
+     * Files.deleteIfExists deletes a symbolic link itself rather than following its target.
+     * Cleanup failures are attached to the original failure and never hide it.
      */
-    static void rollbackDirectChildren(File directory, List<File> files, IOException failure) {
+    static void rollbackDirectChildren(File directory, List<File> files, Throwable failure) {
+        if (failure == null) throw new IllegalArgumentException("A primary import failure is required.");
         if (files == null || files.isEmpty()) return;
         if (directory == null || Files.isSymbolicLink(directory.toPath()) || !directory.isDirectory()) {
             failure.addSuppressed(new IOException("Cannot safely roll back files: import directory is unavailable or linked."));
@@ -176,7 +178,7 @@ final class BoundedProjectFiles {
             }
             try {
                 Files.deleteIfExists(file.toPath());
-            } catch (IOException | SecurityException cleanupError) {
+            } catch (IOException | RuntimeException cleanupError) {
                 failure.addSuppressed(new IOException(
                         "Could not remove partially imported file: " + file.getName(), cleanupError));
             }

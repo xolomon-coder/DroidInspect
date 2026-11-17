@@ -59,10 +59,7 @@ final class DotNetDependencyWorkspace {
             write(new File(root, ".droidinspect-dependency-project"), name + "\nformat=1\n");
             remember(context, id);
             return project;
-        } catch (IOException error) {
-            cleanupFailedCreation(root, base, error);
-            throw error;
-        } catch (RuntimeException error) {
+        } catch (IOException | RuntimeException | Error error) {
             cleanupFailedCreation(root, base, error);
             throw error;
         }
@@ -155,7 +152,7 @@ final class DotNetDependencyWorkspace {
             if (getReportFile().exists() && !getReportFile().delete())
                 throw new IOException("Cannot invalidate the previous dependency report.");
             return imported;
-        } catch (IOException error) {
+        } catch (IOException | RuntimeException | Error error) {
             BoundedProjectFiles.rollbackDirectChildren(dependencies, imported, error);
             throw error;
         }
@@ -179,38 +176,29 @@ final class DotNetDependencyWorkspace {
     private static long copyDocument(Context context, Uri uri, File target, long limit) throws IOException {
         File temporary = new File(target.getParentFile(), target.getName() + ".tmp-" + UUID.randomUUID());
         long total = 0;
-        try (InputStream input = context.getContentResolver().openInputStream(uri);
-             FileOutputStream output = new FileOutputStream(temporary)) {
-            if (input == null) throw new IOException("Cannot open selected document: " + target.getName());
-            byte[] buffer = new byte[32768];
-            int count;
-            while ((count = input.read(buffer)) != -1) {
-                checkCancelled();
-                total += count;
-                if (total > limit) throw new IOException("File exceeds the " + (limit / (1024 * 1024)) + " MB safety limit.");
-                output.write(buffer, 0, count);
+        try {
+            try (InputStream input = context.getContentResolver().openInputStream(uri);
+                 FileOutputStream output = new FileOutputStream(temporary)) {
+                if (input == null) throw new IOException("Cannot open selected document: " + target.getName());
+                byte[] buffer = new byte[32768];
+                int count;
+                while ((count = input.read(buffer)) != -1) {
+                    checkCancelled();
+                    total += count;
+                    if (total > limit) throw new IOException("File exceeds the " + (limit / (1024 * 1024)) + " MB safety limit.");
+                    output.write(buffer, 0, count);
+                }
+                output.flush();
+                output.getFD().sync();
             }
-            output.flush();
-            output.getFD().sync();
-        } catch (IOException error) {
-            try {
-                Files.deleteIfExists(temporary.toPath());
-            } catch (IOException cleanupError) {
-                error.addSuppressed(cleanupError);
-            }
+            if (total == 0) throw new IOException("Selected file is empty.");
+            if (!temporary.renameTo(target))
+                throw new IOException("Cannot activate copied file.");
+            return total;
+        } catch (IOException | RuntimeException | Error error) {
+            deleteTemporaryFile(temporary, error);
             throw error;
         }
-        if (total == 0 || !temporary.renameTo(target)) {
-            IOException failure = new IOException(
-                    total == 0 ? "Selected file is empty." : "Cannot activate copied file.");
-            try {
-                Files.deleteIfExists(temporary.toPath());
-            } catch (IOException cleanupError) {
-                failure.addSuppressed(cleanupError);
-            }
-            throw failure;
-        }
-        return total;
     }
 
     private static void checkCancelled() throws InterruptedIOException {
@@ -269,7 +257,7 @@ final class DotNetDependencyWorkspace {
             Files.deleteIfExists(file.toPath());
         } catch (IOException | SecurityException cleanupError) {
             IOException reported = new IOException(
-                    "Could not remove temporary dependency metadata: " + file.getName(), cleanupError);
+                    "Could not remove temporary dependency workspace file: " + file.getName(), cleanupError);
             if (primaryFailure != null) primaryFailure.addSuppressed(reported);
             else throw reported;
         }

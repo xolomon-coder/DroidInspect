@@ -134,11 +134,18 @@ public final class BoundedProjectFilesSelfTest {
                 }
                 File rollbackTwo = new File(rollbackDirectory, "second.dll");
                 write(rollbackTwo);
-                java.io.IOException pathFailure = new java.io.IOException("simulated unsafe rollback");
+                RuntimeException pathFailure = new RuntimeException("simulated unchecked import failure");
                 BoundedProjectFiles.rollbackDirectChildren(
                         rollbackDirectory, java.util.Collections.singletonList(new File(root, "outside.dll")), pathFailure);
                 check(rollbackTwo.exists() && pathFailure.getSuppressed().length == 1,
-                        "rollback refuses out-of-directory files and records cleanup failure");
+                        "rollback refuses out-of-directory files and records cleanup failure for unchecked failures");
+                File rollbackThree = new File(rollbackDirectory, "third.dll");
+                write(rollbackThree);
+                RuntimeException runtimeFailure = new RuntimeException("simulated import runtime failure");
+                BoundedProjectFiles.rollbackDirectChildren(
+                        rollbackDirectory, java.util.Collections.singletonList(rollbackThree), runtimeFailure);
+                check(!rollbackThree.exists() && runtimeFailure.getSuppressed().length == 0,
+                        "rollback removes completed imports when the primary failure is unchecked");
             } finally {
                 rollbackOutside.delete();
                 BoundedProjectFiles.deleteTree(rollbackDirectory, root, 20);

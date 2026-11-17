@@ -46,9 +46,10 @@ final class DecompilationWorkspace implements AutoCloseable {
             File input = new File(root, safeName(queryName(context, source)));
             copyDocument(context, source, input);
             return new DecompilationWorkspace(root, input, ensureReferences(context));
-        } catch (Exception error) {
+        } catch (Exception | Error error) {
             cleanupForRollback(root, parent, error);
             if (error instanceof IOException) throw (IOException) error;
+            if (error instanceof Error) throw (Error) error;
             throw new IOException("Could not prepare decompilation workspace: " + error.getMessage(), error);
         }
     }
@@ -72,7 +73,7 @@ final class DecompilationWorkspace implements AutoCloseable {
                 out.write(buffer, 0, n);
             }
             out.flush();
-        } catch (IOException error) {
+        } catch (IOException | RuntimeException | Error error) {
             deletePartialFile(target, error);
             throw error;
         }
@@ -179,11 +180,12 @@ final class DecompilationWorkspace implements AutoCloseable {
         }
     }
 
-    private static void deletePartialFile(File file, IOException failure) {
+    private static void deletePartialFile(File file, Throwable failure) {
         try {
             Files.deleteIfExists(file.toPath());
-        } catch (IOException cleanupError) {
-            failure.addSuppressed(cleanupError);
+        } catch (IOException | SecurityException cleanupError) {
+            failure.addSuppressed(new IOException(
+                    "Could not remove partial decompilation input: " + file.getName(), cleanupError));
         }
     }
 
