@@ -2,9 +2,13 @@ package com.tanvir.droidinspect;
 
 import android.app.Activity;
 import android.content.ClipData;
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Log;
 import android.util.Xml;
 import android.view.View;
 import android.widget.Button;
@@ -20,8 +24,11 @@ import com.reandroid.xml.base.XmlSerializable;
 import org.xmlpull.v1.XmlPullParser;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.lang.ref.WeakReference;
+import java.nio.file.Files;
 import java.io.InterruptedIOException;
 import java.io.StringReader;
 import java.util.ArrayList;
@@ -43,6 +50,8 @@ public final class ApkSplitSetActivity extends Activity {
     private static final long MAX_FILE_BYTES = 512L * 1024L * 1024L;
     private static final String ANDROID_NS = "http://schemas.android.com/apk/res/android";
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private boolean busy;
     private volatile boolean destroyed;
     private final ArrayList<File> copies = new ArrayList<>();
     private Button choose;
@@ -136,19 +145,27 @@ public final class ApkSplitSetActivity extends Activity {
     }
 
     private void analyze(List<Uri> uris) {
+        if (busy) return;
         setBusy(true, "Copying and analyzing " + uris.size() + " APK file(s)…");
+        final ArrayList<Uri> sources = new ArrayList<>(uris);
+        final Context app = getApplicationContext();
+        final File cacheDir = app.getCacheDir();
+        final WeakReference<ApkSplitSetActivity> owner = new WeakReference<>(this);
+        final Handler ui = mainHandler;
         worker.execute(() -> {
             ArrayList<SplitInfo> infos = new ArrayList<>();
             ArrayList<File> newCopies = new ArrayList<>();
             long total = 0;
+            Throwable problem = null;
             try {
-                for (Uri uri : uris) {
-                    File copy = File.createTempFile("droidinspect-split-", ".apk", getCacheDir());
+                for (Uri uri : sources) {
+                    checkCancelled();
+                    File copy = File.createTempFile("droidinspect-split-", ".apk", cacheDir);
                     newCopies.add(copy);
                     long copied = 0;
-                    try (InputStream in = getContentResolver().openInputStream(uri);
+                    try (InputStream in = app.getContentResolver().openInputStream(uri);
                          FileOutputStream out = new FileOutputStream(copy)) {
-                        if (in == null) throw new IllegalStateException("Unable to open one selected APK.");
+                        if (in == null) throw new IOException("Unable to open one selected APK.");
                         byte[] buffer = new byte[32768];
                         int n;
                         while ((n = in.read(buffer)) != -1) {
@@ -156,33 +173,46 @@ public final class ApkSplitSetActivity extends Activity {
                             copied += n;
                             total += n;
                             if (copied > MAX_FILE_BYTES || total > MAX_TOTAL_BYTES)
-                                throw new IllegalArgumentException("Selected APK set exceeds the 512 MB per-file or 1 GB total safety limit.");
+                                throw new IOException("Selected APK set exceeds the 512 MB per-file or 1 GB total safety limit.");
                             out.write(buffer, 0, n);
                         }
+                        out.flush();
+                        out.getFD().sync();
                     }
-                    infos.add(inspectSplit(copy, queryName(uri)));
+                    infos.add(inspectSplit(copy, queryName(app, uri)));
                 }
-                String output = buildReport(infos, total);
-                ArrayList<File> old = new ArrayList<>(copies);
-                copies.clear();
-                copies.addAll(newCopies);
+                checkCancelled();
+            } catch (Exception | Error error) {
+                problem = error;
+                for (File file : newCopies) deleteOwnedFile(file, cacheDir, problem);
                 newCopies.clear();
-                for (File file : old) file.delete();
-                runOnUiThread(() -> {
-                    if (destroyed || isFinishing() || isDestroyed()) return;
-                    report.setText(output);
-                    setBusy(false, "Split APK set inventory finished. No APK was modified or installed.");
-                });
-            } catch (Exception error) {
-                for (File file : newCopies) file.delete();
-                String message = "SPLIT SET ANALYSIS FAILED: " + error.getClass().getSimpleName()
-                        + ": " + (error.getMessage() == null ? "No details." : error.getMessage());
-                runOnUiThread(() -> { if (destroyed || isFinishing() || isDestroyed()) return; setBusy(false, message); });
             }
+            final ArrayList<File> readyCopies = new ArrayList<>(newCopies);
+            final String output = problem == null ? buildReport(infos, total) : null;
+            final String errorText = problem == null ? null : describe(problem);
+            ui.post(() -> {
+                ApkSplitSetActivity activity = owner.get();
+                if (activity == null || activity.destroyed || activity.isFinishing() || activity.isDestroyed()) {
+                    for (File file : readyCopies) deleteOwnedFileAsync(file, cacheDir);
+                    return;
+                }
+                if (errorText != null) {
+                    activity.setBusy(false, "Split APK set analysis failed.");
+                    activity.status.setText("SPLIT APK SET ANALYSIS FAILED: " + errorText);
+                    for (File file : readyCopies) deleteOwnedFileAsync(file, cacheDir);
+                    return;
+                }
+                ArrayList<File> previous = new ArrayList<>(activity.copies);
+                activity.copies.clear();
+                activity.copies.addAll(readyCopies);
+                for (File file : previous) deleteOwnedFileAsync(file, cacheDir);
+                activity.report.setText(output);
+                activity.setBusy(false, "Split APK set inventory finished. No APK was modified or installed.");
+            });
         });
     }
 
-    private SplitInfo inspectSplit(File file, String displayName) throws Exception {
+    private static SplitInfo inspectSplit(File file, String displayName) throws Exception {
         SplitInfo info = new SplitInfo();
         info.file = displayName;
         info.size = file.length();
@@ -228,10 +258,10 @@ public final class ApkSplitSetActivity extends Activity {
         return info;
     }
 
-    private String queryName(Uri uri) {
+    private static String queryName(Context context, Uri uri) {
         android.database.Cursor cursor = null;
         try {
-            cursor = getContentResolver().query(uri,
+            cursor = context.getContentResolver().query(uri,
                     new String[]{android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null);
             if (cursor != null && cursor.moveToFirst()) {
                 int index = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
@@ -245,12 +275,12 @@ public final class ApkSplitSetActivity extends Activity {
         return fallback == null ? "Selected APK" : fallback;
     }
 
-    private boolean isComponent(String tag) {
+    private static boolean isComponent(String tag) {
         return "activity".equals(tag) || "activity-alias".equals(tag) || "service".equals(tag)
                 || "receiver".equals(tag) || "provider".equals(tag);
     }
 
-    private String buildReport(List<SplitInfo> infos, long totalBytes) {
+    private static String buildReport(List<SplitInfo> infos, long totalBytes) {
         StringBuilder out = new StringBuilder("DROIDINSPECT — SPLIT APK SET INVENTORY\n\n");
         out.append("Files selected: ").append(infos.size()).append('\n');
         out.append("Total copied size: ").append(totalBytes).append(" bytes\n");
@@ -298,12 +328,13 @@ public final class ApkSplitSetActivity extends Activity {
         return out.toString();
     }
 
-    private String value(String value) { return value == null ? "" : value; }
-    private String safe(String value) { return value == null ? "(unknown)" : value; }
+    private static String value(String value) { return value == null ? "" : value; }
+    private static String safe(String value) { return value == null ? "(unknown)" : value; }
 
-    private void setBusy(boolean busy, String message) {
-        choose.setEnabled(!busy);
-        progress.setVisibility(busy ? View.VISIBLE : View.GONE);
+    private void setBusy(boolean busyValue, String message) {
+        busy = busyValue;
+        choose.setEnabled(!busyValue);
+        progress.setVisibility(busyValue ? View.VISIBLE : View.GONE);
         status.setText(message);
     }
 
@@ -312,19 +343,58 @@ public final class ApkSplitSetActivity extends Activity {
             throw new InterruptedIOException("Split APK analysis cancelled because the activity was closed.");
     }
 
+    private static String describe(Throwable error) {
+        StringBuilder text = new StringBuilder(error.getClass().getSimpleName()).append(": ").append(safe(error.getMessage()));
+        for (Throwable suppressed : error.getSuppressed())
+            text.append("\nCleanup warning: ").append(suppressed.getClass().getSimpleName())
+                    .append(": ").append(safe(suppressed.getMessage()));
+        return text.toString();
+    }
+
+    private static void deleteOwnedFile(File file, File cacheDir, Throwable primary) {
+        if (file == null) return;
+        try {
+            File absolute = file.getAbsoluteFile();
+            if (!cacheDir.getAbsoluteFile().equals(absolute.getParentFile())
+                    || !absolute.getName().startsWith("droidinspect-split-")
+                    || Files.isSymbolicLink(absolute.toPath()))
+                throw new IOException("Refusing to delete a split APK copy outside private cache.");
+            Files.deleteIfExists(absolute.toPath());
+            if (absolute.exists()) throw new IOException("Split APK copy remains after deletion.");
+        } catch (IOException | RuntimeException cleanupError) {
+            IOException reported = cleanupError instanceof IOException ? (IOException) cleanupError
+                    : new IOException("Split APK temporary cleanup failed.", cleanupError);
+            if (primary != null) primary.addSuppressed(reported);
+            else Log.e("DroidInspectSplitSet", "Temporary file could not be removed: " + file, reported);
+        }
+    }
+
+    private static void deleteOwnedFileAsync(File file, File cacheDir) {
+        if (file == null) return;
+        Thread cleanup = new Thread(() -> deleteOwnedFile(file, cacheDir, null), "droidinspect-split-file-cleanup");
+        cleanup.setDaemon(true);
+        cleanup.start();
+    }
+
     @Override protected void onDestroy() {
         destroyed = true;
-        worker.shutdownNow();
+        final ExecutorService executor = worker;
+        final File cacheDir = getCacheDir();
+        final ArrayList<File> ownedFiles = new ArrayList<>(copies);
+        copies.clear();
+        executor.shutdownNow();
         super.onDestroy();
         Thread cleanup = new Thread(() -> {
-            try {
-                while (!worker.awaitTermination(1, TimeUnit.DAYS)) { }
-            } catch (InterruptedException interrupted) {
-                Thread.currentThread().interrupt();
-                return;
+            boolean interrupted = false;
+            while (true) {
+                try {
+                    if (executor.awaitTermination(1, TimeUnit.MINUTES)) break;
+                } catch (InterruptedException ignored) {
+                    interrupted = true;
+                }
             }
-            for (File file : copies) if (file != null) file.delete();
-            copies.clear();
+            for (File file : ownedFiles) deleteOwnedFile(file, cacheDir, null);
+            if (interrupted) Thread.currentThread().interrupt();
         }, "droidinspect-split-cleanup");
         cleanup.setDaemon(true);
         cleanup.start();
