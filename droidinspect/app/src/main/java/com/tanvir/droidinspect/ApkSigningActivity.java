@@ -2,11 +2,15 @@ package com.tanvir.droidinspect;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -22,6 +26,8 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.InterruptedIOException;
 import java.io.OutputStream;
+import java.lang.ref.WeakReference;
+import java.nio.file.Files;
 import java.math.BigInteger;
 import java.security.KeyPairGenerator;
 import java.security.KeyStore;
@@ -46,11 +52,13 @@ public final class ApkSigningActivity extends Activity {
 
     private final java.util.concurrent.ExecutorService worker =
             java.util.concurrent.Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private TextView selectedApk, selectedKey, status, report;
     private EditText alias, owner, storePassword, keyPassword;
     private Button signButton, verifyButton, exportButton;
     private ProgressBar progress;
     private volatile boolean destroyed;
+    private volatile boolean busy;
     private File apkFile, keyStoreFile, signedFile;
     private boolean generatedKey;
     private boolean returnSignedUri;
@@ -58,7 +66,6 @@ public final class ApkSigningActivity extends Activity {
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         setContentView(R.layout.activity_apk_signing);
-        cleanupStaleSigningFiles();
         selectedApk = findViewById(R.id.signSelectedApk);
         selectedKey = findViewById(R.id.signSelectedKey);
         status = findViewById(R.id.signStatus);
@@ -71,6 +78,8 @@ public final class ApkSigningActivity extends Activity {
         signButton = findViewById(R.id.signButton);
         verifyButton = findViewById(R.id.verifyButton);
         exportButton = findViewById(R.id.exportSignedButton);
+        String staleCleanupWarning = cleanupStaleSigningFiles(getApplicationContext());
+        if (staleCleanupWarning != null) status.setText(staleCleanupWarning);
 
         findViewById(R.id.pickApkButton).setOnClickListener(v -> pick(PICK_APK,
                 "application/vnd.android.package-archive"));
@@ -109,31 +118,64 @@ public final class ApkSigningActivity extends Activity {
                 getContentResolver().takePersistableUriPermission(destination,
                         data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION));
             } catch (SecurityException ignored) { }
-            setBusy(true, "Exporting verified signed APK…");
+            setBusy(true, "Exporting and re-verifying signed APK…");
+            final File source = signedFile;
+            final Context app = getApplicationContext();
+            final File cacheDir = app.getCacheDir();
+            final WeakReference<ApkSigningActivity> screenRef = new WeakReference<>(this);
+            final Handler handler = mainHandler;
             worker.execute(() -> {
-                String error = null;
-                try (InputStream in = new FileInputStream(signedFile);
-                     OutputStream out = getContentResolver().openOutputStream(destination, "w")) {
+                Throwable problem = null;
+                File exportedCopy = null;
+                try (InputStream in = new FileInputStream(source);
+                     OutputStream out = app.getContentResolver().openOutputStream(destination, "w")) {
                     if (out == null) throw new IllegalStateException("Document provider did not create an output stream.");
                     byte[] buffer = new byte[32768]; int n;
-                    while ((n = in.read(buffer)) != -1) { checkCancelled(); out.write(buffer, 0, n); }
+                    while ((n = in.read(buffer)) != -1) {
+                        checkCancelled();
+                        out.write(buffer, 0, n);
+                    }
                     out.flush();
-                } catch (Exception e) { error = message(e); }
-                final String failure = error;
-                runOnUiThread(() -> {
-                    if (destroyed || isFinishing() || isDestroyed()) return;
-                    setBusy(false, failure == null ? "Signed APK exported." : "Export failed: " + failure);
-                    if (failure != null) showError(failure);
-                    if (returnSignedUri) {
+                } catch (Exception | Error e) {
+                    problem = e;
+                }
+                if (problem == null) {
+                    try {
+                        checkCancelled();
+                        exportedCopy = copyDocument(app, destination, ".apk", MAX_APK);
+                        ApkVerifier.Result checked = new ApkVerifier.Builder(exportedCopy).build().verify();
+                        if (!checked.isVerified())
+                            throw new IllegalStateException("The exported document failed signature verification: "
+                                    + verificationFailure(checked));
+                    } catch (Exception | Error e) {
+                        problem = e;
+                    }
+                }
+                if (exportedCopy != null) {
+                    try { deleteTemporaryFile(exportedCopy, cacheDir, problem); }
+                    catch (IOException cleanupFailure) {
+                        if (problem == null) problem = cleanupFailure;
+                        else problem.addSuppressed(cleanupFailure);
+                    }
+                }
+                final String failure = problem == null ? null : message(problem);
+                handler.post(() -> {
+                    ApkSigningActivity screen = screenRef.get();
+                    if (screen == null || screen.destroyed || screen.isFinishing() || screen.isDestroyed()) return;
+                    screen.setBusy(false, failure == null
+                            ? "Signed APK exported and signature re-verified."
+                            : "Export failed: " + failure);
+                    if (failure != null) screen.showError(failure);
+                    if (screen.returnSignedUri) {
                         Intent resultIntent = new Intent();
                         if (failure == null) {
                             resultIntent.setData(destination);
                             resultIntent.putExtra("signed_apk_uri", destination.toString());
-                            setResult(RESULT_OK, resultIntent);
+                            screen.setResult(RESULT_OK, resultIntent);
                         } else {
-                            setResult(RESULT_CANCELED);
+                            screen.setResult(RESULT_CANCELED);
                         }
-                        finish();
+                        screen.finish();
                     }
                 });
             });
@@ -145,20 +187,37 @@ public final class ApkSigningActivity extends Activity {
             loadApkUri(uri);
         } else if (request == PICK_KEYSTORE) {
             setBusy(true, "Copying keystore into private app cache…");
+            final Context app = getApplicationContext();
+            final File cacheDir = app.getCacheDir();
+            final WeakReference<ApkSigningActivity> screenRef = new WeakReference<>(this);
+            final Handler handler = mainHandler;
             worker.execute(() -> {
-                File copy = null; String error = null;
-                try { copy = copyDocument(uri, ".keystore", MAX_KEYSTORE); }
-                catch (Exception e) { error = message(e); if (copy != null) copy.delete(); copy = null; }
-                final File ready = copy; final String failure = error;
-                runOnUiThread(() -> {
-                    if (destroyed || isFinishing() || isDestroyed()) { if (ready != null) ready.delete(); return; }
-                    setBusy(false, failure == null ? "Keystore copied. Enter its alias and passwords." : "Keystore import failed.");
+                File copy = null;
+                Throwable problem = null;
+                try { copy = copyDocument(app, uri, ".keystore", MAX_KEYSTORE); }
+                catch (Exception | Error e) {
+                    problem = e;
+                    if (copy != null) deleteTemporaryFile(copy, cacheDir, problem);
+                    copy = null;
+                }
+                final File ready = copy;
+                final String failure = problem == null ? null : message(problem);
+                handler.post(() -> {
+                    ApkSigningActivity screen = screenRef.get();
+                    if (screen == null || screen.destroyed || screen.isFinishing() || screen.isDestroyed()) {
+                        deleteTemporaryFileAsync(ready, cacheDir);
+                        return;
+                    }
+                    screen.setBusy(false, failure == null
+                            ? "Keystore copied. Enter its alias and passwords." : "Keystore import failed.");
                     if (failure == null) {
-                        if (keyStoreFile != null) keyStoreFile.delete();
-                        keyStoreFile = ready; generatedKey = false;
-                        selectedKey.setText("Imported keystore: " + ready.getName());
-                    } else showError(failure);
-                    updateButtons();
+                        File previous = screen.keyStoreFile;
+                        screen.keyStoreFile = ready;
+                        screen.generatedKey = false;
+                        screen.selectedKey.setText("Imported keystore: " + ready.getName());
+                        deleteTemporaryFileAsync(previous, cacheDir);
+                    } else screen.showError(failure);
+                    screen.updateButtons();
                 });
             });
         }
@@ -166,43 +225,63 @@ public final class ApkSigningActivity extends Activity {
 
     private void loadApkUri(Uri uri) {
         setBusy(true, "Copying selected APK…");
+        final Context app = getApplicationContext();
+        final File cacheDir = app.getCacheDir();
+        final WeakReference<ApkSigningActivity> screenRef = new WeakReference<>(this);
+        final Handler handler = mainHandler;
         worker.execute(() -> {
             File copy = null;
-            String error = null;
+            Throwable problem = null;
             try {
-                copy = copyDocument(uri, ".apk", MAX_APK);
+                copy = copyDocument(app, uri, ".apk", MAX_APK);
                 if (!isZip(copy)) throw new IllegalArgumentException("Selected file is not a readable APK/ZIP archive.");
-            } catch (Exception e) { error = message(e); if (copy != null) copy.delete(); copy = null; }
-            final File ready = copy; final String failure = error;
-            runOnUiThread(() -> {
-                if (destroyed || isFinishing() || isDestroyed()) { if (ready != null) ready.delete(); return; }
-                setBusy(false, failure == null ? "APK ready." : "APK selection failed.");
+            } catch (Exception | Error e) {
+                problem = e;
+                if (copy != null) deleteTemporaryFile(copy, cacheDir, problem);
+                copy = null;
+            }
+            final File ready = copy;
+            final String failure = problem == null ? null : message(problem);
+            handler.post(() -> {
+                ApkSigningActivity screen = screenRef.get();
+                if (screen == null || screen.destroyed || screen.isFinishing() || screen.isDestroyed()) {
+                    deleteTemporaryFileAsync(ready, cacheDir);
+                    return;
+                }
+                screen.setBusy(false, failure == null ? "APK ready." : "APK selection failed.");
                 if (failure == null) {
-                    if (apkFile != null) apkFile.delete();
-                    apkFile = ready;
-                    selectedApk.setText("APK: " + ready.getName() + " (" + ready.length() + " bytes)");
-                    if (signedFile != null) { signedFile.delete(); signedFile = null; }
-                } else showError(failure);
-                updateButtons();
+                    File previousApk = screen.apkFile;
+                    File previousSigned = screen.signedFile;
+                    screen.apkFile = ready;
+                    screen.signedFile = null;
+                    screen.selectedApk.setText("APK: " + ready.getName() + " (" + ready.length() + " bytes)");
+                    deleteTemporaryFileAsync(previousApk, cacheDir);
+                    deleteTemporaryFileAsync(previousSigned, cacheDir);
+                } else screen.showError(failure);
+                screen.updateButtons();
             });
         });
     }
 
-    private File copyDocument(Uri uri, String suffix, long limit) throws Exception {
-        File outFile = File.createTempFile("droidinspect-sign-", suffix, getCacheDir());
+    private static File copyDocument(Context context, Uri uri, String suffix, long limit) throws IOException {
+        File outFile = File.createTempFile("droidinspect-sign-", suffix, context.getCacheDir());
         long total = 0;
-        try (InputStream in = getContentResolver().openInputStream(uri);
+        try (InputStream in = context.getContentResolver().openInputStream(uri);
              FileOutputStream out = new FileOutputStream(outFile)) {
-            if (in == null) throw new IllegalStateException("Android could not open the selected document.");
+            if (in == null) throw new IOException("Android could not open the selected document.");
             byte[] buffer = new byte[32768]; int n;
             while ((n = in.read(buffer)) != -1) {
                 checkCancelled();
                 total += n;
-                if (total > limit) throw new IllegalArgumentException("Selected document exceeds the safety size limit.");
+                if (total > limit) throw new IOException("Selected document exceeds the safety size limit.");
                 out.write(buffer, 0, n);
             }
             out.flush();
-        } catch (Exception e) { outFile.delete(); throw e; }
+            out.getFD().sync();
+        } catch (IOException | RuntimeException | Error failure) {
+            deleteTemporaryFile(outFile, context.getCacheDir(), failure);
+            throw failure;
+        }
         return outFile;
     }
 
@@ -221,9 +300,13 @@ public final class ApkSigningActivity extends Activity {
 
     private void createAndroidKey(String a, String o) {
         setBusy(true, "Generating RSA signing key in Android Keystore…");
+        final WeakReference<ApkSigningActivity> screenRef = new WeakReference<>(this);
+        final Handler handler = mainHandler;
+        final File cacheDir = getCacheDir();
         worker.execute(() -> {
             String error = null;
             try {
+                checkCancelled();
                 KeyPairGenerator generator = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_RSA, "AndroidKeyStore");
                 java.util.Calendar start = java.util.Calendar.getInstance();
                 java.util.Calendar end = (java.util.Calendar) start.clone(); end.add(java.util.Calendar.YEAR, 25);
@@ -240,37 +323,39 @@ public final class ApkSigningActivity extends Activity {
                 generator.initialize(spec); generator.generateKeyPair();
                 KeyStore ks = KeyStore.getInstance("AndroidKeyStore"); ks.load(null);
                 if (ks.getCertificate(a) == null) throw new IllegalStateException("Android Keystore did not return the generated certificate.");
-            } catch (Exception e) { error = message(e); }
+            } catch (Exception | Error e) { error = message(e); }
             final String failure = error;
-            runOnUiThread(() -> {
-                if (destroyed || isFinishing() || isDestroyed()) return;
-                setBusy(false, failure == null ? "Signing key created in Android Keystore." : "Key generation failed.");
+            handler.post(() -> {
+                ApkSigningActivity screen = screenRef.get();
+                if (screen == null || screen.destroyed || screen.isFinishing() || screen.isDestroyed()) return;
+                screen.setBusy(false, failure == null ? "Signing key created in Android Keystore." : "Key generation failed.");
                 if (failure == null) {
-                    generatedKey = true;
-                    if (keyStoreFile != null) { keyStoreFile.delete(); keyStoreFile = null; }
-                    selectedKey.setText("Android Keystore alias: " + a + " (non-exportable)");
-                    report.setText("KEY CREATED\nAlias: " + a + "\nOwner: " + o
+                    screen.generatedKey = true;
+                    File previous = screen.keyStoreFile; screen.keyStoreFile = null;
+                    deleteTemporaryFileAsync(previous, cacheDir);
+                    screen.selectedKey.setText("Android Keystore alias: " + a + " (non-exportable)");
+                    screen.report.setText("KEY CREATED\nAlias: " + a + "\nOwner: " + o
                             + "\nAlgorithm: RSA 2048 / SHA-256\nStorage: Android Keystore\n"
                             + "Private key export: not available. Preserve this app installation and device data.");
-                } else showError(failure);
-                updateButtons();
+                } else screen.showError(failure);
+                screen.updateButtons();
             });
         });
     }
 
-    private KeyMaterial loadKeyMaterial(String a, String storePasswordText, String keyPasswordText) throws Exception {
-        if (a.isEmpty()) throw new IllegalArgumentException("Enter the signing-key alias.");
-        if (generatedKey) {
-            KeyStore ks = KeyStore.getInstance("AndroidKeyStore"); ks.load(null);
-            PrivateKey key = (PrivateKey) ks.getKey(a, null);
-            java.security.cert.Certificate cert = ks.getCertificate(a);
-            if (key == null || !(cert instanceof X509Certificate)) throw new IllegalArgumentException("Android Keystore alias or certificate was not found.");
-            return new KeyMaterial(key, (X509Certificate) cert);
-        }
-        if (keyStoreFile == null) throw new IllegalArgumentException("Generate a key or import a keystore first.");
-        char[] storePass = storePasswordText.toCharArray();
-        char[] privatePass = keyPasswordText.toCharArray();
+    private static KeyMaterial loadKeyMaterial(String a, File keyStoreFile, boolean generatedKey,
+            char[] storePass, char[] privatePass) throws Exception {
         try {
+            if (a.isEmpty()) throw new IllegalArgumentException("Enter the signing-key alias.");
+            if (generatedKey) {
+                KeyStore ks = KeyStore.getInstance("AndroidKeyStore"); ks.load(null);
+                PrivateKey key = (PrivateKey) ks.getKey(a, null);
+                java.security.cert.Certificate cert = ks.getCertificate(a);
+                if (key == null || !(cert instanceof X509Certificate))
+                    throw new IllegalArgumentException("Android Keystore alias or certificate was not found.");
+                return new KeyMaterial(key, (X509Certificate) cert);
+            }
+            if (keyStoreFile == null) throw new IllegalArgumentException("Generate a key or import a keystore first.");
             KeyStore ks;
             try {
                 ks = KeyStore.getInstance("PKCS12");
@@ -292,27 +377,39 @@ public final class ApkSigningActivity extends Activity {
             }
             return new KeyMaterial((PrivateKey)key, certs);
         } finally {
-            Arrays.fill(storePass, '\0'); Arrays.fill(privatePass, '\0');
+            if (storePass != null) Arrays.fill(storePass, '\0');
+            if (privatePass != null) Arrays.fill(privatePass, '\0');
         }
     }
 
     private void signApk() {
-        if (apkFile == null) return;
+        if (apkFile == null || busy) return;
+        final File sourceApk = apkFile;
+        final File keyStoreSnapshot = keyStoreFile;
+        final boolean generatedSnapshot = generatedKey;
         final String aliasValue = alias.getText().toString().trim();
-        final String storePassValue = storePassword.getText().toString();
-        final String keyPassValue = keyPassword.getText().toString();
+        final char[] storePassValue = readAndClearPassword(storePassword);
+        final char[] keyPassValue = readAndClearPassword(keyPassword);
+        final File cacheDir = getCacheDir();
+        final WeakReference<ApkSigningActivity> screenRef = new WeakReference<>(this);
+        final Handler handler = mainHandler;
         setBusy(true, "Signing APK with v1, v2 and v3 schemes, then verifying…");
         worker.execute(() -> {
-            File output = null; String resultText = null; String error = null;
+            File output = null;
+            String resultText = null;
+            Throwable problem = null;
             try {
-                KeyMaterial material = loadKeyMaterial(aliasValue, storePassValue, keyPassValue);
-                output = File.createTempFile("droidinspect-signed-", ".apk", getCacheDir());
+                KeyMaterial material = loadKeyMaterial(aliasValue, keyStoreSnapshot, generatedSnapshot,
+                        storePassValue, keyPassValue);
+                output = File.createTempFile("droidinspect-sign-signed-", ".apk", cacheDir);
+                checkCancelled();
                 ApkSigner.SignerConfig config = new ApkSigner.SignerConfig.Builder(
                         "DroidInspect", material.key, material.chain).build();
                 new ApkSigner.Builder(java.util.Collections.singletonList(config))
-                        .setInputApk(apkFile).setOutputApk(output)
+                        .setInputApk(sourceApk).setOutputApk(output)
                         .setV1SigningEnabled(true).setV2SigningEnabled(true).setV3SigningEnabled(true)
                         .build().sign();
+                checkCancelled();
                 ApkVerifier.Result verified = new ApkVerifier.Builder(output).build().verify();
                 if (!verified.isVerified()) {
                     StringBuilder problems = new StringBuilder("Signature verification failed.");
@@ -320,37 +417,55 @@ public final class ApkSigningActivity extends Activity {
                     throw new IllegalStateException(problems.toString());
                 }
                 resultText = formatVerification(verified);
-            } catch (Exception e) { error = message(e); if (output != null) output.delete(); output = null; }
-            final File ready = output; final String details = resultText; final String failure = error;
-            runOnUiThread(() -> {
-                if (destroyed || isFinishing() || isDestroyed()) { if (ready != null) ready.delete(); return; }
-                storePassword.setText(""); keyPassword.setText("");
-                setBusy(false, failure == null ? "Signed APK verified successfully." : "Signing or verification failed.");
+            } catch (Exception | Error e) {
+                problem = e;
+                if (output != null) deleteTemporaryFile(output, cacheDir, problem);
+                output = null;
+            } finally {
+                Arrays.fill(storePassValue, '\0');
+                Arrays.fill(keyPassValue, '\0');
+            }
+            final File ready = output;
+            final String details = resultText;
+            final String failure = problem == null ? null : message(problem);
+            handler.post(() -> {
+                ApkSigningActivity screen = screenRef.get();
+                if (screen == null || screen.destroyed || screen.isFinishing() || screen.isDestroyed()) {
+                    deleteTemporaryFileAsync(ready, cacheDir);
+                    return;
+                }
+                screen.setBusy(false, failure == null ? "Signed APK verified successfully." : "Signing or verification failed.");
                 if (failure == null) {
-                    if (signedFile != null) signedFile.delete();
-                    signedFile = ready; report.setText(details + "\n\nSigned output is separate from the original input.");
-                    exportButton.setEnabled(true);
-                } else showError(failure);
-                updateButtons();
+                    File previous = screen.signedFile;
+                    screen.signedFile = ready;
+                    screen.report.setText(details + "\n\nSigned output is separate from the original input.");
+                    deleteTemporaryFileAsync(previous, cacheDir);
+                } else screen.showError(failure);
+                screen.updateButtons();
             });
         });
     }
 
     private void verifyApk() {
-        if (apkFile == null) return;
+        if (apkFile == null || busy) return;
+        final File sourceApk = apkFile;
+        final WeakReference<ApkSigningActivity> screenRef = new WeakReference<>(this);
+        final Handler handler = mainHandler;
         setBusy(true, "Verifying APK signature…");
         worker.execute(() -> {
             String result = null, error = null;
             try {
-                ApkVerifier.Result checked = new ApkVerifier.Builder(apkFile).build().verify();
+                checkCancelled();
+                ApkVerifier.Result checked = new ApkVerifier.Builder(sourceApk).build().verify();
                 result = checked.isVerified() ? formatVerification(checked) : verificationFailure(checked);
-            } catch (Exception e) { error = message(e); }
+            } catch (Exception | Error e) { error = message(e); }
             final String text = result, failure = error;
-            runOnUiThread(() -> {
-                if (destroyed || isFinishing() || isDestroyed()) return;
-                setBusy(false, "Verification finished.");
-                report.setText(failure == null ? text : "VERIFICATION ERROR\n" + failure);
-                updateButtons();
+            handler.post(() -> {
+                ApkSigningActivity screen = screenRef.get();
+                if (screen == null || screen.destroyed || screen.isFinishing() || screen.isDestroyed()) return;
+                screen.setBusy(false, "Verification finished.");
+                screen.report.setText(failure == null ? text : "VERIFICATION ERROR\n" + failure);
+                screen.updateButtons();
             });
         });
     }
@@ -364,7 +479,7 @@ public final class ApkSigningActivity extends Activity {
         startActivityForResult(i, SAVE_APK);
     }
 
-    private String formatVerification(ApkVerifier.Result r) throws Exception {
+    private static String formatVerification(ApkVerifier.Result r) throws Exception {
         StringBuilder b = new StringBuilder("APK SIGNATURE VERIFICATION: PASS\n");
         b.append("v1/JAR: ").append(r.isVerifiedUsingV1Scheme()).append('\n');
         b.append("v2: ").append(r.isVerifiedUsingV2Scheme()).append('\n');
@@ -385,7 +500,7 @@ public final class ApkSigningActivity extends Activity {
         return b.toString();
     }
 
-    private String verificationFailure(ApkVerifier.Result r) {
+    private static String verificationFailure(ApkVerifier.Result r) {
         StringBuilder b = new StringBuilder("APK SIGNATURE VERIFICATION: FAIL\n");
         for (ApkVerifier.IssueWithParams issue : r.getErrors()) b.append("• ").append(issue).append('\n');
         if (r.getErrors().isEmpty()) b.append("No verified signer was found. The APK may be unsigned or use an unsupported scheme.\n");
@@ -398,32 +513,90 @@ public final class ApkSigningActivity extends Activity {
     private static String hex(byte[] data) {
         StringBuilder b = new StringBuilder(); for (byte v : data) b.append(String.format(Locale.ROOT, "%02X", v & 255)); return b.toString();
     }
-    private static String message(Exception e) { return e.getClass().getSimpleName() + ": " + (e.getMessage() == null ? "No additional details." : e.getMessage()); }
+    private static String message(Throwable e) {
+        StringBuilder result = new StringBuilder(e.getClass().getSimpleName()).append(": ")
+                .append(e.getMessage() == null ? "No additional details." : e.getMessage());
+        for (Throwable suppressed : e.getSuppressed())
+            result.append("\nCleanup warning: ").append(suppressed.getClass().getSimpleName()).append(": ")
+                    .append(suppressed.getMessage() == null ? "No additional details." : suppressed.getMessage());
+        return result.toString();
+    }
     private void showError(String value) { new AlertDialog.Builder(this).setTitle("APK signing / verification").setMessage(value).setPositiveButton("OK", null).show(); }
-    private void setBusy(boolean busy, String value) {
-        progress.setVisibility(busy ? View.VISIBLE : View.GONE);
-        findViewById(R.id.pickApkButton).setEnabled(!busy);
-        findViewById(R.id.generateKeyButton).setEnabled(!busy);
-        findViewById(R.id.importKeyButton).setEnabled(!busy);
-        alias.setEnabled(!busy); owner.setEnabled(!busy);
-        storePassword.setEnabled(!busy); keyPassword.setEnabled(!busy);
-        status.setText(value); signButton.setEnabled(!busy && apkFile != null);
-        verifyButton.setEnabled(!busy && apkFile != null); exportButton.setEnabled(!busy && signedFile != null);
+    private void setBusy(boolean busyValue, String value) {
+        busy = busyValue;
+        progress.setVisibility(busyValue ? View.VISIBLE : View.GONE);
+        findViewById(R.id.pickApkButton).setEnabled(!busyValue);
+        findViewById(R.id.generateKeyButton).setEnabled(!busyValue);
+        findViewById(R.id.importKeyButton).setEnabled(!busyValue);
+        alias.setEnabled(!busyValue); owner.setEnabled(!busyValue);
+        storePassword.setEnabled(!busyValue); keyPassword.setEnabled(!busyValue);
+        status.setText(value);
+        updateButtons();
     }
     private void updateButtons() {
-        signButton.setEnabled(apkFile != null && (generatedKey || keyStoreFile != null));
-        verifyButton.setEnabled(apkFile != null); exportButton.setEnabled(signedFile != null);
+        signButton.setEnabled(!busy && apkFile != null && (generatedKey || keyStoreFile != null));
+        verifyButton.setEnabled(!busy && apkFile != null);
+        exportButton.setEnabled(!busy && signedFile != null);
     }
 
-        private void cleanupStaleSigningFiles() {
-        File[] files = getCacheDir().listFiles();
-        if (files == null) return;
-        for (File f : files) {
-            if (f.isFile() && f.getName().startsWith("droidinspect-sign-")) {
-                //noinspection ResultOfMethodCallIgnored
-                f.delete();
+    private static char[] readAndClearPassword(EditText field) {
+        android.text.Editable editable = field.getText();
+        char[] value = new char[editable.length()];
+        editable.getChars(0, editable.length(), value, 0);
+        editable.clear();
+        return value;
+    }
+
+    private static String cleanupStaleSigningFiles(Context context) {
+        File cacheDir = context.getCacheDir();
+        File[] files = cacheDir.listFiles();
+        if (files == null) return null;
+        long cutoff = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(1);
+        ArrayList<String> failures = new ArrayList<>();
+        for (File file : files) {
+            if (!file.getName().startsWith("droidinspect-sign-") || file.lastModified() > cutoff) continue;
+            try { deleteTemporaryFile(file, cacheDir, null); }
+            catch (IOException cleanupFailure) {
+                failures.add(file.getName() + ": " + cleanupFailure.getMessage());
+                Log.w("DroidInspectSigning", "Could not clean stale signing file " + file, cleanupFailure);
             }
         }
+        return failures.isEmpty() ? null : "Old signing temporary-file cleanup needs attention: "
+                + android.text.TextUtils.join("; ", failures);
+    }
+
+    private static void deleteTemporaryFile(File file, File cacheDir, Throwable primary) throws IOException {
+        if (file == null) return;
+        IOException cleanupFailure = null;
+        try {
+            File absolute = file.getAbsoluteFile();
+            File parent = absolute.getParentFile();
+            if (parent == null || !parent.equals(cacheDir.getAbsoluteFile())
+                    || !absolute.getName().startsWith("droidinspect-sign-")
+                    || Files.isSymbolicLink(absolute.toPath())) {
+                throw new IOException("Refusing to delete a file outside the owned signing cache.");
+            }
+            Files.deleteIfExists(absolute.toPath());
+            if (absolute.exists()) throw new IOException("Temporary file still exists after deletion.");
+        } catch (IOException e) {
+            cleanupFailure = e;
+        } catch (RuntimeException e) {
+            cleanupFailure = new IOException("Signing temporary-file cleanup failed.", e);
+        }
+        if (cleanupFailure != null) {
+            if (primary != null) primary.addSuppressed(cleanupFailure);
+            else throw cleanupFailure;
+        }
+    }
+
+    private static void deleteTemporaryFileAsync(File file, File cacheDir) {
+        if (file == null) return;
+        Thread cleanup = new Thread(() -> {
+            try { deleteTemporaryFile(file, cacheDir, null); }
+            catch (IOException e) { Log.e("DroidInspectSigning", "Signing temporary file remains: " + file, e); }
+        }, "droidinspect-signing-file-cleanup");
+        cleanup.setDaemon(true);
+        cleanup.start();
     }
 
     private static final class KeyMaterial {
@@ -439,18 +612,26 @@ public final class ApkSigningActivity extends Activity {
 
     @Override protected void onDestroy() {
         destroyed = true;
-        worker.shutdownNow();
+        final java.util.concurrent.ExecutorService executor = worker;
+        final File cacheDir = getCacheDir();
+        final File[] ownedFiles = new File[]{apkFile, keyStoreFile, signedFile};
+        apkFile = null; keyStoreFile = null; signedFile = null;
+        executor.shutdownNow();
         super.onDestroy();
         Thread cleanup = new Thread(() -> {
-            try {
-                while (!worker.awaitTermination(1, TimeUnit.DAYS)) { }
-            } catch (InterruptedException interrupted) {
-                Thread.currentThread().interrupt();
-                return;
+            boolean interrupted = false;
+            while (true) {
+                try {
+                    if (executor.awaitTermination(1, TimeUnit.MINUTES)) break;
+                } catch (InterruptedException ignored) {
+                    interrupted = true;
+                }
             }
-            File apk = apkFile; apkFile = null; if (apk != null) apk.delete();
-            File key = keyStoreFile; keyStoreFile = null; if (key != null) key.delete();
-            File signed = signedFile; signedFile = null; if (signed != null) signed.delete();
+            for (File owned : ownedFiles) {
+                try { deleteTemporaryFile(owned, cacheDir, null); }
+                catch (IOException e) { Log.e("DroidInspectSigning", "Could not remove owned signing file: " + owned, e); }
+            }
+            if (interrupted) Thread.currentThread().interrupt();
         }, "droidinspect-signing-cleanup");
         cleanup.setDaemon(true);
         cleanup.start();
