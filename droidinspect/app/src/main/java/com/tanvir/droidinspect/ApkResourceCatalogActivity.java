@@ -2,9 +2,13 @@ package com.tanvir.droidinspect;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -22,8 +26,11 @@ import com.reandroid.arsc.model.ResourceEntry;
 import com.reandroid.arsc.value.Entry;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.lang.ref.WeakReference;
+import java.nio.file.Files;
 import java.io.InterruptedIOException;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -41,6 +48,8 @@ public final class ApkResourceCatalogActivity extends Activity {
     private static final int MAX_SCAN = 50000;
     private static final int MAX_STORED = 25000;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private boolean busy;
     private volatile boolean destroyed;
     private final ArrayList<ResourceInfo> all = new ArrayList<>();
     private final ArrayList<ResourceInfo> shown = new ArrayList<>();
@@ -153,32 +162,41 @@ public final class ApkResourceCatalogActivity extends Activity {
     }
 
     private void load(Uri uri) {
+        if (busy) return;
         setBusy(true, "Copying APK and indexing resource table…");
+        final Context app = getApplicationContext();
+        final File cacheDir = app.getCacheDir();
+        final WeakReference<ApkResourceCatalogActivity> owner = new WeakReference<>(this);
+        final Handler ui = mainHandler;
         worker.execute(() -> {
             File copy = null;
+            Throwable problem = null;
+            ArrayList<ResourceInfo> found = new ArrayList<>();
+            Set<String> types = new LinkedHashSet<>();
+            int scanned = 0;
+            long bytes = 0;
             try {
-                copy = File.createTempFile("droidinspect-resource-catalog-", ".apk", getCacheDir());
-                long bytes = 0;
-                try (InputStream in = getContentResolver().openInputStream(uri);
+                copy = File.createTempFile("droidinspect-resource-catalog-", ".apk", cacheDir);
+                try (InputStream in = app.getContentResolver().openInputStream(uri);
                      FileOutputStream out = new FileOutputStream(copy)) {
-                    if (in == null) throw new IllegalStateException("Unable to open selected APK.");
+                    if (in == null) throw new IOException("Unable to open selected APK.");
                     byte[] buffer = new byte[32768];
                     int n;
                     while ((n = in.read(buffer)) != -1) {
                         checkCancelled();
                         bytes += n;
-                        if (bytes > MAX_APK_BYTES) throw new IllegalArgumentException("APK exceeds the 512 MB resource scan limit.");
+                        if (bytes > MAX_APK_BYTES) throw new IOException("APK exceeds the 512 MB resource scan limit.");
                         out.write(buffer, 0, n);
                     }
+                    out.flush();
+                    out.getFD().sync();
                 }
+                checkCancelled();
                 ApkModule module = ApkModule.loadApkFile(copy);
                 module.initializeAndroidFramework((Integer) null);
                 if (!module.hasAndroidManifest()) throw new IllegalArgumentException("APK manifest is missing.");
                 TableBlock table = module.getTableBlock();
                 if (table == null) throw new IllegalArgumentException("APK has no resources.arsc table.");
-                ArrayList<ResourceInfo> found = new ArrayList<>();
-                Set<String> types = new LinkedHashSet<>();
-                int scanned = 0;
                 java.util.Iterator<ResourceEntry> iterator = table.getResources();
                 while (iterator.hasNext() && scanned < MAX_SCAN && found.size() < MAX_STORED) {
                     checkCancelled();
@@ -199,36 +217,46 @@ public final class ApkResourceCatalogActivity extends Activity {
                     found.add(new ResourceInfo(type, name, resourceValue, id, isDefault));
                     types.add(type);
                 }
-                File previous = apkCopy;
-                apkCopy = copy;
+                checkCancelled();
+            } catch (Exception | Error error) {
+                problem = error;
+                if (copy != null) deleteOwnedFile(copy, cacheDir, problem);
                 copy = null;
-                if (previous != null) previous.delete();
-                int scannedFinal = scanned;
-                long bytesFinal = bytes;
-                runOnUiThread(() -> {
-                    if (destroyed || isFinishing() || isDestroyed()) return;
-                    all.clear();
-                    all.addAll(found);
-                    ArrayList<String> choices = new ArrayList<>();
-                    choices.add("All types");
-                    choices.addAll(types);
-                    ArrayAdapter<String> typeAdapter = new ArrayAdapter<>(this,
-                            android.R.layout.simple_spinner_item, choices);
-                    typeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-                    typeFilter.setAdapter(typeAdapter);
-                    typeFilter.setSelection(0);
-                    summary.setText("APK bytes: " + bytesFinal + "\nResource records scanned: " + scannedFinal
-                            + "\nNamed records indexed: " + found.size()
-                            + (scannedFinal >= MAX_SCAN || found.size() >= MAX_STORED ? "\nSafety/display cap reached." : ""));
-                    filter();
-                    setBusy(false, "Resource ID catalog ready. Original APK was not modified.");
-                });
-            } catch (Exception error) {
-                if (copy != null) copy.delete();
-                String message = "RESOURCE CATALOG FAILED: " + error.getClass().getSimpleName()
-                        + ": " + (error.getMessage() == null ? "No details." : error.getMessage());
-                runOnUiThread(() -> { if (destroyed || isFinishing() || isDestroyed()) return; setBusy(false, message); });
             }
+            final File ready = copy;
+            final int scannedFinal = scanned;
+            final long bytesFinal = bytes;
+            final String errorText = problem == null ? null : describe(problem);
+            ui.post(() -> {
+                ApkResourceCatalogActivity activity = owner.get();
+                if (activity == null || activity.destroyed || activity.isFinishing() || activity.isDestroyed()) {
+                    deleteOwnedFileAsync(ready, cacheDir);
+                    return;
+                }
+                if (errorText != null || ready == null) {
+                    activity.setBusy(false, "Resource catalog failed.");
+                    activity.summary.setText("RESOURCE CATALOG FAILED\n\n" + safe(errorText));
+                    return;
+                }
+                File previous = activity.apkCopy;
+                activity.apkCopy = ready;
+                deleteOwnedFileAsync(previous, cacheDir);
+                activity.all.clear();
+                activity.all.addAll(found);
+                ArrayList<String> choices = new ArrayList<>();
+                choices.add("All types");
+                choices.addAll(types);
+                ArrayAdapter<String> typeAdapter = new ArrayAdapter<>(activity,
+                        android.R.layout.simple_spinner_item, choices);
+                typeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                activity.typeFilter.setAdapter(typeAdapter);
+                activity.typeFilter.setSelection(0);
+                activity.summary.setText("APK bytes: " + bytesFinal + "\nResource records scanned: " + scannedFinal
+                        + "\nNamed records indexed: " + found.size()
+                        + (scannedFinal >= MAX_SCAN || found.size() >= MAX_STORED ? "\nSafety/display cap reached." : ""));
+                activity.filter();
+                activity.setBusy(false, "Resource ID catalog ready. Original APK was not modified.");
+            });
         });
     }
 
@@ -248,13 +276,14 @@ public final class ApkResourceCatalogActivity extends Activity {
         status.setText("Showing " + shown.size() + " of " + all.size() + " indexed resources");
     }
 
-    private String value(String value) { return value == null ? "" : value; }
+    private static String value(String value) { return value == null ? "" : value; }
 
-    private void setBusy(boolean busy, String message) {
-        choose.setEnabled(!busy);
-        search.setEnabled(!busy);
-        typeFilter.setEnabled(!busy && !all.isEmpty());
-        progress.setVisibility(busy ? View.VISIBLE : View.GONE);
+    private void setBusy(boolean busyValue, String message) {
+        busy = busyValue;
+        choose.setEnabled(!busyValue);
+        search.setEnabled(!busyValue);
+        typeFilter.setEnabled(!busyValue && !all.isEmpty());
+        progress.setVisibility(busyValue ? View.VISIBLE : View.GONE);
         status.setText(message);
     }
 
@@ -263,20 +292,60 @@ public final class ApkResourceCatalogActivity extends Activity {
             throw new InterruptedIOException("APK resource catalog cancelled because the activity was closed.");
     }
 
+    private static String safe(String value) { return value == null ? "unknown" : value; }
+
+    private static String describe(Throwable error) {
+        StringBuilder text = new StringBuilder(error.getClass().getSimpleName()).append(": ").append(safe(error.getMessage()));
+        for (Throwable suppressed : error.getSuppressed())
+            text.append("\nCleanup warning: ").append(suppressed.getClass().getSimpleName())
+                    .append(": ").append(safe(suppressed.getMessage()));
+        return text.toString();
+    }
+
+    private static void deleteOwnedFile(File file, File cacheDir, Throwable primary) {
+        if (file == null) return;
+        try {
+            File absolute = file.getAbsoluteFile();
+            if (!cacheDir.getAbsoluteFile().equals(absolute.getParentFile())
+                    || !absolute.getName().startsWith("droidinspect-resource-catalog-")
+                    || Files.isSymbolicLink(absolute.toPath()))
+                throw new IOException("Refusing to delete a resource catalog temporary file outside private cache.");
+            Files.deleteIfExists(absolute.toPath());
+            if (absolute.exists()) throw new IOException("Resource catalog temporary file remains after deletion.");
+        } catch (IOException | RuntimeException cleanupError) {
+            IOException reported = cleanupError instanceof IOException ? (IOException) cleanupError
+                    : new IOException("Resource catalog cleanup failed.", cleanupError);
+            if (primary != null) primary.addSuppressed(reported);
+            else Log.e("DroidInspectResourceCatalog", "Temporary file could not be removed: " + file, reported);
+        }
+    }
+
+    private static void deleteOwnedFileAsync(File file, File cacheDir) {
+        if (file == null) return;
+        Thread cleanup = new Thread(() -> deleteOwnedFile(file, cacheDir, null), "droidinspect-resource-catalog-file-cleanup");
+        cleanup.setDaemon(true);
+        cleanup.start();
+    }
+
     @Override protected void onDestroy() {
         destroyed = true;
-        worker.shutdownNow();
+        final ExecutorService executor = worker;
+        final File cacheDir = getCacheDir();
+        final File copy = apkCopy;
+        apkCopy = null;
+        executor.shutdownNow();
         super.onDestroy();
         Thread cleanup = new Thread(() -> {
-            try {
-                while (!worker.awaitTermination(1, TimeUnit.DAYS)) { }
-            } catch (InterruptedException interrupted) {
-                Thread.currentThread().interrupt();
-                return;
+            boolean interrupted = false;
+            while (true) {
+                try {
+                    if (executor.awaitTermination(1, TimeUnit.MINUTES)) break;
+                } catch (InterruptedException ignored) {
+                    interrupted = true;
+                }
             }
-            File copy = apkCopy;
-            apkCopy = null;
-            if (copy != null) copy.delete();
+            deleteOwnedFile(copy, cacheDir, null);
+            if (interrupted) Thread.currentThread().interrupt();
         }, "droidinspect-resource-catalog-cleanup");
         cleanup.setDaemon(true);
         cleanup.start();
