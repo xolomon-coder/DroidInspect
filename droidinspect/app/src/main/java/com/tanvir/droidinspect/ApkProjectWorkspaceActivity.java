@@ -40,7 +40,10 @@ public final class ApkProjectWorkspaceActivity extends Activity {
         super.onCreate(state);
         String requestedProject = getIntent().getStringExtra("project_id");
         if (requestedProject == null) showHome();
-        else openProject(requestedProject);
+        else {
+            initializeRoot("APK Project Workspace");
+            openProject(requestedProject);
+        }
     }
 
     @Override protected void onResume() {
@@ -402,7 +405,7 @@ public final class ApkProjectWorkspaceActivity extends Activity {
     private static String safe(String value) { return value == null ? "No details." : value; }
 
     @Override protected void onDestroy() {
-        super.onDestroy();
         worker.shutdownNow();
+        super.onDestroy();
     }
 }

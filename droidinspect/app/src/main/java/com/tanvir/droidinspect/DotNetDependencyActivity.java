@@ -167,6 +167,7 @@ public class DotNetDependencyActivity extends Activity {
                         activeProject.getRootAssembly().getAbsolutePath(),
                         activeProject.getDependencyDirectory().getAbsolutePath(),
                         references.getAbsolutePath());
+                checkCancelled();
                 if (result == null) result = "M13 DEPENDENCY RESOLVER ERROR: No result was returned.";
                 activeProject.saveReport(result);
             } catch (InterruptedIOException cancelled) {

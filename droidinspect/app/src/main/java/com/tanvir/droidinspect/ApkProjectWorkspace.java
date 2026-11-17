@@ -31,6 +31,7 @@ final class ApkProjectWorkspace {
     private static final int MAX_HISTORY_REVISIONS = 2;
     private static final int MAX_PROJECT_DIRECTORY_ENTRIES = 2000;
     private static final int MAX_PROJECT_REPORTS = 100;
+    private static final long MAX_PROJECT_METADATA_BYTES = 64L * 1024L;
     private static final int MAX_PROJECT_TREE_DEPTH = 4;
     private final Context context;
     private final File root;
@@ -75,11 +76,19 @@ final class ApkProjectWorkspace {
 
     static ApkProjectWorkspace create(Context context, Uri source) throws IOException {
         if (source == null) throw new IOException("No APK was selected.");
-        File base = new File(context.getFilesDir(), "apk-projects");
-        if (!base.exists() && !base.mkdirs()) throw new IOException("Cannot create APK project storage.");
+        File files = context.getFilesDir();
+        if (files == null || Files.isSymbolicLink(files.toPath()) || !files.isDirectory())
+            throw new IOException("Trusted application files directory is unavailable.");
+        File base = new File(files, "apk-projects");
+        if (Files.isSymbolicLink(base.toPath()))
+            throw new IOException("APK project storage cannot be a symbolic link.");
+        if (!base.exists() && !base.mkdir()) throw new IOException("Cannot create APK project storage.");
+        if (!isSafeDirectoryChild(files, base))
+            throw new IOException("APK project storage is outside its trusted application directory.");
         String id = "apk_" + UUID.randomUUID().toString().replace("-", "");
         File root = new File(base, id);
-        if (!root.mkdirs()) throw new IOException("Cannot create APK project folder.");
+        if (!root.mkdir() || !isSafeDirectoryChild(base, root))
+            throw new IOException("Cannot create a safe APK project folder.");
         String name = queryName(context, source);
         ApkProjectWorkspace project = new ApkProjectWorkspace(context, root, id, name, 0);
         try {
@@ -113,17 +122,34 @@ final class ApkProjectWorkspace {
     static ApkProjectWorkspace open(Context context, String id) throws IOException {
         if (id == null || !id.matches("apk_[A-Fa-f0-9]{32}"))
             throw new IOException("Invalid APK project identifier.");
-        File root = new File(new File(context.getFilesDir(), "apk-projects"), id);
+        File files = context.getFilesDir();
+        File base = new File(files, "apk-projects");
+        if (!isSafeDirectoryChild(files, base))
+            throw new IOException("APK project storage is unavailable or linked.");
+        File root = new File(base, id);
+        if (!isSafeDirectoryChild(base, root))
+            throw new IOException("Saved APK project folder is unavailable or linked.");
         File marker = new File(root, ".droidinspect-apk-project");
         File metadata = new File(root, "project.properties");
-        if (!marker.isFile() || !metadata.isFile()) throw new IOException("Saved APK project marker or metadata is missing.");
+        if (!isSafeFileChild(root, marker) || !isSafeFileChild(root, metadata))
+            throw new IOException("Saved APK project marker or metadata is missing or linked.");
         Properties properties = loadProperties(metadata);
         String name = properties.getProperty("name", "APK project");
         long revision = parseLong(properties.getProperty("revision"), 0);
         ApkProjectWorkspace project = new ApkProjectWorkspace(context, root, id, name, revision);
-        if (!project.originalApk.isFile() || !project.workingApk.isFile()
-                || !project.historyDirectory.isDirectory() || !project.exportsDirectory.isDirectory())
-            throw new IOException("Saved APK project is incomplete; original or working APK is missing.");
+        File originalDirectory = new File(root, "original");
+        File workingDirectory = new File(root, "working");
+        if (!isSafeDirectoryChild(root, originalDirectory)
+                || !isSafeDirectoryChild(root, workingDirectory)
+                || !isSafeDirectoryChild(root, project.historyDirectory)
+                || !isSafeDirectoryChild(root, project.exportsDirectory)
+                || !isSafeDirectoryChild(root, project.reportsDirectory)
+                || !isSafeFileChild(originalDirectory, project.originalApk)
+                || !isSafeFileChild(workingDirectory, project.workingApk)
+                || !isSafeDirectChild(root, project.notesFile)
+                || !isSafeDirectChild(root, project.bookmarksFile)
+                || !isSafeDirectChild(root, project.searchesFile))
+            throw new IOException("Saved APK project contains missing or unsafe workspace paths.");
         validateApk(project.originalApk);
         validateApk(project.workingApk);
         remember(context, id);
@@ -135,29 +161,45 @@ final class ApkProjectWorkspace {
         String id = context.getSharedPreferences("apk_project_workspace", Context.MODE_PRIVATE)
                 .getString("last_project_id", null);
         if (id == null || !id.matches("apk_[A-Fa-f0-9]{32}")) return null;
-        File root = new File(new File(context.getFilesDir(), "apk-projects"), id);
-        return new File(root, ".droidinspect-apk-project").isFile()
-                && new File(new File(root, "working"), "working.apk").isFile() ? id : null;
+        try {
+            File files = context.getFilesDir();
+            File base = new File(files, "apk-projects");
+            File root = new File(base, id);
+            File workingDirectory = new File(root, "working");
+            return isSafeDirectoryChild(files, base) && isSafeDirectoryChild(base, root)
+                    && isSafeFileChild(root, new File(root, ".droidinspect-apk-project"))
+                    && isSafeDirectoryChild(root, workingDirectory)
+                    && isSafeFileChild(workingDirectory, new File(workingDirectory, "working.apk"))
+                    ? id : null;
+        } catch (IOException unsafe) {
+            return null;
+        }
     }
 
     static List<ProjectSummary> listRecentProjects(Context context) {
         ArrayList<ProjectSummary> result = new ArrayList<>();
-        File base = new File(context.getFilesDir(), "apk-projects");
+        File files = context.getFilesDir();
+        File base = new File(files, "apk-projects");
         try {
+            if (!isSafeDirectoryChild(files, base)) return result;
             for (ProjectWorkspaceIndex.Entry entry : ProjectWorkspaceIndex.scanShallow(
                     base, ".droidinspect-apk-project", "APK")) {
                 File root = new File(base, entry.id);
-                if (Files.isSymbolicLink(root.toPath())) continue;
-            File marker = new File(root, ".droidinspect-apk-project");
-            File metadata = new File(root, "project.properties");
-            File working = new File(new File(root, "working"), "working.apk");
-            if (!root.isDirectory() || !marker.isFile() || !metadata.isFile() || !working.isFile()) continue;
-            try {
-                Properties p = loadProperties(metadata);
-                result.add(new ProjectSummary(p.getProperty("id", root.getName()),
-                        p.getProperty("name", "APK project"),
-                        parseLong(p.getProperty("updated"), entry.updated),
-                        parseLong(p.getProperty("revision"), 0), working.length()));
+                File marker = new File(root, ".droidinspect-apk-project");
+                File metadata = new File(root, "project.properties");
+                File workingDirectory = new File(root, "working");
+                File working = new File(workingDirectory, "working.apk");
+                if (!isSafeDirectoryChild(base, root)
+                        || !isSafeFileChild(root, marker)
+                        || !isSafeFileChild(root, metadata)
+                        || !isSafeDirectoryChild(root, workingDirectory)
+                        || !isSafeFileChild(workingDirectory, working)) continue;
+                try {
+                    Properties p = loadProperties(metadata);
+                    result.add(new ProjectSummary(p.getProperty("id", root.getName()),
+                            p.getProperty("name", "APK project"),
+                            parseLong(p.getProperty("updated"), entry.updated),
+                            parseLong(p.getProperty("revision"), 0), working.length()));
                 } catch (Exception ignored) { }
             }
         } catch (IOException ignored) {
@@ -165,6 +207,34 @@ final class ApkProjectWorkspace {
         }
         Collections.sort(result, (a,b) -> Long.compare(b.updated, a.updated));
         return result;
+    }
+
+    private static void ensureSafeFile(File file) throws IOException {
+        if (file == null || Files.isSymbolicLink(file.toPath()))
+            throw new IOException("Project file is unavailable or is a symbolic link.");
+        File parent = file.getAbsoluteFile().getParentFile();
+        if (parent == null || Files.isSymbolicLink(parent.toPath()) || !parent.isDirectory()
+                || !parent.getAbsoluteFile().equals(parent.getCanonicalFile()))
+            throw new IOException("Project file parent is unavailable or linked.");
+        if (!parent.getCanonicalFile().equals(file.getCanonicalFile().getParentFile()))
+            throw new IOException("Project file resolves outside its direct parent.");
+    }
+
+    private static boolean isSafeDirectChild(File parent, File child) throws IOException {
+        if (parent == null || child == null || Files.isSymbolicLink(parent.toPath())
+                || Files.isSymbolicLink(child.toPath()) || !parent.isDirectory()) return false;
+        File absoluteParent = parent.getAbsoluteFile();
+        File canonicalParent = parent.getCanonicalFile();
+        if (!absoluteParent.equals(canonicalParent)) return false;
+        return canonicalParent.equals(child.getCanonicalFile().getParentFile());
+    }
+
+    private static boolean isSafeDirectoryChild(File parent, File child) throws IOException {
+        return isSafeDirectChild(parent, child) && child.isDirectory();
+    }
+
+    private static boolean isSafeFileChild(File parent, File child) throws IOException {
+        return isSafeDirectChild(parent, child) && child.isFile();
     }
 
     private static void remember(Context context, String id) {
@@ -322,6 +392,9 @@ final class ApkProjectWorkspace {
 
     private void touch() throws IOException {
         File metadata = new File(root, "project.properties");
+        File temp = new File(root, "project.properties.tmp");
+        if (!isSafeDirectChild(root, metadata) || !isSafeDirectChild(root, temp))
+            throw new IOException("APK project metadata paths are unsafe.");
         Properties previous = metadata.isFile() ? loadProperties(metadata) : new Properties();
         String originalHash = previous.getProperty("originalSha256");
         String workingHash = previous.getProperty("workingSha256");
@@ -341,7 +414,6 @@ final class ApkProjectWorkspace {
         p.setProperty("revision", String.valueOf(rev));
         p.setProperty("originalSha256", originalHash);
         p.setProperty("workingSha256", workingHash);
-        File temp = new File(root, "project.properties.tmp");
         try (FileOutputStream out = new FileOutputStream(temp)) { p.store(out, "DroidInspect APK project"); }
         if (!temp.renameTo(metadata)) {
             if (metadata.exists() && !metadata.delete())
@@ -355,6 +427,8 @@ final class ApkProjectWorkspace {
     }
 
     private static void appendRecord(File file, String... values) throws IOException {
+        ensureSafeFile(file);
+
         try (FileOutputStream out = new FileOutputStream(file, true)) {
             for (int i = 0; i < values.length; i++) {
                 if (i > 0) out.write('\t');
@@ -366,6 +440,8 @@ final class ApkProjectWorkspace {
     }
 
     private static List<String> readRecords(File file) throws IOException {
+        ensureSafeFile(file);
+
         ArrayList<String> result = new ArrayList<>();
         if (!file.isFile()) return result;
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"))) {
@@ -385,6 +461,8 @@ final class ApkProjectWorkspace {
     }
 
     private static void copyUri(Context context, Uri uri, File output, long limit) throws IOException {
+        ensureSafeFile(output);
+
         long total = 0;
         try (InputStream in = context.getContentResolver().openInputStream(uri);
              FileOutputStream out = new FileOutputStream(output)) {
@@ -406,6 +484,9 @@ final class ApkProjectWorkspace {
     }
 
     private static void copyFile(File source, File output) throws IOException {
+        ensureSafeFile(source);
+        ensureSafeFile(output);
+
         try (InputStream in = new FileInputStream(source); OutputStream out = new FileOutputStream(output)) {
             byte[] buffer = new byte[32768];
             int read;
@@ -435,6 +516,8 @@ final class ApkProjectWorkspace {
     }
 
     private static void validateApk(File file) throws IOException {
+        ensureSafeFile(file);
+
         checkCancelled();
         if (file == null || !file.isFile() || file.length() <= 0 || file.length() > MAX_APK_BYTES)
             throw new IOException("APK is empty or exceeds the 512 MB limit.");
@@ -463,12 +546,16 @@ final class ApkProjectWorkspace {
     }
 
     private static void writeText(File file, String text) throws IOException {
+        ensureSafeFile(file);
+
         File parent = file.getParentFile();
         if (parent != null && !parent.exists() && !parent.mkdirs()) throw new IOException("Cannot create " + parent);
         try (FileOutputStream out = new FileOutputStream(file)) { out.write((text == null ? "" : text).getBytes("UTF-8")); }
     }
 
     private static String readText(File file) throws IOException {
+        ensureSafeFile(file);
+
         StringBuilder text = new StringBuilder();
         if (!file.isFile()) return "";
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"))) {
@@ -478,6 +565,8 @@ final class ApkProjectWorkspace {
     }
 
     private static String sha256(File file) throws IOException {
+        ensureSafeFile(file);
+
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             try (InputStream in = new FileInputStream(file)) {
@@ -494,6 +583,10 @@ final class ApkProjectWorkspace {
     }
 
     private static Properties loadProperties(File file) throws IOException {
+        if (file == null || Files.isSymbolicLink(file.toPath()) || !file.isFile())
+            throw new IOException("Project metadata file is unavailable or linked.");
+        if (file.length() > MAX_PROJECT_METADATA_BYTES)
+            throw new IOException("Project metadata exceeds the 64 KB safety limit.");
         Properties p = new Properties();
         try (FileInputStream in = new FileInputStream(file)) { p.load(in); }
         return p;
