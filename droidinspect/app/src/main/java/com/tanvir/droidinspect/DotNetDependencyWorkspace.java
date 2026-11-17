@@ -246,14 +246,32 @@ final class DotNetDependencyWorkspace {
 
     private static void write(File target, String value) throws IOException {
         File temporary = new File(target.getParentFile(), target.getName() + ".tmp-" + UUID.randomUUID());
-        try (FileOutputStream output = new FileOutputStream(temporary)) {
-            output.write(value.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            output.flush();
-            output.getFD().sync();
+        Throwable primaryFailure = null;
+        try {
+            try (FileOutputStream output = new FileOutputStream(temporary)) {
+                output.write(value.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                output.flush();
+                output.getFD().sync();
+            }
+            if (!temporary.renameTo(target))
+                throw new IOException("Cannot save dependency project metadata.");
+        } catch (IOException | RuntimeException | Error error) {
+            primaryFailure = error;
+            throw error;
+        } finally {
+            deleteTemporaryFile(temporary, primaryFailure);
         }
-        if (!temporary.renameTo(target)) {
-            temporary.delete();
-            throw new IOException("Cannot save dependency project metadata.");
+    }
+
+    private static void deleteTemporaryFile(File file, Throwable primaryFailure) throws IOException {
+        if (file == null) return;
+        try {
+            Files.deleteIfExists(file.toPath());
+        } catch (IOException | SecurityException cleanupError) {
+            IOException reported = new IOException(
+                    "Could not remove temporary dependency metadata: " + file.getName(), cleanupError);
+            if (primaryFailure != null) primaryFailure.addSuppressed(reported);
+            else throw reported;
         }
     }
 

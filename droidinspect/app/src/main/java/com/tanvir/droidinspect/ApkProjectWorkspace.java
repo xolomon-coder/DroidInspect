@@ -446,16 +446,26 @@ final class ApkProjectWorkspace {
         p.setProperty("revision", String.valueOf(rev));
         p.setProperty("originalSha256", originalHash);
         p.setProperty("workingSha256", workingHash);
-        try (FileOutputStream out = new FileOutputStream(temp)) { p.store(out, "DroidInspect APK project"); }
-        if (!temp.renameTo(metadata)) {
-            if (metadata.exists() && !metadata.delete())
-                throw new IOException("Cannot replace existing project metadata.");
-            if (!temp.renameTo(metadata)) {
-                copyFile(temp, metadata);
-                temp.delete();
+        Throwable primaryFailure = null;
+        try {
+            try (FileOutputStream out = new FileOutputStream(temp)) {
+                p.store(out, "DroidInspect APK project");
             }
+            if (!temp.renameTo(metadata)) {
+                if (metadata.exists() && !metadata.delete())
+                    throw new IOException("Cannot replace existing project metadata.");
+                if (!temp.renameTo(metadata)) {
+                    copyFile(temp, metadata);
+                    deleteTemporaryFile(temp, null);
+                }
+            }
+            revision = rev;
+        } catch (IOException | RuntimeException | Error error) {
+            primaryFailure = error;
+            throw error;
+        } finally {
+            deleteTemporaryFile(temp, primaryFailure);
         }
-        revision = rev;
     }
 
     private static void appendRecord(File file, String... values) throws IOException {

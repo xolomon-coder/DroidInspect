@@ -323,6 +323,7 @@ final class CSharpSourceWorkspace {
         if (parent != null && !parent.exists() && !parent.mkdirs())
             throw new IOException("Cannot create source directory.");
         File temporary = new File(parent, target.getName() + ".tmp-" + UUID.randomUUID());
+        Throwable primaryFailure = null;
         try {
             byte[] bytes = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
             if (bytes.length > MAX_SOURCE_FILE)
@@ -334,8 +335,23 @@ final class CSharpSourceWorkspace {
                 output.getFD().sync();
             }
             Files.move(temporary.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException | RuntimeException | Error error) {
+            primaryFailure = error;
+            throw error;
         } finally {
-            if (temporary.exists()) temporary.delete();
+            deleteTemporaryFile(temporary, primaryFailure);
+        }
+    }
+
+    private static void deleteTemporaryFile(File file, Throwable primaryFailure) throws IOException {
+        if (file == null) return;
+        try {
+            Files.deleteIfExists(file.toPath());
+        } catch (IOException | SecurityException cleanupError) {
+            IOException reported = new IOException(
+                    "Could not remove temporary C# source file: " + file.getName(), cleanupError);
+            if (primaryFailure != null) primaryFailure.addSuppressed(reported);
+            else throw reported;
         }
     }
 
