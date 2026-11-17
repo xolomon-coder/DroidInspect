@@ -168,6 +168,7 @@ final class ProjectWorkspaceMetadata {
         if (bytes.length > MAX_TEXT_BYTES) throw new IOException("Project metadata exceeds the 1 MB safety limit.");
         File target = child(filename);
         File temporary = child(filename + ".tmp-" + UUID.randomUUID());
+        Throwable primaryFailure = null;
         try {
             try (FileOutputStream output = new FileOutputStream(temporary)) {
                 output.write(bytes);
@@ -180,8 +181,18 @@ final class ProjectWorkspaceMetadata {
             } catch (java.nio.file.AtomicMoveNotSupportedException unsupported) {
                 Files.move(temporary.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
+        } catch (IOException | RuntimeException | Error failure) {
+            primaryFailure = failure;
+            throw failure;
         } finally {
-            if (temporary.exists()) temporary.delete();
+            try {
+                Files.deleteIfExists(temporary.toPath());
+            } catch (IOException | RuntimeException cleanupError) {
+                IOException reported = new IOException("Could not remove temporary project metadata file: "
+                        + temporary.getName(), cleanupError);
+                if (primaryFailure != null) primaryFailure.addSuppressed(reported);
+                else throw reported;
+            }
         }
     }
 
