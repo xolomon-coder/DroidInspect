@@ -3854,3 +3854,71 @@ Additional M20 changes since the previous checkpoint:
 5. Prepare the single consolidated M12–M20 Android 11 / CodeAssist checklist only after implementation and available automated verification are complete.
 
 **Current source stopping point:** `main`, source HEAD `e03c3ddcd312751daeb1a64715ded8f34a35d43a` before this README-only update. M19 and M20 remain IN PROGRESS. No new Android testing is requested yet.
+
+---
+
+## Continuation checkpoint — README synchronization — 2026-11-17
+
+This section supersedes earlier stopping-point statements where they conflict with the live repository checkpoint below. It records only work inspected in the current continuation; it does not imply that the pending source refactors or verification gates have completed.
+
+### Live repository checkpoint
+
+- Branch: `main` only.
+- Live source checkpoint inspected at the start of this continuation: `2c8b7b3868701bc31a15632c4dfcec9ee56920c4`.
+- Latest inspected APK resource editor changes are present on this checkpoint. Their successful Android build and production CI execution have not been established here.
+- The README itself was read from the live `main` branch before this synchronization.
+
+### APK signing Activity — outstanding, not committed
+
+File reviewed: `droidinspect/app/src/main/java/com/tanvir/droidinspect/ApkSigningActivity.java`.
+
+The signing lifecycle refactor has **not** been committed. The current implementation still requires a focused correction for worker ownership and Activity lifecycle safety. The review identified worker closures that retain/use Activity state, worker-side Activity context/content-resolver access, unchecked temporary-file deletion, and teardown/worker coordination that needs to guarantee no file is deleted while a worker may still use it.
+
+Required next implementation:
+- Capture immutable operation inputs before dispatch and use application Context for file/content access.
+- Detach worker closures from the Activity; deliver results with a main-thread Handler and WeakReference plus finishing/destroyed validation.
+- Check cancellation at safe processing boundaries.
+- Roll back partial APK/keystore imports and failed signing outputs with bounded, checked cleanup.
+- Preserve primary failures and attach cleanup failures as suppressed exceptions.
+- Transfer output ownership only after successful completion.
+- Perform worker termination waiting and cleanup on a separate thread, never on the UI thread.
+- Verify Java 8 and minSdk 26 compatibility before committing.
+
+### M19/M20 source-review checkpoint
+
+The following current source paths were inspected for the previously reported checked-cleanup defects:
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/ApkProjectWorkspace.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/DecompilationWorkspace.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/DotNetDependencyWorkspace.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/CSharpSourceWorkspace.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/FileInspectionEngine.java`
+
+Source review found that the specifically flagged metadata/temp-file cleanup paths in ApkProjectWorkspace, DotNetDependencyWorkspace and CSharpSourceWorkspace already use checked cleanup and preserve primary exceptions. DecompilationWorkspace and FileInspectionEngine were also reviewed for bounded/symlink-safe cleanup and primary-exception preservation. These are source-inspection observations only; they are not proof of runtime behavior or test execution.
+
+The four existing host regression source files were located:
+- `tools/project-workspace-index-test/ProjectWorkspaceIndexSelfTest.java`
+- `tools/project-workspace-test/ProjectWorkspaceMetadataSelfTest.java`
+- `tools/bounded-source-tree-test/BoundedSourceTreeSelfTest.java`
+- `tools/bounded-project-files-test/BoundedProjectFilesSelfTest.java`
+
+Their source was inspected, but **none of these four suites was executed in this continuation**. Earlier local PASS statements in this README refer to earlier checkpoints and must not be treated as verification of the current source snapshot.
+
+### CI and release verification
+
+- Production workflow: `.github/workflows/phase1-android.yml`.
+- No current successful production workflow run, executed job steps, Android build, APK artifact, signing/tamper result, ABI/native inventory, dependency/license report, or checksum was established during this continuation.
+- Historical runner-allocation failures remain historical evidence only. Do not infer current runner availability from them.
+- M19 and M20 remain **IN PROGRESS**. Android process-restart persistence, complete Activity lifecycle coverage, host-suite execution, Android debug/release builds, device verification, and production release gates remain open.
+- M11 remains user-accepted; do not repeat M11 acceptance tests. Do not request separate M12–M20 device tests; prepare one consolidated checklist after implementation and available automated verification are complete.
+
+### Exact next actions
+
+1. Recheck live `main` before editing, then implement and commit the APK signing lifecycle refactor.
+2. Continue the remaining Activity worker/cancellation audit, including APK resource/signing and any other worker-owning screens.
+3. Run all four named M19 host suites and applicable additional host tests; record exact commands and outputs.
+4. Complete M19 persistence/recovery and M20 rollback/cancellation audits without conflating source review with runtime verification.
+5. Inspect current Actions runner/job execution before retrying production CI; once jobs execute, fix demonstrated failures and inspect all required APK artifacts.
+6. Update this README with exact commits, changed paths, test commands/results, CI run IDs/results and release evidence.
+7. Only then prepare the consolidated M12–M20 phone-based CodeAssist test checklist.
+
+**Current documentation status:** this README synchronization records the current inspected checkpoint and outstanding work. It does not mark the APK signing refactor, M19/M20, production CI, or release verification complete.
