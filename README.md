@@ -3705,3 +3705,50 @@ Additional M20 changes since the previous checkpoint:
 3. Run the new bounded-project-files test and complete host regressions before preparing the consolidated M12–M20 phone test session.
 
 **Stopping point:** APK project history, report and tree enumeration have been converted to bounded, symlink-safe scans and the new test is wired into production CI. No runner-backed or device acceptance is yet recorded.
+
+### M19/M20 continuation — bounded cleanup and APK project worker lifecycle — 2026-11-17
+
+**M19 temporary workspace cleanup correction:**
+- The final production File.listFiles() call in ApkProjectWorkspace.deleteTree() was unbounded and ignored both enumeration and deletion failures.
+- Moved cleanup into BoundedProjectFiles.deleteTree(). It enumerates with DirectoryStream, enforces the shared 2,000-entry budget and a 64-level depth ceiling, rejects a symbolic-link workspace root, deletes symbolic-link children as links without traversing their targets, checks canonical containment, and checks thread interruption during traversal/deletion.
+- Failed directory enumeration or deletion now raises an IOException instead of silently reporting cleanup as complete. APK project creation preserves its original failure and attaches cleanup failure as a suppressed exception.
+- Extended BoundedProjectFilesSelfTest to cover bounded cleanup, external symlink-target preservation and interruption behavior.
+
+**M20 APK project Activity lifecycle correction:**
+- The APK project Activity previously passed the Activity itself into background project open/create work and called runOnUiThread from worker closures. This could retain a destroyed Activity while a long file operation was still running.
+- Project open/create workers now receive the application Context. Worker callbacks hold only a WeakReference to the Activity and are delivered through the main-thread Handler after finishing/destroyed checks.
+- Project actions now receive a captured ApkProjectWorkspace instead of accessing the Activity's project field from worker lambdas. Text is read from UI widgets before dispatch, avoiding worker retention of editor views.
+- The executor is still shut down on Activity destruction; cancellable workspace operations observe interruption where implemented. Operations already in non-interruptible platform/native work remain subject to their underlying API behavior.
+
+**Exact files changed in this continuation:**
+- droidinspect/app/src/main/java/com/tanvir/droidinspect/BoundedProjectFiles.java
+- tools/bounded-project-files-test/BoundedProjectFilesSelfTest.java
+- droidinspect/app/src/main/java/com/tanvir/droidinspect/ApkProjectWorkspace.java
+- droidinspect/app/src/main/java/com/tanvir/droidinspect/ApkProjectWorkspaceActivity.java
+
+**Commits on main (oldest to newest):**
+- 55368c5d7dd4b48c37ec481b9df6451b37d4348b — bound temporary project cleanup traversal.
+- 995bd1f138c71cac42af633fa5a6f97fc5eb1c0d — test bounded temporary workspace cleanup.
+- 11c08659399fa504aafa81236c373801cefc18d8 — use bounded safe cleanup for failed APK projects.
+- 0bec782c2180c62a4e4060a0b5ad842107eb23fe — detach APK project workers from Activity lifecycle.
+- 0aae5c14e7eb5c024064caabdf54213548eab609 — remove Activity capture from APK project I/O tasks.
+
+**Verification and CI:**
+- Compiled the updated bounded cleanup helper and regression scenarios using javac --release 8; execution reported BoundedProjectFilesSelfTest: PASS. This is a local host JVM check, not GitHub Actions, Android compilation, or device acceptance.
+- The production workflow .github/workflows/phase1-android.yml is configured for non-README pushes and includes this host test. The source commits therefore target the production workflow.
+- The combined commit-status query for the prior checkpoint returned no status records. The available GitHub Actions connector can inspect known run IDs/jobs but does not expose repository-wide push-run enumeration; the commit-workflow query only returns pull-request-triggered runs. No new push-run ID, runner assignment, job steps, or artifacts could be confirmed in this session.
+- The last directly inspectable production run remains 43975311959 (#593), which failed before executing any steps (runner_id 0, blank runner name, no artifacts). This is not evidence of a source or test failure, and it is not evidence that the latest commits passed.
+- No full host-suite result, Android debug/release build, signed APK, tamper-test result, packaged native inventory, dependency graph, license audit or CI checksum is claimed.
+
+**Milestone state:**
+- **M19 — IN PROGRESS.** APK history/report/tree and temporary cleanup now have bounded source paths. The focused bounded cleanup host test passed locally. The full host suite, project create/reopen, process-restart persistence, cross-project isolation, metadata recovery and Android integration/device acceptance remain open.
+- **M20 — IN PROGRESS.** The APK project worker-retention path and temporary cleanup were hardened. The broader project/diagnostic/decompilation lifecycle sweep, full host regressions, runner-backed Android build/release checks, device memory/performance and CodeAssist reproducibility remain open.
+- **M12–M18** remain implementation-integrated with consolidated device acceptance pending. **M11 remains user-accepted; do not repeat its acceptance tests.**
+
+**Exact next actions:**
+1. Continue auditing diagnostic, dependency and decompilation Activity workers for strong Activity captures, uncancellable large I/O and callbacks after destruction.
+2. Obtain a fresh production Actions run using a supported repository-wide run listing method when available; inspect runner assignment, all job steps and every artifact. Do not infer success from empty status responses.
+3. Execute the full host regression suite and the production debug/release, signing/tamper, ARM64/native payload, dependency and checksum gates once a runner is available.
+4. Only after implementation and available automated verification are complete, prepare the single consolidated M12–M20 Android 11 / CodeAssist testing checklist.
+
+**Current branch and stopping point:** main, source HEAD 0aae5c14e7eb5c024064caabdf54213548eab609 before this README checkpoint. M19/M20 remain unaccepted; production CI and release verification remain unconfirmed. No individual phone test is requested.
