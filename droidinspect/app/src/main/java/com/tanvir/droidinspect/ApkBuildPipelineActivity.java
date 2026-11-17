@@ -537,7 +537,11 @@ public final class ApkBuildPipelineActivity extends Activity {
             ApkBuildPipelineActivity activity = owner.get();
             if (activity == null || activity.destroyed
                     || activity.isFinishing() || activity.isDestroyed()) {
-                if (onDiscard != null) onDiscard.run();
+                if (onDiscard != null) {
+                    Thread cleanup = new Thread(onDiscard, "droidinspect-pipeline-discard-cleanup");
+                    cleanup.setDaemon(true);
+                    cleanup.start();
+                }
                 return;
             }
             callback.deliver(activity);
