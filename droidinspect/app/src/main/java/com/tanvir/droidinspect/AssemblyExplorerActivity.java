@@ -3,10 +3,14 @@ package com.tanvir.droidinspect;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ClipData;
+import android.content.Context;
 import android.content.ClipboardManager;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Log;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.View;
@@ -19,8 +23,11 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.lang.ref.WeakReference;
 import java.io.InterruptedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -47,6 +54,7 @@ public final class AssemblyExplorerActivity extends Activity {
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private volatile boolean destroyed;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ArrayList<Entry> allEntries = new ArrayList<>();
     private final ArrayList<Entry> shownEntries = new ArrayList<>();
     private final ArrayList<String> labels = new ArrayList<>();
@@ -131,32 +139,54 @@ public final class AssemblyExplorerActivity extends Activity {
 
     private void load(Uri uri) {
         setBusy(true, "Copying assembly and indexing metadata, members and IL…");
+        final Context app = getApplicationContext();
+        final File cacheDir = app.getCacheDir();
+        final File filesDir = app.getFilesDir();
+        final Handler ui = mainHandler;
+        final WeakReference<AssemblyExplorerActivity> owner = new WeakReference<>(this);
         worker.execute(() -> {
-            String failure = null;
+            File copy = null;
             String metadata = null;
             DotNetIlReader.Result il = null;
+            AssemblyExplorerBookmarkStore bookmarks = null;
+            Throwable problem = null;
             try {
-                sourceCopy = File.createTempFile("droidinspect-explorer-", ".bin", getCacheDir());
-                copyUri(uri, sourceCopy);
-                bookmarkStore = new AssemblyExplorerBookmarkStore(getFilesDir(), sha256(sourceCopy));
-                metadata = FileInspectionEngine.inspectPe(sourceCopy, sourceCopy.getName());
-                il = DotNetIlReader.read(sourceCopy);
-            } catch (Exception error) {
-                failure = error.getClass().getSimpleName() + ": " + safe(error.getMessage());
+                copy = File.createTempFile("droidinspect-explorer-", ".bin", cacheDir);
+                copyUri(app, uri, copy);
+                checkCancelled();
+                bookmarks = new AssemblyExplorerBookmarkStore(filesDir, sha256(copy));
+                metadata = FileInspectionEngine.inspectPe(copy, copy.getName());
+                checkCancelled();
+                il = DotNetIlReader.read(copy);
+                checkCancelled();
+            } catch (Exception | Error error) {
+                problem = error;
+                if (copy != null) deleteOwnedFile(copy, cacheDir, problem);
+                copy = null;
             }
-            final String error = failure;
+            final File ready = copy;
             final String meta = metadata;
             final DotNetIlReader.Result methods = il;
-            runOnUiThread(() -> {
-                if (destroyed || isFinishing() || isDestroyed()) return;
-                setBusy(false, error == null ? "Assembly indexing complete." : "Assembly indexing failed.");
-                if (error != null) {
-                    status.setText("ASSEMBLY EXPLORER ERROR: " + error);
+            final AssemblyExplorerBookmarkStore readyBookmarks = bookmarks;
+            final String errorText = problem == null ? null : describe(problem);
+            ui.post(() -> {
+                AssemblyExplorerActivity activity = owner.get();
+                if (activity == null || activity.destroyed
+                        || activity.isFinishing() || activity.isDestroyed()) {
+                    deleteOwnedFileAsync(ready, cacheDir);
                     return;
                 }
-                title.setText(methods.assembly + " — Assembly Explorer");
-                buildEntries(meta, methods);
-                filter();
+                activity.setBusy(false, errorText == null ? "Assembly indexing complete." : "Assembly indexing failed.");
+                if (errorText != null || methods == null || ready == null || readyBookmarks == null) {
+                    activity.status.setText("ASSEMBLY EXPLORER ERROR: " + safe(errorText));
+                    deleteOwnedFileAsync(ready, cacheDir);
+                    return;
+                }
+                activity.sourceCopy = ready;
+                activity.bookmarkStore = readyBookmarks;
+                activity.title.setText(methods.assembly + " — Assembly Explorer");
+                activity.buildEntries(meta, methods);
+                activity.filter();
             });
         });
     }
@@ -528,20 +558,24 @@ public final class AssemblyExplorerActivity extends Activity {
         backButton.setEnabled(!busy && (currentOwner != null || currentNamespace != null));
     }
 
-    private void copyUri(Uri uri, File output) throws Exception {
+    private static void copyUri(Context context, Uri uri, File output) throws IOException {
         long total = 0;
-        try (InputStream input = getContentResolver().openInputStream(uri);
+        try (InputStream input = context.getContentResolver().openInputStream(uri);
              FileOutputStream stream = new FileOutputStream(output)) {
-            if (input == null) throw new IllegalStateException("Android could not open the selected document.");
+            if (input == null) throw new IOException("Android could not open the selected document.");
             byte[] buffer = new byte[32768];
             int count;
             while ((count = input.read(buffer)) != -1) {
                 checkCancelled();
                 total += count;
-                if (total > MAX_INPUT) throw new IllegalArgumentException("Assembly exceeds the 512 MB safety limit.");
+                if (total > MAX_INPUT) throw new IOException("Assembly exceeds the 512 MB safety limit.");
                 stream.write(buffer, 0, count);
             }
             stream.flush();
+            stream.getFD().sync();
+        } catch (IOException | RuntimeException | Error failure) {
+            deleteOwnedFile(output, context.getCacheDir(), failure);
+            throw failure;
         }
     }
 
@@ -560,20 +594,61 @@ public final class AssemblyExplorerActivity extends Activity {
             throw new InterruptedIOException("Assembly exploration cancelled because the activity was closed.");
     }
 
+    private static String describe(Throwable error) {
+        StringBuilder message = new StringBuilder(error.getClass().getSimpleName())
+                .append(": ").append(safe(error.getMessage()));
+        for (Throwable suppressed : error.getSuppressed()) {
+            message.append("\nCleanup warning: ").append(suppressed.getClass().getSimpleName())
+                    .append(": ").append(safe(suppressed.getMessage()));
+        }
+        return message.toString();
+    }
+
+    private static void deleteOwnedFile(File file, File cacheDir, Throwable primary) {
+        if (file == null) return;
+        try {
+            File absolute = file.getAbsoluteFile();
+            if (!cacheDir.getAbsoluteFile().equals(absolute.getParentFile())
+                    || !absolute.getName().startsWith("droidinspect-explorer-")
+                    || Files.isSymbolicLink(absolute.toPath())) {
+                throw new IOException("Refusing to delete an assembly explorer file outside private cache.");
+            }
+            Files.deleteIfExists(absolute.toPath());
+            if (absolute.exists()) throw new IOException("Assembly explorer temporary file remains after deletion.");
+        } catch (IOException | RuntimeException cleanupFailure) {
+            IOException reported = cleanupFailure instanceof IOException ? (IOException) cleanupFailure
+                    : new IOException("Assembly explorer cleanup failed.", cleanupFailure);
+            if (primary != null) primary.addSuppressed(reported);
+            else Log.e("DroidInspectExplorer", "Temporary file could not be removed: " + file, reported);
+        }
+    }
+
+    private static void deleteOwnedFileAsync(File file, File cacheDir) {
+        if (file == null) return;
+        Thread cleanup = new Thread(() -> deleteOwnedFile(file, cacheDir, null), "droidinspect-explorer-file-cleanup");
+        cleanup.setDaemon(true);
+        cleanup.start();
+    }
+
     @Override protected void onDestroy() {
         destroyed = true;
-        worker.shutdownNow();
+        final ExecutorService executor = worker;
+        final File cacheDir = getCacheDir();
+        final File ownedCopy = sourceCopy;
+        sourceCopy = null;
+        executor.shutdownNow();
         super.onDestroy();
         Thread cleanup = new Thread(() -> {
-            try {
-                while (!worker.awaitTermination(1, TimeUnit.DAYS)) { }
-            } catch (InterruptedException interrupted) {
-                Thread.currentThread().interrupt();
-                return;
+            boolean interrupted = false;
+            while (true) {
+                try {
+                    if (executor.awaitTermination(1, TimeUnit.MINUTES)) break;
+                } catch (InterruptedException ignored) {
+                    interrupted = true;
+                }
             }
-            File copy = sourceCopy;
-            sourceCopy = null;
-            if (copy != null) copy.delete();
+            deleteOwnedFile(ownedCopy, cacheDir, null);
+            if (interrupted) Thread.currentThread().interrupt();
         }, "droidinspect-explorer-cleanup");
         cleanup.setDaemon(true);
         cleanup.start();
