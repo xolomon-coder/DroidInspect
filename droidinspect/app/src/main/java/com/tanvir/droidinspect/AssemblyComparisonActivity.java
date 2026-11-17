@@ -1,9 +1,13 @@
 package com.tanvir.droidinspect;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -11,8 +15,11 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.lang.ref.WeakReference;
 import java.io.InterruptedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,6 +31,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /** Structural .NET assembly comparison. It deliberately does not claim semantic equivalence. */
 public final class AssemblyComparisonActivity extends Activity {
@@ -31,6 +39,8 @@ public final class AssemblyComparisonActivity extends Activity {
     private static final long MAX_INPUT = 512L * 1024L * 1024L;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private volatile boolean destroyed;
+    private boolean busy;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private Uri leftUri, rightUri;
     private String leftName = "Baseline assembly", rightName = "Candidate assembly";
     private Button leftButton, rightButton, compareButton;
@@ -136,69 +146,83 @@ public final class AssemblyComparisonActivity extends Activity {
     }
 
     private void compare() {
-        if (leftUri == null || rightUri == null) return;
-        leftButton.setEnabled(false);
-        rightButton.setEnabled(false);
-        compareButton.setEnabled(false);
+        if (busy || leftUri == null || rightUri == null) return;
+        final Uri baselineUri = leftUri, candidateUri = rightUri;
+        final String baselineName = leftName, candidateName = rightName;
+        final Context app = getApplicationContext();
+        final File cacheDir = app.getCacheDir();
+        final Handler ui = mainHandler;
+        final WeakReference<AssemblyComparisonActivity> owner = new WeakReference<>(this);
+        busy = true;
+        setButtons(false);
         status.setText("Copying and analyzing both assemblies…");
         worker.execute(() -> {
-            File left = null, right = null;
+            File baseline = null, candidate = null;
+            Throwable problem = null;
+            String reportText = null;
             try {
-                left = copy(leftUri, "droidinspect-compare-left-");
-                right = copy(rightUri, "droidinspect-compare-right-");
+                baseline = copy(app, baselineUri, "droidinspect-compare-left-");
+                candidate = copy(app, candidateUri, "droidinspect-compare-right-");
                 checkCancelled();
-                String leftMetadata = FileInspectionEngine.inspectPe(left, leftName);
+                String baselineMetadata = FileInspectionEngine.inspectPe(baseline, baselineName);
                 checkCancelled();
-                String rightMetadata = FileInspectionEngine.inspectPe(right, rightName);
+                String candidateMetadata = FileInspectionEngine.inspectPe(candidate, candidateName);
                 checkCancelled();
-                if (!leftMetadata.contains(".NET CLI header: PRESENT")
-                        || !rightMetadata.contains(".NET CLI header: PRESENT"))
+                if (!baselineMetadata.contains(".NET CLI header: PRESENT")
+                        || !candidateMetadata.contains(".NET CLI header: PRESENT"))
                     throw new IllegalArgumentException("Both selected files must contain a valid managed .NET CLI header.");
-                DotNetIlReader.Result leftIl = DotNetIlReader.read(left);
-                DotNetIlReader.Result rightIl = DotNetIlReader.read(right);
-                String output = buildReport(leftMetadata, rightMetadata, leftIl, rightIl);
-                runOnUiThread(() -> {
-                    if (destroyed || isFinishing() || isDestroyed()) return;
-                    report.setText(output);
-                    status.setText("Structural comparison finished. Original assemblies were not modified.");
-                    setButtons(true);
-                });
-            } catch (Exception error) {
-                String message = "COMPARISON FAILED\n\n" + error.getClass().getSimpleName()
-                        + ": " + (error.getMessage() == null ? "No details." : error.getMessage())
-                        + "\n\nNo source assembly was modified.";
-                runOnUiThread(() -> {
-                    if (destroyed || isFinishing() || isDestroyed()) return;
-                    report.setText(message);
-                    status.setText("Comparison failed.");
-                    setButtons(true);
-                });
+                DotNetIlReader.Result baselineIl = DotNetIlReader.read(baseline);
+                checkCancelled();
+                DotNetIlReader.Result candidateIl = DotNetIlReader.read(candidate);
+                checkCancelled();
+                reportText = buildReport(baselineName, candidateName,
+                        baselineMetadata, candidateMetadata, baselineIl, candidateIl);
+            } catch (Exception | Error error) {
+                problem = error;
             } finally {
-                if (left != null) left.delete();
-                if (right != null) right.delete();
+                deleteOwnedFile(baseline, cacheDir, problem);
+                deleteOwnedFile(candidate, cacheDir, problem);
             }
+            final String readyReport = reportText;
+            final String failure = problem == null ? null : describe(problem);
+            ui.post(() -> {
+                AssemblyComparisonActivity activity = owner.get();
+                if (activity == null || activity.destroyed
+                        || activity.isFinishing() || activity.isDestroyed()) return;
+                activity.busy = false;
+                activity.setButtons(true);
+                if (failure != null || readyReport == null) {
+                    activity.report.setText("COMPARISON FAILED\n\n" + safe(failure)
+                            + "\n\nNo source assembly was modified.");
+                    activity.status.setText("Comparison failed.");
+                } else {
+                    activity.report.setText(readyReport);
+                    activity.status.setText("Structural comparison finished. Original assemblies were not modified.");
+                }
+            });
         });
     }
 
-    private File copy(Uri uri, String prefix) throws Exception {
-        File out = File.createTempFile(prefix, ".dll", getCacheDir());
+    private static File copy(Context context, Uri uri, String prefix) throws IOException {
+        File output = File.createTempFile(prefix, ".dll", context.getCacheDir());
         long total = 0;
-        try (InputStream in = getContentResolver().openInputStream(uri);
-             FileOutputStream stream = new FileOutputStream(out)) {
-            if (in == null) throw new IllegalStateException("Unable to open selected document.");
+        try (InputStream input = context.getContentResolver().openInputStream(uri);
+             FileOutputStream stream = new FileOutputStream(output)) {
+            if (input == null) throw new IOException("Unable to open selected document.");
             byte[] buffer = new byte[32768];
-            int n;
-            while ((n = in.read(buffer)) != -1) {
+            int count;
+            while ((count = input.read(buffer)) != -1) {
                 checkCancelled();
-                total += n;
-                if (total > MAX_INPUT) throw new IllegalArgumentException("Assembly exceeds the 512 MB comparison limit.");
-                stream.write(buffer, 0, n);
+                total += count;
+                if (total > MAX_INPUT) throw new IOException("Assembly exceeds the 512 MB comparison limit.");
+                stream.write(buffer, 0, count);
             }
             stream.flush();
-            return out;
-        } catch (Exception error) {
-            out.delete();
-            throw error;
+            stream.getFD().sync();
+            return output;
+        } catch (IOException | RuntimeException | Error failure) {
+            deleteOwnedFile(output, context.getCacheDir(), failure);
+            throw failure;
         }
     }
 
@@ -208,8 +232,8 @@ public final class AssemblyComparisonActivity extends Activity {
         compareButton.setEnabled(enabled && leftUri != null && rightUri != null);
     }
 
-    private String buildReport(String leftMetadata, String rightMetadata,
-                               DotNetIlReader.Result leftIl, DotNetIlReader.Result rightIl) {
+    private static String buildReport(String leftName, String rightName, String leftMetadata, String rightMetadata,
+                               DotNetIlReader.Result leftIl, DotNetIlReader.Result rightIl) 
         StringBuilder out = new StringBuilder();
         out.append("DROIDINSPECT — STRUCTURAL ASSEMBLY COMPARISON\n\n");
         out.append("BASELINE: ").append(leftName).append("\nCANDIDATE: ").append(rightName).append("\n\n");
@@ -227,7 +251,7 @@ public final class AssemblyComparisonActivity extends Activity {
         return out.toString();
     }
 
-    private void appendIdentity(StringBuilder out, String left, String right) {
+    private static void appendIdentity(StringBuilder out, String left, String right) {
         out.append("ASSEMBLY IDENTITY\n");
         String a = section(left, "ASSEMBLY IDENTITY", "ASSEMBLY REFERENCES");
         String b = section(right, "ASSEMBLY IDENTITY", "ASSEMBLY REFERENCES");
@@ -239,13 +263,13 @@ public final class AssemblyComparisonActivity extends Activity {
         out.append('\n');
     }
 
-    private void compareSection(StringBuilder out, String heading, String left, String right) {
+    private static void compareSection(StringBuilder out, String heading, String left, String right) {
         Set<String> a = sectionEntries(section(left, heading, nextHeading(heading)));
         Set<String> b = sectionEntries(section(right, heading, nextHeading(heading)));
         out.append(AssemblyComparisonDiff.compareSets(heading, a, b));
     }
 
-    private String nextHeading(String heading) {
+    private static String nextHeading(String heading) {
         if ("ASSEMBLY REFERENCES".equals(heading)) return "MODULE REFERENCES";
         if ("TYPES AND MEMBERS".equals(heading)) return "PROPERTIES";
         if ("PROPERTIES".equals(heading)) return "EVENTS";
@@ -253,7 +277,7 @@ public final class AssemblyComparisonActivity extends Activity {
         return "Decode status:";
     }
 
-    private Set<String> sectionEntries(String block) {
+    private static Set<String> sectionEntries(String block) {
         Set<String> values = new TreeSet<>();
         if (block == null || block.isEmpty()) return values;
         for (String raw : block.split("\\n")) {
@@ -266,11 +290,11 @@ public final class AssemblyComparisonActivity extends Activity {
         return values;
     }
 
-    private void compareMethods(StringBuilder out, DotNetIlReader.Result left, DotNetIlReader.Result right) {
+    private static void compareMethods(StringBuilder out, DotNetIlReader.Result left, DotNetIlReader.Result right) {
         out.append(AssemblyComparisonDiff.compareMethods(left, right));
     }
 
-    private String section(String source, String start, String end) {
+    private static String section(String source, String start, String end) {
         if (source == null) return "";
         int from = source.indexOf(start);
         if (from < 0) return "";
@@ -285,9 +309,53 @@ public final class AssemblyComparisonActivity extends Activity {
             throw new InterruptedIOException("Assembly comparison cancelled because the activity was closed.");
     }
 
+    private static String safe(String value) { return value == null ? "unknown" : value; }
+
+    private static String describe(Throwable error) {
+        StringBuilder message = new StringBuilder(error.getClass().getSimpleName())
+                .append(": ").append(safe(error.getMessage()));
+        for (Throwable suppressed : error.getSuppressed()) {
+            message.append("\nCleanup warning: ").append(suppressed.getClass().getSimpleName())
+                    .append(": ").append(safe(suppressed.getMessage()));
+        }
+        return message.toString();
+    }
+
+    private static void deleteOwnedFile(File file, File cacheDir, Throwable primary) {
+        if (file == null) return;
+        try {
+            File absolute = file.getAbsoluteFile();
+            if (!cacheDir.getAbsoluteFile().equals(absolute.getParentFile())
+                    || !absolute.getName().startsWith("droidinspect-compare-")
+                    || Files.isSymbolicLink(absolute.toPath()))
+                throw new IOException("Refusing to delete a comparison temporary file outside the private cache.");
+            Files.deleteIfExists(absolute.toPath());
+            if (absolute.exists()) throw new IOException("Comparison temporary file remains after deletion.");
+        } catch (IOException | RuntimeException cleanupFailure) {
+            IOException reported = cleanupFailure instanceof IOException ? (IOException) cleanupFailure
+                    : new IOException("Assembly comparison cleanup failed.", cleanupFailure);
+            if (primary != null) primary.addSuppressed(reported);
+            else Log.e("DroidInspectComparison", "Temporary file could not be removed: " + file, reported);
+        }
+    }
+
     @Override protected void onDestroy() {
         destroyed = true;
-        worker.shutdownNow();
+        final ExecutorService executor = worker;
+        executor.shutdownNow();
         super.onDestroy();
+        Thread termination = new Thread(() -> {
+            boolean interrupted = false;
+            while (true) {
+                try {
+                    if (executor.awaitTermination(1, TimeUnit.MINUTES)) break;
+                } catch (InterruptedException ignored) {
+                    interrupted = true;
+                }
+            }
+            if (interrupted) Thread.currentThread().interrupt();
+        }, "droidinspect-comparison-worker-cleanup");
+        termination.setDaemon(true);
+        termination.start();
     }
 }
