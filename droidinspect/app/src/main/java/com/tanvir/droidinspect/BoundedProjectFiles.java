@@ -144,6 +144,32 @@ final class BoundedProjectFiles {
         Files.delete(path);
     }
 
+    /**
+     * Best-effort transaction rollback for files created directly in one trusted app-private
+     * directory. Files.deleteIfExists deletes a symbolic link itself rather than following it.
+     * Cleanup failures are attached to the original import failure and never hide it.
+     */
+    static void rollbackDirectChildren(File directory, List<File> files, IOException failure) {
+        if (files == null || files.isEmpty()) return;
+        if (directory == null || Files.isSymbolicLink(directory.toPath()) || !directory.isDirectory()) {
+            failure.addSuppressed(new IOException("Cannot safely roll back files: import directory is unavailable or linked."));
+            return;
+        }
+        File parent = directory.getAbsoluteFile();
+        for (File file : files) {
+            if (file == null || !parent.equals(file.getAbsoluteFile().getParentFile())) {
+                failure.addSuppressed(new IOException("Refusing to roll back a file outside the import directory."));
+                continue;
+            }
+            try {
+                Files.deleteIfExists(file.toPath());
+            } catch (IOException | SecurityException cleanupError) {
+                failure.addSuppressed(new IOException(
+                        "Could not remove partially imported file: " + file.getName(), cleanupError));
+            }
+        }
+    }
+
     private static void checkDeleteCancelled() throws IOException {
         if (Thread.currentThread().isInterrupted())
             throw new java.io.InterruptedIOException("Temporary workspace cleanup was interrupted.");

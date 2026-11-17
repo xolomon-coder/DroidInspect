@@ -146,19 +146,17 @@ final class DotNetDependencyWorkspace {
                     throw new IOException("Local dependency project exceeds the " + MAX_DEPENDENCY_FILES + " file safety limit.");
                 File target = uniqueTarget(name);
                 long copied = copyDocument(context, uri, target, MAX_DEPENDENCY_FILE);
-                batchBytes += copied;
-                if (batchBytes > MAX_IMPORT_BATCH) {
-                    target.delete();
-                    throw new IOException("Dependency import batch exceeds the 512 MB safety limit.");
-                }
                 imported.add(target);
+                batchBytes += copied;
+                if (batchBytes > MAX_IMPORT_BATCH)
+                    throw new IOException("Dependency import batch exceeds the 512 MB safety limit.");
             }
             if (imported.isEmpty()) throw new IOException("No .dll or .exe dependency files were selected.");
             if (getReportFile().exists() && !getReportFile().delete())
                 throw new IOException("Cannot invalidate the previous dependency report.");
             return imported;
         } catch (IOException error) {
-            for (File file : imported) file.delete();
+            BoundedProjectFiles.rollbackDirectChildren(dependencies, imported, error);
             throw error;
         }
     }
@@ -195,12 +193,22 @@ final class DotNetDependencyWorkspace {
             output.flush();
             output.getFD().sync();
         } catch (IOException error) {
-            temporary.delete();
+            try {
+                Files.deleteIfExists(temporary.toPath());
+            } catch (IOException cleanupError) {
+                error.addSuppressed(cleanupError);
+            }
             throw error;
         }
         if (total == 0 || !temporary.renameTo(target)) {
-            temporary.delete();
-            throw new IOException(total == 0 ? "Selected file is empty." : "Cannot activate copied file.");
+            IOException failure = new IOException(
+                    total == 0 ? "Selected file is empty." : "Cannot activate copied file.");
+            try {
+                Files.deleteIfExists(temporary.toPath());
+            } catch (IOException cleanupError) {
+                failure.addSuppressed(cleanupError);
+            }
+            throw failure;
         }
         return total;
     }

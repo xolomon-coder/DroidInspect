@@ -112,6 +112,38 @@ public final class BoundedProjectFilesSelfTest {
                 // Filesystem may not support symlinks.
             }
 
+            File rollbackDirectory = new File(root, "rollback");
+            if (!rollbackDirectory.mkdir()) throw new AssertionError("rollback directory");
+            File rollbackOne = new File(rollbackDirectory, "first.dll");
+            File rollbackLink = new File(rollbackDirectory, "linked.dll");
+            write(rollbackOne);
+            File rollbackOutside = File.createTempFile("droidinspect-rollback-outside", ".dll");
+            try {
+                try {
+                    Files.createSymbolicLink(rollbackLink.toPath(), rollbackOutside.toPath());
+                    java.io.IOException importFailure = new java.io.IOException("simulated import failure");
+                    BoundedProjectFiles.rollbackDirectChildren(
+                            rollbackDirectory, java.util.Arrays.asList(rollbackOne, rollbackLink), importFailure);
+                    check(!rollbackOne.exists() && !Files.isSymbolicLink(rollbackLink),
+                            "rollback deletes imported files and removes a link itself");
+                    check(rollbackOutside.exists(), "rollback never follows imported-file symlinks");
+                } catch (UnsupportedOperationException | SecurityException ignored) {
+                    // Symlink creation is not available on every host.
+                } catch (IOException ignored) {
+                    // Filesystem may not support symlinks.
+                }
+                File rollbackTwo = new File(rollbackDirectory, "second.dll");
+                write(rollbackTwo);
+                java.io.IOException pathFailure = new java.io.IOException("simulated unsafe rollback");
+                BoundedProjectFiles.rollbackDirectChildren(
+                        rollbackDirectory, java.util.Collections.singletonList(new File(root, "outside.dll")), pathFailure);
+                check(rollbackTwo.exists() && pathFailure.getSuppressed().length == 1,
+                        "rollback refuses out-of-directory files and records cleanup failure");
+            } finally {
+                rollbackOutside.delete();
+                BoundedProjectFiles.deleteTree(rollbackDirectory, root, 20);
+            }
+
             File interruptedRoot = new File(root, "interrupted-cleanup");
             if (!interruptedRoot.mkdir()) throw new AssertionError("interrupted cleanup directory");
             write(new File(interruptedRoot, "temporary.bin"));

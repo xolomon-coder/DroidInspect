@@ -189,7 +189,11 @@ final class CSharpSourceWorkspace {
                     }
                     output.flush();
                 } catch (IOException error) {
-                    target.delete();
+                    try {
+                        Files.deleteIfExists(target.toPath());
+                    } catch (IOException cleanupError) {
+                        error.addSuppressed(cleanupError);
+                    }
                     throw error;
                 }
                 imported.add(target);
@@ -197,7 +201,7 @@ final class CSharpSourceWorkspace {
             if (imported.isEmpty()) throw new IOException("No .cs files were selected.");
             return imported;
         } catch (IOException error) {
-            for (File file : imported) file.delete();
+            BoundedProjectFiles.rollbackDirectChildren(sourceRoot, imported, error);
             throw error;
         }
     }
@@ -293,12 +297,23 @@ final class CSharpSourceWorkspace {
             output.flush();
             output.getFD().sync();
         } catch (IOException error) {
-            temporary.delete();
+            try {
+                Files.deleteIfExists(temporary.toPath());
+            } catch (IOException cleanupError) {
+                error.addSuppressed(cleanupError);
+            }
             throw error;
         }
         if (total == 0 || !temporary.renameTo(target)) {
-            temporary.delete();
-            throw new IOException(total == 0 ? "The selected original assembly is empty." : "Cannot preserve the original assembly in the project.");
+            IOException failure = new IOException(total == 0
+                    ? "The selected original assembly is empty."
+                    : "Cannot preserve the original assembly in the project.");
+            try {
+                Files.deleteIfExists(temporary.toPath());
+            } catch (IOException cleanupError) {
+                failure.addSuppressed(cleanupError);
+            }
+            throw failure;
         }
     }
 
