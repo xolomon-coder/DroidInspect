@@ -124,7 +124,7 @@ public final class BoundedProjectFilesSelfTest {
                     java.io.IOException importFailure = new java.io.IOException("simulated import failure");
                     BoundedProjectFiles.rollbackDirectChildren(
                             rollbackDirectory, java.util.Arrays.asList(rollbackOne, rollbackLink), importFailure);
-                    check(!rollbackOne.exists() && !Files.isSymbolicLink(rollbackLink),
+                    check(!rollbackOne.exists() && !Files.isSymbolicLink(rollbackLink.toPath()),
                             "rollback deletes imported files and removes a link itself");
                     check(rollbackOutside.exists(), "rollback never follows imported-file symlinks");
                 } catch (UnsupportedOperationException | SecurityException ignored) {
