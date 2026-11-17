@@ -100,7 +100,11 @@ final class ApkProjectWorkspace {
             remember(context, id);
             return project;
         } catch (Exception error) {
-            deleteTree(root);
+            try {
+                BoundedProjectFiles.deleteTree(root, MAX_PROJECT_DIRECTORY_ENTRIES);
+            } catch (IOException cleanupError) {
+                error.addSuppressed(cleanupError);
+            }
             if (error instanceof IOException) throw (IOException) error;
             throw new IOException("APK project creation failed: " + safe(error.getMessage()), error);
         }
@@ -512,12 +516,5 @@ final class ApkProjectWorkspace {
             throw new InterruptedIOException("APK project operation cancelled because the workspace activity was closed.");
     }
 
-    private static void deleteTree(File file) {
-        if (file == null || !file.exists()) return;
-        if (file.isDirectory()) {
-            File[] children = file.listFiles();
-            if (children != null) for (File child : children) deleteTree(child);
-        }
-        file.delete();
-    }
+
 }
