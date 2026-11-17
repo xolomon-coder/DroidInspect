@@ -1,11 +1,14 @@
 package com.tanvir.droidinspect;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -19,6 +22,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.InterruptedIOException;
+import java.lang.ref.WeakReference;
 import java.security.MessageDigest;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
@@ -109,24 +113,27 @@ public final class ApkBuildPipelineActivity extends Activity {
         String sourcePath = getIntent().getStringExtra("apk_file_path");
         if (projectId != null) {
             setBusy(true, "Opening persistent APK project…");
+            Context appContext = getApplicationContext();
+            Handler ui = new Handler(Looper.getMainLooper());
+            WeakReference<ApkBuildPipelineActivity> owner = new WeakReference<>(this);
             worker.execute(() -> {
                 ApkProjectWorkspace opened = null;
                 String failure = null;
-                try { opened = ApkProjectWorkspace.open(this, projectId); }
+                try { opened = ApkProjectWorkspace.open(appContext, projectId); }
                 catch (Exception error) { failure = message(error); }
                 ApkProjectWorkspace ready = opened;
                 String errorText = failure;
-                runOnUiThread(() -> {
-                if (destroyed || isFinishing() || isDestroyed()) return;
+                postToActivity(ui, owner, activity -> {
                     if (errorText != null) {
-                        setBusy(false, "Project could not be opened.");
-                        showError(errorText);
+                        activity.setBusy(false, "Project could not be opened.");
+                        activity.showError(errorText);
                         return;
                     }
-                    project = ready;
-                    sourceFile = project.getWorkingApk();
-                    sourceSummary.setText("Project: " + project.getName() + " • revision " + project.getRevision());
-                    inspectOriginal();
+                    activity.project = ready;
+                    activity.sourceFile = ready.getWorkingApk();
+                    activity.sourceSummary.setText("Project: " + ready.getName()
+                            + " • revision " + ready.getRevision());
+                    activity.inspectOriginal();
                 });
             });
         } else if (sourcePath != null) {
@@ -172,19 +179,24 @@ public final class ApkBuildPipelineActivity extends Activity {
                 appendReport("\nEDIT STAGE: PASS\nEdited output URI received. Continue to signing and verification.");
                 if (project != null) {
                     setBusy(true, "Saving edited unsigned APK into project exports…");
+                    ApkProjectWorkspace activeProject = project;
+                    Uri activeEditedUri = editedUri;
+                    String exportName = "edited-unsigned-revision-" + (activeProject.getRevision() + 1) + ".apk";
+                    Handler ui = new Handler(Looper.getMainLooper());
+                    WeakReference<ApkBuildPipelineActivity> owner = new WeakReference<>(this);
                     worker.execute(() -> {
                         String failure = null;
-                        try { project.saveExportFromUri(editedUri, "edited-unsigned-revision-" + (project.getRevision() + 1) + ".apk"); }
+                        try { activeProject.saveExportFromUri(activeEditedUri, exportName); }
                         catch (Exception error) { failure = message(error); }
                         String errorText = failure;
-                        runOnUiThread(() -> {
-                            if (isFinishing() || isDestroyed()) return;
-                            setBusy(false, errorText == null ? "Edited unsigned APK saved to project exports." : "Project export save failed.");
+                        postToActivity(ui, owner, activity -> {
+                            activity.setBusy(false, errorText == null
+                                    ? "Edited unsigned APK saved to project exports." : "Project export save failed.");
                             if (errorText != null) {
-                                editedUri = null;
-                                signButton.setEnabled(false);
-                                editButton.setEnabled(true);
-                                showError(errorText);
+                                activity.editedUri = null;
+                                activity.signButton.setEnabled(false);
+                                activity.editButton.setEnabled(true);
+                                activity.showError(errorText);
                             }
                         });
                     });
@@ -204,61 +216,71 @@ public final class ApkBuildPipelineActivity extends Activity {
 
     private void inspectOriginal() {
         setBusy(true, "Copying and inspecting original APK identity and signature…");
+        Context appContext = getApplicationContext();
+        ApkProjectWorkspace activeProject = project;
+        Uri activeSourceUri = sourceUri;
+        File activeSourceFile = sourceFile;
+        Handler ui = new Handler(Looper.getMainLooper());
+        WeakReference<ApkBuildPipelineActivity> owner = new WeakReference<>(this);
         worker.execute(() -> {
             File copy = null;
             String error = null;
             String pkg = "(unknown)", version = "(unknown)";
             long versionCode = -1;
             List<String> signers = Collections.emptyList();
+            Throwable primaryFailure = null;
             try {
-                if (project != null) copy = copyFileToCache(project.getOriginalApk(), "original");
-                else if (sourceUri != null) copy = copyUri(sourceUri, "original");
-                else if (sourceFile != null) copy = copyFileToCache(sourceFile, "original");
+                if (activeProject != null) copy = copyFileToCache(appContext, activeProject.getOriginalApk(), "original");
+                else if (activeSourceUri != null) copy = copyUri(appContext, activeSourceUri, "original");
+                else if (activeSourceFile != null) copy = copyFileToCache(appContext, activeSourceFile, "original");
                 else throw new IllegalStateException("No APK source is available.");
-                PackageInfo info = getPackageManager().getPackageArchiveInfo(copy.getAbsolutePath(), 0);
+                PackageInfo info = appContext.getPackageManager().getPackageArchiveInfo(copy.getAbsolutePath(), 0);
                 if (info == null) throw new IllegalArgumentException("Selected file is not a parseable APK.");
                 pkg = info.packageName == null ? "(unknown)" : info.packageName;
                 version = info.versionName == null ? "(not declared)" : info.versionName;
                 versionCode = Build.VERSION.SDK_INT >= 28 ? info.getLongVersionCode() : info.versionCode;
                 signers = signerFingerprints(copy);
-            } catch (Exception e) {
-                error = message(e);
-                if (copy != null) copy.delete();
+            } catch (Exception | Error e) {
+                primaryFailure = e;
+                error = e.getClass().getSimpleName() + ": " + (e.getMessage() == null ? "No details." : e.getMessage());
+                if (copy != null) {
+                    try { deleteTemporaryFile(copy, e); }
+                    catch (Exception ignored) { }
+                }
                 copy = null;
             }
             final File ready = copy;
             final String failure = error, finalPkg = pkg, finalVersion = version;
             final long finalVersionCode = versionCode;
             final List<String> finalSigners = signers;
-            runOnUiThread(() -> {
-                if (destroyed || isFinishing() || isDestroyed()) {
-                    if (ready != null) ready.delete();
-                    return;
-                }
-                setBusy(false, failure == null ? "Original APK inspection complete." : "Original APK inspection failed.");
+            postToActivity(ui, owner, activity -> {
                 if (failure != null) {
-                    showError(failure);
+                    if (ready != null) deleteQuietly(ready);
+                    activity.setBusy(false, "Original APK inspection failed.");
+                    activity.showError(failure);
                     return;
                 }
-                if (originalCopy != null) originalCopy.delete();
-                originalCopy = ready;
-                originalPackage = finalPkg;
-                originalVersion = finalVersion;
-                originalVersionCode = finalVersionCode;
-                originalSigners = finalSigners;
-                editedUri = null;
-                signedUri = null;
-                editButton.setEnabled(true);
-                signButton.setEnabled(false);
-                sourceSummary.setText("Original: " + originalPackage + "  •  " + originalVersion
-                        + "  •  versionCode " + originalVersionCode);
-                StringBuilder text = new StringBuilder("ORIGINAL APK\nPackage: ").append(originalPackage)
-                        .append("\nVersion: ").append(originalVersion)
-                        .append("\nVersion code: ").append(originalVersionCode)
+                if (activity.originalCopy != null) deleteQuietly(activity.originalCopy);
+                activity.originalCopy = ready;
+                activity.originalPackage = finalPkg;
+                activity.originalVersion = finalVersion;
+                activity.originalVersionCode = finalVersionCode;
+                activity.originalSigners = finalSigners;
+                activity.editedUri = null;
+                activity.signedUri = null;
+                activity.editButton.setEnabled(true);
+                activity.signButton.setEnabled(false);
+                activity.sourceSummary.setText("Original: " + activity.originalPackage + "  •  "
+                        + activity.originalVersion + "  •  versionCode " + activity.originalVersionCode);
+                StringBuilder text = new StringBuilder("ORIGINAL APK\nPackage: ").append(activity.originalPackage)
+                        .append("\nVersion: ").append(activity.originalVersion)
+                        .append("\nVersion code: ").append(activity.originalVersionCode)
                         .append("\nOriginal verified signer(s): ");
-                text.append(originalSigners.isEmpty() ? "(not verified / unsigned / unsupported)" : originalSigners);
+                text.append(activity.originalSigners.isEmpty()
+                        ? "(not verified / unsigned / unsupported)" : activity.originalSigners);
                 text.append("\n\nThe original file is preserved. Editing and signing will create separate output files.");
-                report.setText(text.toString());
+                activity.report.setText(text.toString());
+                activity.setBusy(false, "Original APK inspection complete.");
             });
         });
     }
@@ -282,6 +304,14 @@ public final class ApkBuildPipelineActivity extends Activity {
 
     private void verifyFinalOutput() {
         setBusy(true, "Reopening exported APK and verifying signature and update compatibility…");
+        Context appContext = getApplicationContext();
+        Uri activeSignedUri = signedUri;
+        ApkProjectWorkspace activeProject = project;
+        String baselinePackage = originalPackage;
+        long baselineVersionCode = originalVersionCode;
+        List<String> baselineSigners = originalSigners;
+        Handler ui = new Handler(Looper.getMainLooper());
+        WeakReference<ApkBuildPipelineActivity> owner = new WeakReference<>(this);
         worker.execute(() -> {
             File copy = null;
             String error = null;
@@ -292,8 +322,8 @@ public final class ApkBuildPipelineActivity extends Activity {
             boolean projectUpdated = false;
             String projectUpdateError = null;
             try {
-                copy = copyUri(signedUri, "signed");
-                PackageInfo info = getPackageManager().getPackageArchiveInfo(copy.getAbsolutePath(), 0);
+                copy = copyUri(appContext, activeSignedUri, "signed");
+                PackageInfo info = appContext.getPackageManager().getPackageArchiveInfo(copy.getAbsolutePath(), 0);
                 if (info == null) throw new IllegalArgumentException("Signed output is not a parseable APK.");
                 finalPackage = info.packageName == null ? "(unknown)" : info.packageName;
                 finalVersion = info.versionName == null ? "(not declared)" : info.versionName;
@@ -302,23 +332,23 @@ public final class ApkBuildPipelineActivity extends Activity {
                 verified = result.isVerified();
                 if (!verified) {
                     StringBuilder why = new StringBuilder("APK signature verification failed.");
-                    for (Object issue : result.getErrors()) why.append("\n").append(issue);
+                    for (Object issue : result.getErrors()) why.append("\\n").append(issue);
                     throw new IllegalStateException(why.toString());
                 }
                 finalSigners = signerFingerprints(copy);
                 if (finalSigners.isEmpty()) throw new IllegalStateException("Signature verifier returned no signer certificates.");
-                if (project != null) {
+                if (activeProject != null) {
                     try {
-                        project.replaceWorkingFromUri(signedUri);
+                        activeProject.replaceWorkingFromUri(activeSignedUri);
                         projectUpdated = true;
                     } catch (Exception projectError) {
                         projectUpdateError = message(projectError);
                     }
                 }
-            } catch (Exception e) {
-                error = message(e);
+            } catch (Exception error) {
+                error = message(error);
             } finally {
-                if (copy != null) copy.delete();
+                if (copy != null) deleteQuietly(copy);
             }
             final String failure = error, pkg = finalPackage, version = finalVersion;
             final long versionCode = finalVersionCode;
@@ -326,51 +356,45 @@ public final class ApkBuildPipelineActivity extends Activity {
             final boolean signaturePass = verified;
             final boolean projectUpdatedFinal = projectUpdated;
             final String projectUpdateFailure = projectUpdateError;
-            runOnUiThread(() -> {
-                if (destroyed || isFinishing() || isDestroyed()) return;
-                setBusy(false, failure == null ? "FINAL OUTPUT VERIFIED." : "FINAL OUTPUT VERIFICATION FAILED.");
+            postToActivity(ui, owner, activity -> {
+                activity.setBusy(false, failure == null ? "FINAL OUTPUT VERIFIED." : "FINAL OUTPUT VERIFICATION FAILED.");
                 if (failure != null) {
-                    signedUri = null;
-                    signButton.setEnabled(true);
-                    appendReport("\nFINAL OUTPUT: FAIL\n" + failure);
-                    showError(failure);
+                    activity.signedUri = null;
+                    activity.signButton.setEnabled(true);
+                    activity.appendReport("\\nFINAL OUTPUT: FAIL\\n" + failure);
+                    activity.showError(failure);
                     return;
                 }
                 ApkUpdateCompatibility.Assessment assessment = ApkUpdateCompatibility.assess(
-                        originalPackage, originalVersionCode, originalSigners, pkg, versionCode, signers);
-                boolean samePackage = assessment.samePackage;
-                boolean higherVersion = assessment.higherVersion;
-                boolean signerMatch = assessment.signerMatch;
-                String compatibility = assessment.explanation;
-
-                StringBuilder finalReport = new StringBuilder("\nFINAL SIGNED OUTPUT\n");
-                finalReport.append("Signature verification: ").append(signaturePass ? "PASS" : "FAIL").append('\n');
-                finalReport.append("Package: ").append(pkg).append('\n');
-                finalReport.append("Version: ").append(version).append(" (code ").append(versionCode).append(")\n");
-                finalReport.append("Original package: ").append(originalPackage).append('\n');
-                finalReport.append("Same package ID: ").append(samePackage ? "yes" : "no").append('\n');
-                finalReport.append("Version code increased: ").append(higherVersion ? "yes" : "no / unknown").append('\n');
-                finalReport.append("Original signer(s): ").append(originalSigners.isEmpty() ? "(unverified)" : originalSigners).append('\n');
-                finalReport.append("New signer(s): ").append(signers).append('\n');
-                finalReport.append("Signer identity match: ").append(signerMatch ? "yes" : "no / unavailable").append('\n');
-                finalReport.append("Update assessment: ").append(compatibility).append('\n');
-                finalReport.append("Signed output URI: ").append(signedUri).append('\n');
-                finalReport.append("\nThe exported signed APK is a separate file. The original APK and edited unsigned APK were not overwritten.");
-                if (project != null) {
+                        baselinePackage, baselineVersionCode, baselineSigners, pkg, versionCode, signers);
+                StringBuilder finalReport = new StringBuilder("\\nFINAL SIGNED OUTPUT\\n");
+                finalReport.append("Signature verification: ").append(signaturePass ? "PASS" : "FAIL").append('\\n');
+                finalReport.append("Package: ").append(pkg).append('\\n');
+                finalReport.append("Version: ").append(version).append(" (code ").append(versionCode).append(")\\n");
+                finalReport.append("Original package: ").append(baselinePackage).append('\\n');
+                finalReport.append("Same package ID: ").append(assessment.samePackage ? "yes" : "no").append('\\n');
+                finalReport.append("Version code increased: ").append(assessment.higherVersion ? "yes" : "no / unknown").append('\\n');
+                finalReport.append("Original signer(s): ").append(baselineSigners.isEmpty() ? "(unverified)" : baselineSigners).append('\\n');
+                finalReport.append("New signer(s): ").append(signers).append('\\n');
+                finalReport.append("Signer identity match: ").append(assessment.signerMatch ? "yes" : "no / unavailable").append('\\n');
+                finalReport.append("Update assessment: ").append(assessment.explanation).append('\\n');
+                finalReport.append("Signed output URI: ").append(activeSignedUri).append('\\n');
+                finalReport.append("\\nThe exported signed APK is a separate file. The original APK and edited unsigned APK were not overwritten.");
+                if (activeProject != null) {
                     if (projectUpdatedFinal)
-                        finalReport.append("\nProject working APK: updated to signed output; previous working revision was snapshotted.");
+                        finalReport.append("\\nProject working APK: updated to signed output; previous working revision was snapshotted.");
                     else
-                        finalReport.append("\nProject working APK was NOT updated: ").append(projectUpdateFailure);
-                    try { project.writeReport("Build-Sign-Report-r" + project.getRevision(), finalReport.toString()); }
-                    catch (Exception reportError) { finalReport.append("\nProject report save failed: ").append(message(reportError)); }
+                        finalReport.append("\\nProject working APK was NOT updated: ").append(projectUpdateFailure);
+                    try { activeProject.writeReport("Build-Sign-Report-r" + activeProject.getRevision(), finalReport.toString()); }
+                    catch (Exception reportError) { finalReport.append("\\nProject report save failed: ").append(message(reportError)); }
                 }
-                appendReport(finalReport.toString());
-                status.setText("Final APK signature verified. Compatibility assessment is shown below.");
+                activity.appendReport(finalReport.toString());
+                activity.status.setText("Final APK signature verified. Compatibility assessment is shown below.");
             });
         });
     }
 
-    private List<String> signerFingerprints(File file) throws Exception {
+    private static List<String> signerFingerprints(File file) throws Exception {
         ApkVerifier.Result result = new ApkVerifier.Builder(file).build().verify();
         if (!result.isVerified()) return Collections.emptyList();
         ArrayList<String> fingerprints = new ArrayList<>();
@@ -384,8 +408,8 @@ public final class ApkBuildPipelineActivity extends Activity {
         return fingerprints;
     }
 
-    private File copyFileToCache(File source, String label) throws Exception {
-        File out = File.createTempFile("droidinspect-pipeline-" + label + "-", ".apk", getCacheDir());
+    private static File copyFileToCache(Context context, File source, String label) throws Exception {
+        File out = File.createTempFile("droidinspect-pipeline-" + label + "-", ".apk", context.getCacheDir());
         long total = 0;
         try (InputStream in = new java.io.FileInputStream(source);
              FileOutputStream stream = new FileOutputStream(out)) {
@@ -399,16 +423,16 @@ public final class ApkBuildPipelineActivity extends Activity {
             }
             stream.flush();
             return out;
-        } catch (Exception error) {
-            out.delete();
+        } catch (Exception | Error error) {
+            deleteTemporaryFile(out, error);
             throw error;
         }
     }
 
-    private File copyUri(Uri uri, String label) throws Exception {
-        File out = File.createTempFile("droidinspect-pipeline-" + label + "-", ".apk", getCacheDir());
+    private static File copyUri(Context context, Uri uri, String label) throws Exception {
+        File out = File.createTempFile("droidinspect-pipeline-" + label + "-", ".apk", context.getCacheDir());
         long total = 0;
-        try (InputStream in = getContentResolver().openInputStream(uri);
+        try (InputStream in = context.getContentResolver().openInputStream(uri);
              FileOutputStream stream = new FileOutputStream(out)) {
             if (in == null) throw new IllegalStateException("Unable to open selected APK document.");
             byte[] buffer = new byte[32768];
@@ -421,10 +445,28 @@ public final class ApkBuildPipelineActivity extends Activity {
             }
             stream.flush();
             return out;
-        } catch (Exception error) {
-            out.delete();
+        } catch (Exception | Error error) {
+            deleteTemporaryFile(out, error);
             throw error;
         }
+    }
+
+    private static void deleteTemporaryFile(File file, Throwable primaryFailure) throws IOException {
+        if (file == null) return;
+        try {
+            java.nio.file.Files.deleteIfExists(file.toPath());
+        } catch (IOException | SecurityException cleanupError) {
+            IOException reported = new IOException(
+                    "Could not remove temporary APK pipeline file: " + file.getName(), cleanupError);
+            if (primaryFailure != null) primaryFailure.addSuppressed(reported);
+            else throw reported;
+        }
+    }
+
+    private static void deleteQuietly(File file) {
+        if (file == null) return;
+        try { java.nio.file.Files.deleteIfExists(file.toPath()); }
+        catch (IOException | SecurityException ignored) { }
     }
 
     private void appendReport(String text) {
@@ -445,7 +487,7 @@ public final class ApkBuildPipelineActivity extends Activity {
                 .setMessage(error).setPositiveButton("CLOSE", null).show();
     }
 
-    private String message(Exception error) {
+    private static String message(Exception error) {
         return error.getClass().getSimpleName() + ": "
                 + (error.getMessage() == null ? "No details." : error.getMessage());
     }
@@ -455,20 +497,34 @@ public final class ApkBuildPipelineActivity extends Activity {
             throw new InterruptedIOException("APK pipeline operation cancelled because the activity was closed.");
     }
 
+    private interface ActivityCallback { void deliver(ApkBuildPipelineActivity activity); }
+
+    private static void postToActivity(Handler handler,
+                                       WeakReference<ApkBuildPipelineActivity> owner,
+                                       ActivityCallback callback) {
+        handler.post(() -> {
+            ApkBuildPipelineActivity activity = owner.get();
+            if (activity == null || activity.destroyed
+                    || activity.isFinishing() || activity.isDestroyed()) return;
+            callback.deliver(activity);
+        });
+    }
+
     @Override protected void onDestroy() {
         destroyed = true;
         worker.shutdownNow();
+        final ExecutorService activeWorker = worker;
+        final File original = originalCopy;
+        originalCopy = null;
         super.onDestroy();
         Thread cleanup = new Thread(() -> {
             try {
-                while (!worker.awaitTermination(1, TimeUnit.DAYS)) { }
+                while (!activeWorker.awaitTermination(1, TimeUnit.DAYS)) { }
             } catch (InterruptedException interrupted) {
                 Thread.currentThread().interrupt();
                 return;
             }
-            File copy = originalCopy;
-            originalCopy = null;
-            if (copy != null) copy.delete();
+            deleteQuietly(original);
         }, "droidinspect-pipeline-cleanup");
         cleanup.setDaemon(true);
         cleanup.start();
