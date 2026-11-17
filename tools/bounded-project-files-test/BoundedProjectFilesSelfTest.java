@@ -85,6 +85,33 @@ public final class BoundedProjectFilesSelfTest {
             check(cleanupBounded && limitedRoot.exists(), "cleanup stops at its global entry budget");
             BoundedProjectFiles.deleteTree(limitedRoot, 10);
 
+            File scopedRoot = new File(root, "scoped-cleanup");
+            if (!scopedRoot.mkdir()) throw new AssertionError("scoped cleanup directory");
+            write(new File(scopedRoot, "temporary.bin"));
+            File wrongParent = new File(root, "not-the-parent");
+            if (!wrongParent.mkdir()) throw new AssertionError("wrong parent fixture");
+            boolean parentRejected = false;
+            try { BoundedProjectFiles.deleteTree(scopedRoot, wrongParent, 10); }
+            catch (IOException expected) { parentRejected = true; }
+            check(parentRejected && scopedRoot.exists(),
+                    "cleanup rejects a root outside its trusted direct parent");
+            BoundedProjectFiles.deleteTree(scopedRoot, root, 10);
+            check(!scopedRoot.exists(), "cleanup accepts the correct trusted parent");
+
+            File rootLink = new File(root, "cleanup-root-link");
+            try {
+                Files.createSymbolicLink(rootLink.toPath(), cleanupRoot.toPath());
+                boolean rootLinkRejected = false;
+                try { BoundedProjectFiles.deleteTree(rootLink, root, 10); }
+                catch (IOException expected) { rootLinkRejected = true; }
+                check(rootLinkRejected && cleanupRoot.exists(),
+                        "cleanup refuses a symbolic-link workspace root");
+            } catch (UnsupportedOperationException | SecurityException ignored) {
+                // Symlink creation is not available on every host.
+            } catch (IOException ignored) {
+                // Filesystem may not support symlinks.
+            }
+
             File interruptedRoot = new File(root, "interrupted-cleanup");
             if (!interruptedRoot.mkdir()) throw new AssertionError("interrupted cleanup directory");
             write(new File(interruptedRoot, "temporary.bin"));

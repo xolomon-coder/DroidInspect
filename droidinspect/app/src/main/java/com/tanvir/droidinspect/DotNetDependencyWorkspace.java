@@ -44,20 +44,26 @@ final class DotNetDependencyWorkspace {
     static DotNetDependencyWorkspace create(Context context, Uri selectedAssembly) throws IOException {
         if (selectedAssembly == null) throw new IOException("No root assembly was selected.");
         File base = new File(context.getFilesDir(), "dotnet-dependency-projects");
-        if (!base.exists() && !base.mkdirs()) throw new IOException("Cannot create dependency project storage.");
+        if (Files.isSymbolicLink(base.toPath())
+                || (!base.exists() && !base.mkdirs()) || !base.isDirectory())
+            throw new IOException("Cannot create dependency project storage.");
         String id = "dependency_" + UUID.randomUUID().toString().replace("-", "");
         File root = new File(base, id);
-        if (!root.mkdirs()) throw new IOException("Cannot create dependency project.");
-        String name = queryName(context, selectedAssembly);
-        DotNetDependencyWorkspace project = new DotNetDependencyWorkspace(root, id, name);
         try {
-            if (!project.dependencies.mkdirs()) throw new IOException("Cannot create local dependency folder.");
+            if (!root.mkdir()) throw new IOException("Cannot create dependency project.");
+            String name = queryName(context, selectedAssembly);
+            DotNetDependencyWorkspace project = new DotNetDependencyWorkspace(root, id, name);
+            if (!project.dependencies.mkdir())
+                throw new IOException("Cannot create local dependency folder.");
             copyDocument(context, selectedAssembly, project.rootAssembly, MAX_ROOT_ASSEMBLY);
             write(new File(root, ".droidinspect-dependency-project"), name + "\nformat=1\n");
             remember(context, id);
             return project;
         } catch (IOException error) {
-            deleteTree(root);
+            cleanupFailedCreation(root, base, error);
+            throw error;
+        } catch (RuntimeException error) {
+            cleanupFailedCreation(root, base, error);
             throw error;
         }
     }
@@ -65,13 +71,13 @@ final class DotNetDependencyWorkspace {
     static DotNetDependencyWorkspace open(Context context, String id) throws IOException {
         if (id == null || !id.matches("dependency_[A-Fa-f0-9]{32}"))
             throw new IOException("Invalid dependency project identifier.");
-        File root = new File(new File(context.getFilesDir(), "dotnet-dependency-projects"), id);
+        File base = new File(context.getFilesDir(), "dotnet-dependency-projects");
+        File root = new File(base, id);
         File marker = new File(root, ".droidinspect-dependency-project");
         File assembly = new File(root, "OriginalAssembly.bin");
         File deps = new File(root, "local-dependencies");
-        if (!marker.isFile() || !assembly.isFile() || assembly.length() <= 0
-                || assembly.length() > MAX_ROOT_ASSEMBLY || !deps.isDirectory())
-            throw new IOException("Saved dependency project is incomplete or its root assembly is outside the safety limit.");
+        if (!isSafeProjectLayout(base, root))
+            throw new IOException("Saved dependency project is incomplete, linked, or outside its safety boundary.");
         String name = "Dependency project";
         try (java.io.BufferedReader reader = new java.io.BufferedReader(
                 new java.io.InputStreamReader(new FileInputStream(marker), "UTF-8"))) {
@@ -86,12 +92,13 @@ final class DotNetDependencyWorkspace {
         String id = context.getSharedPreferences("dotnet_dependency_workspace", Context.MODE_PRIVATE)
                 .getString("last_project_id", null);
         if (id == null || !id.matches("dependency_[A-Fa-f0-9]{32}")) return null;
-        File root = new File(new File(context.getFilesDir(), "dotnet-dependency-projects"), id);
-        File assembly = new File(root, "OriginalAssembly.bin");
-        return new File(root, ".droidinspect-dependency-project").isFile()
-                && assembly.isFile() && assembly.length() > 0
-                && assembly.length() <= MAX_ROOT_ASSEMBLY
-                && new File(root, "local-dependencies").isDirectory() ? id : null;
+        File base = new File(context.getFilesDir(), "dotnet-dependency-projects");
+        File root = new File(base, id);
+        try {
+            return isSafeProjectLayout(base, root) ? id : null;
+        } catch (IOException ignored) {
+            return null;
+        }
     }
 
     private static void remember(Context context, String id) {
@@ -106,6 +113,8 @@ final class DotNetDependencyWorkspace {
     File getReportFile() { return new File(root, "Dependency-Resolution-Report.txt"); }
 
     List<File> listDependencies() throws IOException {
+        if (!isDirectChild(root, dependencies) || !dependencies.isDirectory())
+            throw new IOException("Local dependency folder is unavailable or linked.");
         ArrayList<File> result = new ArrayList<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dependencies.toPath())) {
             for (Path path : stream) {
@@ -240,10 +249,29 @@ final class DotNetDependencyWorkspace {
         }
     }
 
-    private static void deleteTree(File file) {
-        if (file == null || !file.exists()) return;
-        File[] children = file.listFiles();
-        if (children != null) for (File child : children) deleteTree(child);
-        file.delete();
+    private static boolean isSafeProjectLayout(File base, File root) throws IOException {
+        File marker = new File(root, ".droidinspect-dependency-project");
+        File assembly = new File(root, "OriginalAssembly.bin");
+        File deps = new File(root, "local-dependencies");
+        return !Files.isSymbolicLink(base.toPath()) && base.isDirectory()
+                && isDirectChild(base, root) && root.isDirectory()
+                && isDirectChild(root, marker) && marker.isFile()
+                && isDirectChild(root, assembly) && assembly.isFile()
+                && assembly.length() > 0 && assembly.length() <= MAX_ROOT_ASSEMBLY
+                && isDirectChild(root, deps) && deps.isDirectory();
+    }
+
+    private static boolean isDirectChild(File parent, File child) throws IOException {
+        if (parent == null || child == null || Files.isSymbolicLink(parent.toPath())
+                || Files.isSymbolicLink(child.toPath())) return false;
+        return parent.getCanonicalFile().equals(child.getCanonicalFile().getParentFile());
+    }
+
+    private static void cleanupFailedCreation(File root, File expectedParent, Throwable failure) {
+        try {
+            BoundedProjectFiles.deleteTree(root, expectedParent, 10000);
+        } catch (IOException cleanupError) {
+            failure.addSuppressed(cleanupError);
+        }
     }
 }

@@ -3763,3 +3763,36 @@ Additional M20 changes since the previous checkpoint:
 - This is a source-level lifecycle correction. No Android compilation or device result is claimed.
 
 **Updated stopping point:** source HEAD a9e2da78517cfbb39ff5da9ceffa1b0b77260489 on main. M19 and M20 remain IN PROGRESS. The full host suite and runner-backed production CI/release checks remain outstanding; no individual phone testing is requested.
+
+
+### M19/M20 continuation — source-root boundaries and bounded workspace rollback — 2026-11-17
+
+**Confirmed source defects and corrections:**
+- BoundedSourceTree previously canonicalized the supplied root before checking whether the supplied root itself was a symbolic link. It now rejects a symbolic-link root explicitly, and the host regression suite includes a root-link rejection case in addition to child-link exclusion.
+- DotNetDependencyWorkspace and CSharpSourceWorkspace previously used unbounded recursive File.listFiles() cleanup. Failed project creation now routes through BoundedProjectFiles.deleteTree(), which applies the global entry budget, 64-level depth cap, interruption checks, symlink-safe deletion, and explicit failure reporting.
+- The shared cleanup helper now supports an expected trusted parent. Dependency and C# project rollback verifies that the new workspace root is a direct child of its intended private project directory before deleting it.
+- C# project folder creation now occurs inside the rollback-protected block, so failure after creating only part of the folder structure attempts bounded cleanup. The original creation exception is preserved; cleanup failures are attached as suppressed exceptions rather than hiding the original failure.
+- Dependency and C# project reopening/last-project lookup now reject symlinked workspace roots and essential marker/source/original/dependency paths that are not direct children of their expected private parents. C# source and build-output access also verify the expected directory boundary.
+- Dependency listing rejects an unavailable or symlinked local-dependency directory.
+
+**Files changed in this checkpoint:**
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/BoundedProjectFiles.java`
+- `tools/bounded-project-files-test/BoundedProjectFilesSelfTest.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/BoundedSourceTree.java`
+- `tools/bounded-source-tree-test/BoundedSourceTreeSelfTest.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/DotNetDependencyWorkspace.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/CSharpSourceWorkspace.java`
+
+**Verification status:**
+- These changes are committed as source-level corrections only until the updated host suites and Android production workflow execute.
+- Production Actions run #615 (run ID `44034415267`, commit `a9e2da78517cfbb39ff5da9ceffa1b0b77260489`) completed as failure in approximately two seconds. Its only job had `runner_id=0`, an empty runner name, and zero steps. No compilation or test step ran and no artifact was produced.
+- The six most recent production workflow runs (#610–#615) were previously observed as failures. Do not infer source compilation failure or success from those runner-start failures.
+- M19 and M20 remain IN PROGRESS pending reproducible host execution, Android compilation/lifecycle verification, and the consolidated M12–M20 device acceptance. M11 remains accepted and must not be retested.
+
+**Next actions:**
+1. Execute all four M19 host suites and resolve any real regressions: ProjectWorkspaceIndexSelfTest, ProjectWorkspaceMetadataSelfTest, BoundedSourceTreeSelfTest, and BoundedProjectFilesSelfTest.
+2. Continue auditing Activity-owned workers, cancellation, partial dependency import rollback, project reopen and process-restart recovery.
+3. Recheck production Actions runner allocation before retrying; then complete host tests, Android debug/release builds, signature/tamper checks, ARM64/native inventory, dependency/license reports and checksums.
+4. Prepare the single consolidated M12–M20 phone test checklist only after implementation and available automated verification are complete.
+
+**Current branch:** `main`. The commit for this checkpoint is recorded in the GitHub commit history; inspect the live branch head before the next edit.

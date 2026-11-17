@@ -20,8 +20,9 @@ final class BoundedSourceTree {
     private BoundedSourceTree() { }
 
     static List<File> scan(File sourceRoot) throws IOException {
-        if (sourceRoot == null || !sourceRoot.isDirectory())
-            throw new IOException("C# source folder is unavailable.");
+        if (sourceRoot == null || Files.isSymbolicLink(sourceRoot.toPath())
+                || !sourceRoot.isDirectory())
+            throw new IOException("C# source folder is unavailable or is a symbolic link.");
         File canonicalRoot = sourceRoot.getCanonicalFile();
         ArrayList<File> result = new ArrayList<>();
         int[] visited = {0};

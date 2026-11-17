@@ -43,15 +43,19 @@ final class CSharpSourceWorkspace {
 
     static CSharpSourceWorkspace create(Context context, String name, String decompiledSource, Uri originalAssemblyUri) throws IOException {
         File base = new File(context.getFilesDir(), "csharp-projects");
-        if (!base.exists() && !base.mkdirs()) throw new IOException("Cannot create source project storage.");
+        if (Files.isSymbolicLink(base.toPath())
+                || (!base.exists() && !base.mkdirs()) || !base.isDirectory())
+            throw new IOException("Cannot create source project storage.");
         String id = "project_" + UUID.randomUUID().toString().replace("-", "");
         File root = new File(base, id);
         File src = new File(root, "src");
         File original = new File(root, "original");
-        if (!src.mkdirs() || !original.mkdirs()) throw new IOException("Cannot create source project folders.");
         String safeDisplay = name == null || name.trim().isEmpty() ? "Decompiled assembly" : name.trim();
         CSharpSourceWorkspace project = new CSharpSourceWorkspace(root, id, safeDisplay);
         try {
+            if (!root.mkdir()) throw new IOException("Cannot create source project folder.");
+            if (!src.mkdir() || !original.mkdir())
+                throw new IOException("Cannot create source project folders.");
             project.write(new File(original, "Decompiled.cs"), decompiledSource == null ? "" : decompiledSource);
             project.write(new File(src, "Decompiled.cs"), decompiledSource == null ? "" : decompiledSource);
             if (originalAssemblyUri == null) throw new IOException("Original assembly URI is unavailable; a safe rebuild project cannot be created.");
@@ -60,7 +64,10 @@ final class CSharpSourceWorkspace {
             remember(context, id);
             return project;
         } catch (IOException error) {
-            deleteTree(root);
+            cleanupFailedCreation(root, base, error);
+            throw error;
+        } catch (RuntimeException error) {
+            cleanupFailedCreation(root, base, error);
             throw error;
         }
     }
@@ -68,13 +75,14 @@ final class CSharpSourceWorkspace {
     static CSharpSourceWorkspace open(Context context, String id) throws IOException {
         if (id == null || !id.matches("project_[A-Fa-f0-9]{32}"))
             throw new IOException("Invalid source project identifier.");
-        File root = new File(new File(context.getFilesDir(), "csharp-projects"), id);
+        File base = new File(context.getFilesDir(), "csharp-projects");
+        File root = new File(base, id);
         File marker = new File(root, ".droidinspect-project");
         File source = new File(root, "src");
-        File originalAssembly = new File(root, "original/OriginalAssembly.bin");
-        if (!marker.isFile() || !source.isDirectory() || !originalAssembly.isFile()
-                || originalAssembly.length() <= 0 || originalAssembly.length() > MAX_ORIGINAL_ASSEMBLY)
-            throw new IOException("Saved C# source project is incomplete or its original assembly is outside the safety limit.");
+        File original = new File(root, "original");
+        File originalAssembly = new File(original, "OriginalAssembly.bin");
+        if (!isSafeProjectLayout(base, root))
+            throw new IOException("Saved C# source project is incomplete, linked, or outside its safety boundary.");
         String name = "C# source project";
         try (java.io.BufferedReader reader = new java.io.BufferedReader(
                 new java.io.InputStreamReader(new FileInputStream(marker), "UTF-8"))) {
@@ -89,12 +97,13 @@ final class CSharpSourceWorkspace {
         String id = context.getSharedPreferences("csharp_source_workspace", Context.MODE_PRIVATE)
                 .getString("last_project_id", null);
         if (id == null || !id.matches("project_[A-Fa-f0-9]{32}")) return null;
-        File root = new File(new File(context.getFilesDir(), "csharp-projects"), id);
-        File originalAssembly = new File(root, "original/OriginalAssembly.bin");
-        return new File(root, ".droidinspect-project").isFile()
-                && new File(root, "src").isDirectory()
-                && originalAssembly.isFile() && originalAssembly.length() > 0
-                && originalAssembly.length() <= MAX_ORIGINAL_ASSEMBLY ? id : null;
+        File base = new File(context.getFilesDir(), "csharp-projects");
+        File root = new File(base, id);
+        try {
+            return isSafeProjectLayout(base, root) ? id : null;
+        } catch (IOException ignored) {
+            return null;
+        }
     }
 
     private static void remember(Context context, String id) {
@@ -108,7 +117,11 @@ final class CSharpSourceWorkspace {
     File getOriginalAssemblyFile() { return new File(originalRoot, "OriginalAssembly.bin"); }
     File getBuildOutputFile() throws IOException {
         File build = new File(root, "build");
+        if (Files.isSymbolicLink(build.toPath()) || !isDirectChild(root, build))
+            throw new IOException("Build output directory is outside the source project.");
         if (!build.exists() && !build.mkdirs()) throw new IOException("Cannot create build output directory.");
+        if (!build.isDirectory() || !isDirectChild(root, build))
+            throw new IOException("Build output directory is unavailable or linked.");
         return new File(build, "DroidInspect.Rebuilt.dll");
     }
 
@@ -221,6 +234,9 @@ final class CSharpSourceWorkspace {
     }
 
     private void ensureInsideSource(File file) throws IOException {
+        if (!sourceRoot.isDirectory() || !isDirectChild(root, sourceRoot)
+                || Files.isSymbolicLink(file.toPath()))
+            throw new IOException("C# source directory or file is unavailable or linked.");
         String rootPath = sourceRoot.getCanonicalPath() + File.separator;
         String filePath = file.getCanonicalPath();
         if (!filePath.startsWith(rootPath) || !file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".cs"))
@@ -313,10 +329,32 @@ final class CSharpSourceWorkspace {
             throw new InterruptedIOException("C# source project creation cancelled because its screen was closed.");
     }
 
-    private static void deleteTree(File file) {
-        if (file == null || !file.exists()) return;
-        File[] children = file.listFiles();
-        if (children != null) for (File child : children) deleteTree(child);
-        file.delete();
+    private static boolean isSafeProjectLayout(File base, File root) throws IOException {
+        File marker = new File(root, ".droidinspect-project");
+        File source = new File(root, "src");
+        File original = new File(root, "original");
+        File originalAssembly = new File(original, "OriginalAssembly.bin");
+        return !Files.isSymbolicLink(base.toPath()) && base.isDirectory()
+                && isDirectChild(base, root) && root.isDirectory()
+                && isDirectChild(root, marker) && marker.isFile()
+                && isDirectChild(root, source) && source.isDirectory()
+                && isDirectChild(root, original) && original.isDirectory()
+                && isDirectChild(original, originalAssembly) && originalAssembly.isFile()
+                && originalAssembly.length() > 0
+                && originalAssembly.length() <= MAX_ORIGINAL_ASSEMBLY;
+    }
+
+    private static boolean isDirectChild(File parent, File child) throws IOException {
+        if (parent == null || child == null || Files.isSymbolicLink(parent.toPath())
+                || Files.isSymbolicLink(child.toPath())) return false;
+        return parent.getCanonicalFile().equals(child.getCanonicalFile().getParentFile());
+    }
+
+    private static void cleanupFailedCreation(File root, File expectedParent, Throwable failure) {
+        try {
+            BoundedProjectFiles.deleteTree(root, expectedParent, 10000);
+        } catch (IOException cleanupError) {
+            failure.addSuppressed(cleanupError);
+        }
     }
 }

@@ -86,12 +86,28 @@ final class BoundedProjectFiles {
      * across the tree; interruption and any failed directory read/delete abort the cleanup.
      */
     static void deleteTree(File root, int maxEntries) throws IOException {
+        deleteTree(root, null, maxEntries);
+    }
+
+    /**
+     * Deletes a private temporary tree and, when supplied, verifies that its root is a
+     * direct child of the expected trusted workspace parent before removing anything.
+     */
+    static void deleteTree(File root, File expectedParent, int maxEntries) throws IOException {
         if (root == null) return;
+        if (maxEntries < 0) throw new IllegalArgumentException("maxEntries must not be negative.");
         Path rootPath = root.toPath();
         if (!Files.exists(rootPath, LinkOption.NOFOLLOW_LINKS)) return;
         if (Files.isSymbolicLink(rootPath))
             throw new IOException("Refusing to delete a symbolic-link workspace root.");
         File canonicalRoot = root.getCanonicalFile();
+        if (expectedParent != null) {
+            if (Files.isSymbolicLink(expectedParent.toPath()) || !expectedParent.isDirectory())
+                throw new IOException("Trusted workspace parent is unavailable.");
+            File canonicalParent = expectedParent.getCanonicalFile();
+            if (!canonicalParent.equals(canonicalRoot.getParentFile()))
+                throw new IOException("Refusing to delete a workspace outside its trusted parent.");
+        }
         int[] visited = {0};
         deleteEntry(canonicalRoot, canonicalRoot, 0, maxEntries, visited);
     }

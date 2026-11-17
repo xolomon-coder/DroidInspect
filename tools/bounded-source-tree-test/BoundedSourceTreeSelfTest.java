@@ -19,6 +19,10 @@ public final class BoundedSourceTreeSelfTest {
             List<File> files = BoundedSourceTree.scan(root);
             require(files.size() == 2, "discover root and nested source files");
 
+            Path linkedRoot = new File(parent, "linked-source-root").toPath();
+            Files.createSymbolicLink(linkedRoot, root.toPath());
+            expectFailure(linkedRoot.toFile(), "symbolic-link source root");
+
             File external = new File(parent, "outside");
             require(external.mkdir(), "create external source target");
             Files.write(new File(external, "Outside.cs").toPath(), "class Outside {}".getBytes("UTF-8"));
