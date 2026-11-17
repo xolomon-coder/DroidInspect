@@ -3,8 +3,11 @@ package com.tanvir.droidinspect;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.Context;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -17,6 +20,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -113,22 +117,23 @@ public final class ApkProjectWorkspaceActivity extends Activity {
 
     private void openProject(String id) {
         setBusy(true, "Opening saved APK project…");
+        Context appContext = getApplicationContext();
+        WeakReference<ApkProjectWorkspaceActivity> owner = new WeakReference<>(this);
         worker.execute(() -> {
             ApkProjectWorkspace opened = null;
             String error = null;
-            try { opened = ApkProjectWorkspace.open(this, id); }
+            try { opened = ApkProjectWorkspace.open(appContext, id); }
             catch (Exception e) { error = e.getClass().getSimpleName() + ": " + safe(e.getMessage()); }
             ApkProjectWorkspace ready = opened;
             String failure = error;
-            runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) return;
+            postToActivity(owner, activity -> {
                 if (failure != null) {
-                    setBusy(false, "Project could not be opened.");
-                    showError(failure);
+                    activity.setBusy(false, "Project could not be opened.");
+                    activity.showError(failure);
                     return;
                 }
-                project = ready;
-                showProject();
+                activity.project = ready;
+                activity.showProject();
             });
         });
     }
@@ -172,10 +177,13 @@ public final class ApkProjectWorkspaceActivity extends Activity {
         catch (Exception error) { showError(safe(error.getMessage())); return; }
         new AlertDialog.Builder(this).setTitle("Project notes").setView(editor)
                 .setNegativeButton("CANCEL", null)
-                .setPositiveButton("SAVE", (dialog, which) -> runProjectAction("Saving notes…", () -> {
-                    project.saveNotes(editor.getText().toString());
-                    return "Project notes saved.";
-                })).show();
+                .setPositiveButton("SAVE", (dialog, which) -> {
+                    String notes = editor.getText().toString();
+                    runProjectAction("Saving notes…", active -> {
+                        active.saveNotes(notes);
+                        return "Project notes saved.";
+                    });
+                }).show();
     }
 
     private void addBookmark() {
@@ -187,12 +195,15 @@ public final class ApkProjectWorkspaceActivity extends Activity {
         note.setHint("Optional note"); fields.addView(note);
         new AlertDialog.Builder(this).setTitle("Add project bookmark").setView(fields)
                 .setNegativeButton("CANCEL", null)
-                .setPositiveButton("SAVE", (dialog, which) -> runProjectAction("Saving bookmark…", () -> {
+                .setPositiveButton("SAVE", (dialog, which) -> {
                     String value = target.getText().toString().trim();
-                    if (value.isEmpty()) throw new IllegalArgumentException("Enter a bookmark target.");
-                    project.addBookmark("General", value, note.getText().toString());
-                    return "Bookmark saved.";
-                })).show();
+                    String noteText = note.getText().toString();
+                    runProjectAction("Saving bookmark…", active -> {
+                        if (value.isEmpty()) throw new IllegalArgumentException("Enter a bookmark target.");
+                        active.addBookmark("General", value, noteText);
+                        return "Bookmark saved.";
+                    });
+                }).show();
     }
 
     private void addSavedSearch() {
@@ -204,12 +215,15 @@ public final class ApkProjectWorkspaceActivity extends Activity {
         query.setHint("Search query"); fields.addView(query);
         new AlertDialog.Builder(this).setTitle("Save project search").setView(fields)
                 .setNegativeButton("CANCEL", null)
-                .setPositiveButton("SAVE", (dialog, which) -> runProjectAction("Saving search…", () -> {
+                .setPositiveButton("SAVE", (dialog, which) -> {
+                    String scopeText = scope.getText().toString();
                     String value = query.getText().toString().trim();
-                    if (value.isEmpty()) throw new IllegalArgumentException("Enter a search query.");
-                    project.addSavedSearch(scope.getText().toString(), value);
-                    return "Search saved.";
-                })).show();
+                    runProjectAction("Saving search…", active -> {
+                        if (value.isEmpty()) throw new IllegalArgumentException("Enter a search query.");
+                        active.addSavedSearch(scopeText, value);
+                        return "Search saved.";
+                    });
+                }).show();
     }
 
     private void showSavedItems() {
@@ -258,8 +272,8 @@ public final class ApkProjectWorkspaceActivity extends Activity {
                                 .setMessage("The current working APK will first be saved as another recovery snapshot.")
                                 .setNegativeButton("CANCEL", null)
                                 .setPositiveButton("RESTORE", (d, w) ->
-                                        runProjectAction("Restoring revision…", () -> {
-                                            project.restoreRevision(history.get(which));
+                                        runProjectAction("Restoring revision…", active -> {
+                                            active.restoreRevision(history.get(which));
                                             return "Revision restored. Current working APK was snapshotted first.";
                                         })).show())
                 .setNegativeButton("CLOSE", null).show();
@@ -301,18 +315,19 @@ public final class ApkProjectWorkspaceActivity extends Activity {
         } catch (SecurityException ignored) { }
         if (request == PICK_CREATE) {
             setBusy(true, "Creating persistent APK project…");
+            Context appContext = getApplicationContext();
+            WeakReference<ApkProjectWorkspaceActivity> owner = new WeakReference<>(this);
             worker.execute(() -> {
                 ApkProjectWorkspace created = null;
                 String error = null;
-                try { created = ApkProjectWorkspace.create(this, uri); }
+                try { created = ApkProjectWorkspace.create(appContext, uri); }
                 catch (Exception e) { error = e.getClass().getSimpleName() + ": " + safe(e.getMessage()); }
                 ApkProjectWorkspace ready = created;
                 String failure = error;
-                runOnUiThread(() -> {
-                    if (isFinishing() || isDestroyed()) return;
-                    if (failure != null) { setBusy(false, "Project creation failed."); showError(failure); return; }
-                    project = ready;
-                    showProject();
+                postToActivity(owner, activity -> {
+                    if (failure != null) { activity.setBusy(false, "Project creation failed."); activity.showError(failure); return; }
+                    activity.project = ready;
+                    activity.showProject();
                 });
             });
         } else if (request == PICK_IMPORT) {
@@ -334,20 +349,31 @@ public final class ApkProjectWorkspaceActivity extends Activity {
         }
     }
 
-    private interface ProjectTask { String run() throws Exception; }
+    private interface ProjectTask { String run(ApkProjectWorkspace activeProject) throws Exception; }
+    private interface ActivityCallback { void deliver(ApkProjectWorkspaceActivity activity); }
+
+    private static void postToActivity(WeakReference<ApkProjectWorkspaceActivity> owner,
+                                       ActivityCallback callback) {
+        new Handler(Looper.getMainLooper()).post(() -> {
+            ApkProjectWorkspaceActivity activity = owner.get();
+            if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
+            callback.deliver(activity);
+        });
+    }
 
     private void runProjectAction(String busyMessage, ProjectTask task) {
         setBusy(true, busyMessage);
+        ApkProjectWorkspace activeProject = project;
+        WeakReference<ApkProjectWorkspaceActivity> owner = new WeakReference<>(this);
         worker.execute(() -> {
             String message = null, error = null;
-            try { message = task.run(); }
+            try { message = task.run(activeProject); }
             catch (Exception e) { error = e.getClass().getSimpleName() + ": " + safe(e.getMessage()); }
             String finalMessage = message, failure = error;
-            runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) return;
-                setBusy(false, failure == null ? finalMessage : "Project operation failed.");
-                if (failure != null) showError(failure);
-                refreshProjectStatus();
+            postToActivity(owner, activity -> {
+                activity.setBusy(false, failure == null ? finalMessage : "Project operation failed.");
+                if (failure != null) activity.showError(failure);
+                activity.refreshProjectStatus();
             });
         });
     }
@@ -373,7 +399,7 @@ public final class ApkProjectWorkspaceActivity extends Activity {
                 .setMessage(message).setPositiveButton("CLOSE", null).show();
     }
 
-    private String safe(String value) { return value == null ? "No details." : value; }
+    private static String safe(String value) { return value == null ? "No details." : value; }
 
     @Override protected void onDestroy() {
         super.onDestroy();
