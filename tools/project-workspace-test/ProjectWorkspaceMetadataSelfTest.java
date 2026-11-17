@@ -73,6 +73,11 @@ public final class ProjectWorkspaceMetadataSelfTest {
             expectIOException(() -> new ProjectWorkspaceMetadata(linkedRoot).readOverview(),
                     "metadata symlink cannot escape project root");
 
+            File linkedWorkspaceRoot = new File(parent, "linked-workspace-root");
+            Files.createSymbolicLink(linkedWorkspaceRoot.toPath(), firstRoot.toPath());
+            expectIOException(() -> new ProjectWorkspaceMetadata(linkedWorkspaceRoot).readOverview(),
+                    "project metadata rejects a symbolic-link workspace root");
+
             System.out.println("PASS: reopen, isolation, notes, bookmarks, searches, recovery, bounded listings, corrupt/oversized metadata and symlink isolation");
         } finally {
             delete(parent);

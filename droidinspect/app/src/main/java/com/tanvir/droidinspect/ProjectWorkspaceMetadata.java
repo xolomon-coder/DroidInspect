@@ -25,7 +25,9 @@ final class ProjectWorkspaceMetadata {
     private final File root;
 
     ProjectWorkspaceMetadata(File projectRoot) throws IOException {
-        if (projectRoot == null) throw new IOException("Project folder is unavailable.");
+        if (projectRoot == null || Files.isSymbolicLink(projectRoot.toPath())
+                || !projectRoot.isDirectory())
+            throw new IOException("Project folder is unavailable or is a symbolic link.");
         this.root = projectRoot.getCanonicalFile();
         if (!root.isDirectory()) throw new IOException("Project folder does not exist.");
     }
