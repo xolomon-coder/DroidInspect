@@ -240,15 +240,21 @@ public final class ApkBuildPipelineActivity extends Activity {
                 version = info.versionName == null ? "(not declared)" : info.versionName;
                 versionCode = Build.VERSION.SDK_INT >= 28 ? info.getLongVersionCode() : info.versionCode;
                 signers = signerFingerprints(copy);
-            } catch (Exception | Error e) {
-                error = e.getClass().getSimpleName() + ": " + (e.getMessage() == null ? "No details." : e.getMessage());
+            } catch (Exception e) {
+                error = message(e);
                 if (copy != null) {
                     try { deleteTemporaryFile(copy, e); }
-                    catch (Exception ignored) { }
+                    catch (Exception cleanupError) { e.addSuppressed(cleanupError); }
                 }
                 for (Throwable cleanup : e.getSuppressed())
                     error += "\nCleanup: " + cleanup.getMessage();
                 copy = null;
+            } catch (Error fatal) {
+                if (copy != null) {
+                    try { deleteTemporaryFile(copy, fatal); }
+                    catch (IOException cleanupError) { fatal.addSuppressed(cleanupError); }
+                }
+                throw fatal;
             }
             final File ready = copy;
             final String failure = error, finalPkg = pkg, finalVersion = version;
@@ -282,7 +288,7 @@ public final class ApkBuildPipelineActivity extends Activity {
                 text.append("\n\nThe original file is preserved. Editing and signing will create separate output files.");
                 activity.report.setText(text.toString());
                 activity.setBusy(false, "Original APK inspection complete.");
-            });
+            }, () -> deleteQuietly(ready));
         });
     }
 
@@ -347,10 +353,12 @@ public final class ApkBuildPipelineActivity extends Activity {
                         projectUpdateError = message(projectError);
                     }
                 }
-            } catch (Exception | Error failureCause) {
+            } catch (Exception failureCause) {
                 primaryFailure = failureCause;
-                error = failureCause.getClass().getSimpleName() + ": "
-                        + (failureCause.getMessage() == null ? "No details." : failureCause.getMessage());
+                error = message(failureCause);
+            } catch (Error fatal) {
+                primaryFailure = fatal;
+                throw fatal;
             } finally {
                 if (copy != null) {
                     try {
@@ -518,10 +526,20 @@ public final class ApkBuildPipelineActivity extends Activity {
     private static void postToActivity(Handler handler,
                                        WeakReference<ApkBuildPipelineActivity> owner,
                                        ActivityCallback callback) {
+        postToActivity(handler, owner, callback, null);
+    }
+
+    private static void postToActivity(Handler handler,
+                                       WeakReference<ApkBuildPipelineActivity> owner,
+                                       ActivityCallback callback,
+                                       Runnable onDiscard) {
         handler.post(() -> {
             ApkBuildPipelineActivity activity = owner.get();
             if (activity == null || activity.destroyed
-                    || activity.isFinishing() || activity.isDestroyed()) return;
+                    || activity.isFinishing() || activity.isDestroyed()) {
+                if (onDiscard != null) onDiscard.run();
+                return;
+            }
             callback.deliver(activity);
         });
     }
