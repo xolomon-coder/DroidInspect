@@ -20,6 +20,7 @@ import com.android.apksig.ApkVerifier;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InterruptedIOException;
 import java.lang.ref.WeakReference;
@@ -228,7 +229,6 @@ public final class ApkBuildPipelineActivity extends Activity {
             String pkg = "(unknown)", version = "(unknown)";
             long versionCode = -1;
             List<String> signers = Collections.emptyList();
-            Throwable primaryFailure = null;
             try {
                 if (activeProject != null) copy = copyFileToCache(appContext, activeProject.getOriginalApk(), "original");
                 else if (activeSourceUri != null) copy = copyUri(appContext, activeSourceUri, "original");
@@ -241,8 +241,9 @@ public final class ApkBuildPipelineActivity extends Activity {
                 versionCode = Build.VERSION.SDK_INT >= 28 ? info.getLongVersionCode() : info.versionCode;
                 signers = signerFingerprints(copy);
             } catch (Exception | Error e) {
-                primaryFailure = e;
                 error = e.getClass().getSimpleName() + ": " + (e.getMessage() == null ? "No details." : e.getMessage());
+                for (Throwable cleanup : e.getSuppressed())
+                    error += "\nCleanup: " + cleanup.getMessage();
                 if (copy != null) {
                     try { deleteTemporaryFile(copy, e); }
                     catch (Exception ignored) { }
@@ -321,6 +322,7 @@ public final class ApkBuildPipelineActivity extends Activity {
             boolean verified = false;
             boolean projectUpdated = false;
             String projectUpdateError = null;
+            Throwable primaryFailure = null;
             try {
                 copy = copyUri(appContext, activeSignedUri, "signed");
                 PackageInfo info = appContext.getPackageManager().getPackageArchiveInfo(copy.getAbsolutePath(), 0);
@@ -332,7 +334,7 @@ public final class ApkBuildPipelineActivity extends Activity {
                 verified = result.isVerified();
                 if (!verified) {
                     StringBuilder why = new StringBuilder("APK signature verification failed.");
-                    for (Object issue : result.getErrors()) why.append("\\n").append(issue);
+                    for (Object issue : result.getErrors()) why.append("\n").append(issue);
                     throw new IllegalStateException(why.toString());
                 }
                 finalSigners = signerFingerprints(copy);
@@ -345,10 +347,23 @@ public final class ApkBuildPipelineActivity extends Activity {
                         projectUpdateError = message(projectError);
                     }
                 }
-            } catch (Exception error) {
-                error = message(error);
+            } catch (Exception failureCause) {
+                primaryFailure = failureCause;
+                error = message(failureCause);
             } finally {
-                if (copy != null) deleteQuietly(copy);
+                if (copy != null) {
+                    try {
+                        deleteTemporaryFile(copy, primaryFailure);
+                    } catch (IOException cleanupError) {
+                        error = error == null ? message(cleanupError)
+                                : error + "\nCleanup failed: " + message(cleanupError);
+                    }
+                    if (primaryFailure != null) {
+                        for (Throwable cleanupError : primaryFailure.getSuppressed())
+                            error = error == null ? message(new IOException(cleanupError.getMessage(), cleanupError))
+                                    : error + "\nCleanup failed: " + cleanupError.getMessage();
+                    }
+                }
             }
             final String failure = error, pkg = finalPackage, version = finalVersion;
             final long versionCode = finalVersionCode;
@@ -361,32 +376,32 @@ public final class ApkBuildPipelineActivity extends Activity {
                 if (failure != null) {
                     activity.signedUri = null;
                     activity.signButton.setEnabled(true);
-                    activity.appendReport("\\nFINAL OUTPUT: FAIL\\n" + failure);
+                    activity.appendReport("\nFINAL OUTPUT: FAIL\n" + failure);
                     activity.showError(failure);
                     return;
                 }
                 ApkUpdateCompatibility.Assessment assessment = ApkUpdateCompatibility.assess(
                         baselinePackage, baselineVersionCode, baselineSigners, pkg, versionCode, signers);
-                StringBuilder finalReport = new StringBuilder("\\nFINAL SIGNED OUTPUT\\n");
-                finalReport.append("Signature verification: ").append(signaturePass ? "PASS" : "FAIL").append('\\n');
-                finalReport.append("Package: ").append(pkg).append('\\n');
-                finalReport.append("Version: ").append(version).append(" (code ").append(versionCode).append(")\\n");
-                finalReport.append("Original package: ").append(baselinePackage).append('\\n');
-                finalReport.append("Same package ID: ").append(assessment.samePackage ? "yes" : "no").append('\\n');
-                finalReport.append("Version code increased: ").append(assessment.higherVersion ? "yes" : "no / unknown").append('\\n');
-                finalReport.append("Original signer(s): ").append(baselineSigners.isEmpty() ? "(unverified)" : baselineSigners).append('\\n');
-                finalReport.append("New signer(s): ").append(signers).append('\\n');
-                finalReport.append("Signer identity match: ").append(assessment.signerMatch ? "yes" : "no / unavailable").append('\\n');
-                finalReport.append("Update assessment: ").append(assessment.explanation).append('\\n');
-                finalReport.append("Signed output URI: ").append(activeSignedUri).append('\\n');
-                finalReport.append("\\nThe exported signed APK is a separate file. The original APK and edited unsigned APK were not overwritten.");
+                StringBuilder finalReport = new StringBuilder("\nFINAL SIGNED OUTPUT\n");
+                finalReport.append("Signature verification: ").append(signaturePass ? "PASS" : "FAIL").append('\n');
+                finalReport.append("Package: ").append(pkg).append('\n');
+                finalReport.append("Version: ").append(version).append(" (code ").append(versionCode).append(")\n");
+                finalReport.append("Original package: ").append(baselinePackage).append('\n');
+                finalReport.append("Same package ID: ").append(assessment.samePackage ? "yes" : "no").append('\n');
+                finalReport.append("Version code increased: ").append(assessment.higherVersion ? "yes" : "no / unknown").append('\n');
+                finalReport.append("Original signer(s): ").append(baselineSigners.isEmpty() ? "(unverified)" : baselineSigners).append('\n');
+                finalReport.append("New signer(s): ").append(signers).append('\n');
+                finalReport.append("Signer identity match: ").append(assessment.signerMatch ? "yes" : "no / unavailable").append('\n');
+                finalReport.append("Update assessment: ").append(assessment.explanation).append('\n');
+                finalReport.append("Signed output URI: ").append(activeSignedUri).append('\n');
+                finalReport.append("\nThe exported signed APK is a separate file. The original APK and edited unsigned APK were not overwritten.");
                 if (activeProject != null) {
                     if (projectUpdatedFinal)
-                        finalReport.append("\\nProject working APK: updated to signed output; previous working revision was snapshotted.");
+                        finalReport.append("\nProject working APK: updated to signed output; previous working revision was snapshotted.");
                     else
-                        finalReport.append("\\nProject working APK was NOT updated: ").append(projectUpdateFailure);
+                        finalReport.append("\nProject working APK was NOT updated: ").append(projectUpdateFailure);
                     try { activeProject.writeReport("Build-Sign-Report-r" + activeProject.getRevision(), finalReport.toString()); }
-                    catch (Exception reportError) { finalReport.append("\\nProject report save failed: ").append(message(reportError)); }
+                    catch (Exception reportError) { finalReport.append("\nProject report save failed: ").append(message(reportError)); }
                 }
                 activity.appendReport(finalReport.toString());
                 activity.status.setText("Final APK signature verified. Compatibility assessment is shown below.");
@@ -518,13 +533,16 @@ public final class ApkBuildPipelineActivity extends Activity {
         originalCopy = null;
         super.onDestroy();
         Thread cleanup = new Thread(() -> {
-            try {
-                while (!activeWorker.awaitTermination(1, TimeUnit.DAYS)) { }
-            } catch (InterruptedException interrupted) {
-                Thread.currentThread().interrupt();
-                return;
+            boolean interrupted = false;
+            while (!activeWorker.isTerminated()) {
+                try {
+                    activeWorker.awaitTermination(1, TimeUnit.DAYS);
+                } catch (InterruptedException ignored) {
+                    interrupted = true;
+                }
             }
             deleteQuietly(original);
+            if (interrupted) Thread.currentThread().interrupt();
         }, "droidinspect-pipeline-cleanup");
         cleanup.setDaemon(true);
         cleanup.start();
