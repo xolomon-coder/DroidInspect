@@ -2,14 +2,18 @@ package com.tanvir.droidinspect;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.Context;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import java.io.File;
+import java.lang.ref.WeakReference;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -224,34 +228,31 @@ public class MainActivity extends Activity {
 
     private void inspectSelectedFile(Uri uri) {
         setBusy(true, "Reading selected file…");
+        Context appContext = getApplicationContext();
+        WeakReference<MainActivity> owner = new WeakReference<>(this);
         worker.execute(() -> {
             try {
-                String report = FileInspectionEngine.inspect(getApplicationContext(), uri);
+                String report = FileInspectionEngine.inspect(appContext, uri);
                 boolean isApk = report.startsWith("DROIDINSPECT — APK INSPECTION");
                 boolean isManaged = report.startsWith("DROIDINSPECT — PE / .NET INSPECTION")
                         && report.contains(".NET CLI header: PRESENT");
-                runOnUiThread(() -> {
-                    if (destroyed || isFinishing() || isDestroyed()) return;
-                    reportView.setText(report);
-                    canBrowseDex = isApk;
-                    canBrowseApk = isApk;
-                    canBrowseDotNet = isManaged;
-                    updateDependencyWorkspaceButtons();
-                    setBusy(false, "Inspection finished.");
+                postToActivity(owner, activity -> {
+                    activity.reportView.setText(report);
+                    activity.canBrowseDex = isApk;
+                    activity.canBrowseApk = isApk;
+                    activity.canBrowseDotNet = isManaged;
+                    activity.updateDependencyWorkspaceButtons();
+                    activity.setBusy(false, "Inspection finished.");
                 });
             } catch (Exception e) {
-                runOnUiThread(() -> {
-                    if (destroyed || isFinishing() || isDestroyed()) return;
-                    canBrowseDex = canBrowseApk = canBrowseDotNet = false;
-                    updateDependencyWorkspaceButtons();
-                    reportView.setText("INSPECTION FAILED
-
-" + e.getClass().getSimpleName()
-                            + ": " + (e.getMessage() == null ? "No additional details." : e.getMessage())
-                            + "
-
-The original selected file was not modified.");
-                    setBusy(false, "Inspection failed.");
+                String failure = e.getClass().getSimpleName() + ": "
+                        + (e.getMessage() == null ? "No additional details." : e.getMessage());
+                postToActivity(owner, activity -> {
+                    activity.canBrowseDex = activity.canBrowseApk = activity.canBrowseDotNet = false;
+                    activity.updateDependencyWorkspaceButtons();
+                    activity.reportView.setText("INSPECTION FAILED\n\n" + failure
+                            + "\n\nThe original selected file was not modified.");
+                    activity.setBusy(false, "Inspection failed.");
                 });
             }
         });
@@ -259,59 +260,52 @@ The original selected file was not modified.");
 
     private void runDiagnostics() {
         setBusy(true, "Running runtime diagnostics…");
+        Context appContext = getApplicationContext();
+        WeakReference<MainActivity> owner = new WeakReference<>(this);
         worker.execute(() -> {
             StringBuilder report = new StringBuilder();
-            report.append("DROIDINSPECT — RUNTIME DIAGNOSTICS
-
-");
-            report.append("Android API: ").append(android.os.Build.VERSION.SDK_INT).append('
-');
-            report.append("Android release: ").append(android.os.Build.VERSION.RELEASE).append('
-');
-            report.append("App package: ").append(getPackageName()).append('
-');
+            report.append("DROIDINSPECT — RUNTIME DIAGNOSTICS\n\n");
+            report.append("Android API: ").append(android.os.Build.VERSION.SDK_INT).append('\n');
+            report.append("Android release: ").append(android.os.Build.VERSION.RELEASE).append('\n');
+            report.append("App package: ").append(appContext.getPackageName()).append('\n');
             report.append("Cache writable: ");
             File probe = null;
             try {
-                probe = File.createTempFile("di-test-", ".tmp", getCacheDir());
-                report.append("PASS
-");
+                probe = File.createTempFile("di-test-", ".tmp", appContext.getCacheDir());
+                report.append("PASS\n");
             } catch (Exception e) {
-                report.append("FAIL — ").append(e.getMessage()).append('
-');
+                report.append("FAIL — ").append(e.getMessage()).append('\n');
             } finally {
                 if (probe != null) probe.delete();
             }
-            report.append("Document picker: available through Android ACTION_OPEN_DOCUMENT
-");
-            report.append("External storage permission: not requested (SAF is used)
-");
-            report.append("APK ZIP and DEX structural parsers: available
-");
-            report.append("ARSCLib manifest/resource engine: packaged in this build
-");
-            report.append("PE/CLI metadata and raw IL browser: available
-");
-            report.append("C# decompiler ABI: ").append(NativeBridge.isArm64Supported() ? "ARM64 supported" : "unsupported device ABI").append('
-');
+            report.append("Document picker: available through Android ACTION_OPEN_DOCUMENT\n");
+            report.append("External storage permission: not requested (SAF is used)\n");
+            report.append("APK ZIP and DEX structural parsers: available\n");
+            report.append("ARSCLib manifest/resource engine: packaged in this build\n");
+            report.append("PE/CLI metadata and raw IL browser: available\n");
+            report.append("C# decompiler ABI: ").append(NativeBridge.isArm64Supported() ? "ARM64 supported" : "unsupported device ABI").append('\n');
             String compilerLoadError = com.tanvir.m12poc.NativeBridge.getLoadError();
             report.append("Offline Roslyn compiler / dependency resolver: ")
                     .append(compilerLoadError == null ? "ARM64 native payload loaded" : "unavailable — " + compilerLoadError)
-                    .append('
-');
-            report.append("Network required for local inspection/decompilation/dependency analysis: NO
-
-");
-            report.append("LIMITS
-Input copy cap: 512 MB; DEX per-file cap: 128 MB
-");
+                    .append('\n');
+            report.append("Network required for local inspection/decompilation/dependency analysis: NO\n\n");
+            report.append("LIMITS\nInput copy cap: 512 MB; DEX per-file cap: 128 MB\n");
             report.append("C# source reconstruction is not assembly execution or guaranteed recompilation.");
             String result = report.toString();
-            runOnUiThread(() -> {
-                if (destroyed || isFinishing() || isDestroyed()) return;
-                reportView.setText(result);
-                setBusy(false, "Runtime diagnostics finished.");
+            postToActivity(owner, activity -> {
+                activity.reportView.setText(result);
+                activity.setBusy(false, "Runtime diagnostics finished.");
             });
+        });
+    }
+
+    private interface ActivityCallback { void deliver(MainActivity activity); }
+
+    private static void postToActivity(WeakReference<MainActivity> owner, ActivityCallback callback) {
+        new Handler(Looper.getMainLooper()).post(() -> {
+            MainActivity activity = owner.get();
+            if (activity == null || activity.destroyed || activity.isFinishing() || activity.isDestroyed()) return;
+            callback.deliver(activity);
         });
     }
 
