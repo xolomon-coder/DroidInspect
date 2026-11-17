@@ -146,6 +146,13 @@ public final class BoundedProjectFilesSelfTest {
                         rollbackDirectory, java.util.Collections.singletonList(rollbackThree), runtimeFailure);
                 check(!rollbackThree.exists() && runtimeFailure.getSuppressed().length == 0,
                         "rollback removes completed imports when the primary failure is unchecked");
+                File rollbackFour = new File(rollbackDirectory, "fourth.dll");
+                write(rollbackFour);
+                AssertionError fatalFailure = new AssertionError("simulated fatal import failure");
+                BoundedProjectFiles.rollbackDirectChildren(
+                        rollbackDirectory, java.util.Collections.singletonList(rollbackFour), fatalFailure);
+                check(!rollbackFour.exists() && fatalFailure.getSuppressed().length == 0,
+                        "rollback removes completed imports when the primary failure is an Error");
             } finally {
                 rollbackOutside.delete();
                 BoundedProjectFiles.deleteTree(rollbackDirectory, root, 20);

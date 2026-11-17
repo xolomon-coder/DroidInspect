@@ -111,7 +111,7 @@ final class ApkProjectWorkspace {
         } catch (Exception | Error error) {
             try {
                 BoundedProjectFiles.deleteTreeForRollback(root, base, MAX_PROJECT_DIRECTORY_ENTRIES);
-            } catch (IOException cleanupError) {
+            } catch (IOException | RuntimeException cleanupError) {
                 error.addSuppressed(cleanupError);
             }
             if (error instanceof IOException) throw (IOException) error;
@@ -215,7 +215,7 @@ final class ApkProjectWorkspace {
         if (file == null) return;
         try {
             Files.deleteIfExists(file.toPath());
-        } catch (IOException | SecurityException cleanupError) {
+        } catch (IOException | RuntimeException cleanupError) {
             IOException reported = new IOException(
                     "Could not remove temporary project file: " + file.getName(), cleanupError);
             if (primaryFailure != null) primaryFailure.addSuppressed(reported);
@@ -519,9 +519,10 @@ final class ApkProjectWorkspace {
                 out.write(buffer, 0, read);
             }
             out.flush();
-        } catch (Exception error) {
+        } catch (Exception | Error error) {
             deleteTemporaryFile(output, error);
             if (error instanceof IOException) throw (IOException) error;
+            if (error instanceof Error) throw (Error) error;
             throw new IOException(error);
         }
     }
@@ -538,7 +539,7 @@ final class ApkProjectWorkspace {
                 out.write(buffer, 0, read);
             }
             out.flush();
-        } catch (IOException error) {
+        } catch (IOException | RuntimeException | Error error) {
             deleteTemporaryFile(output, error);
             throw error;
         }

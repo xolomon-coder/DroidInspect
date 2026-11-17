@@ -188,7 +188,7 @@ final class CSharpSourceWorkspace {
                 } catch (IOException | RuntimeException | Error error) {
                     try {
                         Files.deleteIfExists(target.toPath());
-                    } catch (IOException | SecurityException cleanupError) {
+                    } catch (IOException | RuntimeException cleanupError) {
                         error.addSuppressed(new IOException(
                                 "Could not remove partial C# source import: " + target.getName(), cleanupError));
                     }
@@ -280,38 +280,32 @@ final class CSharpSourceWorkspace {
     private static void copyOriginalAssembly(Context context, Uri uri, File target) throws IOException {
         File temporary = new File(target.getParentFile(), target.getName() + ".tmp-" + UUID.randomUUID());
         long total = 0;
-        try (InputStream input = context.getContentResolver().openInputStream(uri);
-             FileOutputStream output = new FileOutputStream(temporary)) {
-            if (input == null) throw new IOException("Cannot reopen the selected original assembly.");
-            byte[] buffer = new byte[32768];
-            int count;
-            while ((count = input.read(buffer)) != -1) {
-                checkCancelled();
-                total += count;
-                if (total > MAX_ORIGINAL_ASSEMBLY)
-                    throw new IOException("Original assembly exceeds the 512 MB project safety limit.");
-                output.write(buffer, 0, count);
+        Throwable primaryFailure = null;
+        try {
+            try (InputStream input = context.getContentResolver().openInputStream(uri);
+                 FileOutputStream output = new FileOutputStream(temporary)) {
+                if (input == null) throw new IOException("Cannot reopen the selected original assembly.");
+                byte[] buffer = new byte[32768];
+                int count;
+                while ((count = input.read(buffer)) != -1) {
+                    checkCancelled();
+                    total += count;
+                    if (total > MAX_ORIGINAL_ASSEMBLY)
+                        throw new IOException("Original assembly exceeds the 512 MB project safety limit.");
+                    output.write(buffer, 0, count);
+                }
+                output.flush();
+                output.getFD().sync();
             }
-            output.flush();
-            output.getFD().sync();
-        } catch (IOException error) {
-            try {
-                Files.deleteIfExists(temporary.toPath());
-            } catch (IOException cleanupError) {
-                error.addSuppressed(cleanupError);
-            }
+            if (total == 0)
+                throw new IOException("The selected original assembly is empty.");
+            if (!temporary.renameTo(target))
+                throw new IOException("Cannot preserve the original assembly in the project.");
+        } catch (IOException | RuntimeException | Error error) {
+            primaryFailure = error;
             throw error;
-        }
-        if (total == 0 || !temporary.renameTo(target)) {
-            IOException failure = new IOException(total == 0
-                    ? "The selected original assembly is empty."
-                    : "Cannot preserve the original assembly in the project.");
-            try {
-                Files.deleteIfExists(temporary.toPath());
-            } catch (IOException cleanupError) {
-                failure.addSuppressed(cleanupError);
-            }
-            throw failure;
+        } finally {
+            deleteTemporaryFile(temporary, primaryFailure);
         }
     }
 
@@ -345,7 +339,7 @@ final class CSharpSourceWorkspace {
         if (file == null) return;
         try {
             Files.deleteIfExists(file.toPath());
-        } catch (IOException | SecurityException cleanupError) {
+        } catch (IOException | RuntimeException cleanupError) {
             IOException reported = new IOException(
                     "Could not remove temporary C# source file: " + file.getName(), cleanupError);
             if (primaryFailure != null) primaryFailure.addSuppressed(reported);
@@ -382,7 +376,7 @@ final class CSharpSourceWorkspace {
     private static void cleanupFailedCreation(File root, File expectedParent, Throwable failure) {
         try {
             BoundedProjectFiles.deleteTreeForRollback(root, expectedParent, 10000);
-        } catch (IOException cleanupError) {
+        } catch (IOException | RuntimeException cleanupError) {
             failure.addSuppressed(cleanupError);
         }
     }

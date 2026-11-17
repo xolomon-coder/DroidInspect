@@ -166,21 +166,35 @@ final class BoundedProjectFiles {
     static void rollbackDirectChildren(File directory, List<File> files, Throwable failure) {
         if (failure == null) throw new IllegalArgumentException("A primary import failure is required.");
         if (files == null || files.isEmpty()) return;
-        if (directory == null || Files.isSymbolicLink(directory.toPath()) || !directory.isDirectory()) {
-            failure.addSuppressed(new IOException("Cannot safely roll back files: import directory is unavailable or linked."));
+        if (directory == null) {
+            failure.addSuppressed(new IOException("Cannot safely roll back files: import directory is unavailable."));
             return;
         }
-        File parent = directory.getAbsoluteFile();
+        final File parent;
+        try {
+            if (Files.isSymbolicLink(directory.toPath()) || !directory.isDirectory()) {
+                failure.addSuppressed(new IOException("Cannot safely roll back files: import directory is unavailable or linked."));
+                return;
+            }
+            parent = directory.getAbsoluteFile();
+        } catch (RuntimeException validationError) {
+            failure.addSuppressed(new IOException("Could not validate the import rollback directory.", validationError));
+            return;
+        }
         for (File file : files) {
-            if (file == null || !parent.equals(file.getAbsoluteFile().getParentFile())) {
-                failure.addSuppressed(new IOException("Refusing to roll back a file outside the import directory."));
+            if (file == null) {
+                failure.addSuppressed(new IOException("Refusing to roll back a null imported-file path."));
                 continue;
             }
             try {
+                if (!parent.equals(file.getAbsoluteFile().getParentFile())) {
+                    failure.addSuppressed(new IOException("Refusing to roll back a file outside the import directory."));
+                    continue;
+                }
                 Files.deleteIfExists(file.toPath());
             } catch (IOException | RuntimeException cleanupError) {
                 failure.addSuppressed(new IOException(
-                        "Could not remove partially imported file: " + file.getName(), cleanupError));
+                        "Could not safely roll back partially imported file: " + file.getName(), cleanupError));
             }
         }
     }

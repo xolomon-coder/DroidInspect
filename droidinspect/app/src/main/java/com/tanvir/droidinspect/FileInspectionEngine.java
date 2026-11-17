@@ -71,7 +71,7 @@ final class FileInspectionEngine {
         if (file == null) return;
         try {
             Files.deleteIfExists(file.toPath());
-        } catch (IOException | SecurityException cleanupError) {
+        } catch (IOException | RuntimeException cleanupError) {
             IOException reported = new IOException(
                     "Could not remove temporary inspection copy: " + file.getName(), cleanupError);
             if (primaryFailure != null) primaryFailure.addSuppressed(reported);

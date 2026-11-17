@@ -255,7 +255,7 @@ final class DotNetDependencyWorkspace {
         if (file == null) return;
         try {
             Files.deleteIfExists(file.toPath());
-        } catch (IOException | SecurityException cleanupError) {
+        } catch (IOException | RuntimeException cleanupError) {
             IOException reported = new IOException(
                     "Could not remove temporary dependency workspace file: " + file.getName(), cleanupError);
             if (primaryFailure != null) primaryFailure.addSuppressed(reported);
@@ -284,7 +284,7 @@ final class DotNetDependencyWorkspace {
     private static void cleanupFailedCreation(File root, File expectedParent, Throwable failure) {
         try {
             BoundedProjectFiles.deleteTreeForRollback(root, expectedParent, 10000);
-        } catch (IOException cleanupError) {
+        } catch (IOException | RuntimeException cleanupError) {
             failure.addSuppressed(cleanupError);
         }
     }

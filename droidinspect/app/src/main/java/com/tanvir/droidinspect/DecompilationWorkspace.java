@@ -164,9 +164,11 @@ final class DecompilationWorkspace implements AutoCloseable {
             if (!activated) {
                 try {
                     BoundedProjectFiles.deleteTreeForRollback(staging, base, MAX_CLEANUP_ENTRIES);
-                } catch (IOException cleanupError) {
-                    if (primaryFailure != null) primaryFailure.addSuppressed(cleanupError);
-                    else throw cleanupError;
+                } catch (IOException | RuntimeException cleanupError) {
+                    IOException reported = cleanupError instanceof IOException ? (IOException) cleanupError
+                            : new IOException("Could not clean incomplete framework-reference staging files.", cleanupError);
+                    if (primaryFailure != null) primaryFailure.addSuppressed(reported);
+                    else throw reported;
                 }
             }
         }
@@ -175,15 +177,16 @@ final class DecompilationWorkspace implements AutoCloseable {
     private static void cleanupForRollback(File root, File parent, Throwable failure) {
         try {
             BoundedProjectFiles.deleteTreeForRollback(root, parent, MAX_CLEANUP_ENTRIES);
-        } catch (IOException cleanupError) {
-            failure.addSuppressed(cleanupError);
+        } catch (IOException | RuntimeException cleanupError) {
+            failure.addSuppressed(cleanupError instanceof IOException ? cleanupError
+                    : new IOException("Could not roll back incomplete decompilation workspace.", cleanupError));
         }
     }
 
     private static void deletePartialFile(File file, Throwable failure) {
         try {
             Files.deleteIfExists(file.toPath());
-        } catch (IOException | SecurityException cleanupError) {
+        } catch (IOException | RuntimeException cleanupError) {
             failure.addSuppressed(new IOException(
                     "Could not remove partial decompilation input: " + file.getName(), cleanupError));
         }
