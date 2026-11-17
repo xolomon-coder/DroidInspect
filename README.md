@@ -3752,3 +3752,14 @@ Additional M20 changes since the previous checkpoint:
 4. Only after implementation and available automated verification are complete, prepare the single consolidated M12–M20 Android 11 / CodeAssist testing checklist.
 
 **Current branch and stopping point:** main, source HEAD 0aae5c14e7eb5c024064caabdf54213548eab609 before this README checkpoint. M19/M20 remain unaccepted; production CI and release verification remain unconfirmed. No individual phone test is requested.
+
+### M20 continuation — dashboard inspection and diagnostics worker ownership — 2026-11-17
+
+- MainActivity file inspection and runtime diagnostics previously called Activity methods and used Activity-owned UI callbacks from background worker closures. Although the callbacks checked destroyed/finishing state, the closures could keep the Activity strongly reachable until the operation ended.
+- Both operations now capture only the application Context and a WeakReference to MainActivity. Results are posted through a main-thread Handler and delivered only if the Activity still exists and is not finishing/destroyed.
+- Runtime diagnostics now obtains package/cache information through the application Context. FileInspectionEngine already checks thread interruption while copying the selected input; the dashboard executor is interrupted during Activity destruction.
+- Exact changed file: droidinspect/app/src/main/java/com/tanvir/droidinspect/MainActivity.java
+- Commit: a9e2da78517cfbb39ff5da9ceffa1b0b77260489 — detach diagnostics and file inspection workers from Activity.
+- This is a source-level lifecycle correction. No Android compilation or device result is claimed.
+
+**Updated stopping point:** source HEAD a9e2da78517cfbb39ff5da9ceffa1b0b77260489 on main. M19 and M20 remain IN PROGRESS. The full host suite and runner-backed production CI/release checks remain outstanding; no individual phone testing is requested.
