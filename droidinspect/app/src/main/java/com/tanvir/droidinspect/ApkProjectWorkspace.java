@@ -209,6 +209,19 @@ final class ApkProjectWorkspace {
         return result;
     }
 
+    private static void deleteTemporaryFile(File file, Throwable primaryFailure)
+            throws IOException {
+        if (file == null) return;
+        try {
+            Files.deleteIfExists(file.toPath());
+        } catch (IOException | SecurityException cleanupError) {
+            IOException reported = new IOException(
+                    "Could not remove temporary project file: " + file.getName(), cleanupError);
+            if (primaryFailure != null) primaryFailure.addSuppressed(reported);
+            else throw reported;
+        }
+    }
+
     private static void ensureSafeFile(File file) throws IOException {
         if (file == null || Files.isSymbolicLink(file.toPath()))
             throw new IOException("Project file is unavailable or is a symbolic link.");
@@ -255,6 +268,7 @@ final class ApkProjectWorkspace {
     synchronized void replaceWorkingFromUri(Uri source) throws IOException {
         beginOperationQuietly("APK_WORKING_REPLACE", "Replace working APK from selected document");
         File incoming = new File(new File(root, "working"), "working-incoming.tmp");
+        Throwable primaryFailure = null;
         try {
             copyUri(context, source, incoming, MAX_APK_BYTES);
             validateApk(incoming);
@@ -263,21 +277,26 @@ final class ApkProjectWorkspace {
                 throw new IOException("Cannot replace the current working APK.");
             if (!incoming.renameTo(workingApk)) {
                 copyFile(incoming, workingApk);
-                incoming.delete();
+                deleteTemporaryFile(incoming, null);
             }
             revision++;
             saveMetadata(revision, sha256(originalApk), sha256(workingApk));
             finishOperationQuietly("APK_WORKING_REPLACE", "revision " + revision);
+        } catch (IOException | RuntimeException | Error error) {
+            primaryFailure = error;
+            throw error;
         } finally {
-            if (incoming.exists()) incoming.delete();
+            deleteTemporaryFile(incoming, primaryFailure);
         }
     }
 
     synchronized void restoreRevision(File snapshot) throws IOException {
-        if (snapshot == null || !snapshot.isFile() || !snapshot.getCanonicalPath().startsWith(historyDirectory.getCanonicalPath() + File.separator))
-            throw new IOException("Selected recovery revision is not inside this project's history folder.");
+        if (snapshot == null || Files.isSymbolicLink(snapshot.toPath())
+                || !isSafeDirectChild(historyDirectory, snapshot) || !snapshot.isFile())
+            throw new IOException("Selected recovery revision is not a safe file inside this project's history folder.");
         beginOperationQuietly("APK_REVISION_RESTORE", "Restore a saved working revision");
         File incoming = new File(new File(root, "working"), "working-restore.tmp");
+        Throwable primaryFailure = null;
         try {
             copyFile(snapshot, incoming);
             validateApk(incoming);
@@ -286,13 +305,16 @@ final class ApkProjectWorkspace {
                 throw new IOException("Cannot replace the current working APK.");
             if (!incoming.renameTo(workingApk)) {
                 copyFile(incoming, workingApk);
-                incoming.delete();
+                deleteTemporaryFile(incoming, null);
             }
             revision++;
             saveMetadata(revision, sha256(originalApk), sha256(workingApk));
             finishOperationQuietly("APK_REVISION_RESTORE", "revision " + revision);
+        } catch (IOException | RuntimeException | Error error) {
+            primaryFailure = error;
+            throw error;
         } finally {
-            if (incoming.exists()) incoming.delete();
+            deleteTemporaryFile(incoming, primaryFailure);
         }
     }
 
@@ -306,7 +328,8 @@ final class ApkProjectWorkspace {
         files.add(snapshot);
         Collections.sort(files, Comparator.comparingLong(File::lastModified).reversed()
                 .thenComparing(File::getName));
-        for (int i = MAX_HISTORY_REVISIONS; i < files.size(); i++) files.get(i).delete();
+        for (int i = MAX_HISTORY_REVISIONS; i < files.size(); i++)
+            deleteTemporaryFile(files.get(i), null);
     }
 
     List<File> listHistory() throws IOException {
@@ -320,19 +343,25 @@ final class ApkProjectWorkspace {
         if (!filename.toLowerCase(java.util.Locale.ROOT).endsWith(".apk")) filename += ".apk";
         File output = new File(exportsDirectory, filename);
         File temp = new File(exportsDirectory, filename + ".tmp");
+        ensureSafeFile(output);
+        Throwable primaryFailure = null;
         try {
             copyUri(context, source, temp, MAX_APK_BYTES);
             validateApk(temp);
-            if (output.exists() && !output.delete()) throw new IOException("Cannot replace existing project export.");
+            if (output.exists() && !output.delete())
+                throw new IOException("Cannot replace existing project export.");
             if (!temp.renameTo(output)) {
                 copyFile(temp, output);
-                temp.delete();
+                deleteTemporaryFile(temp, null);
             }
             touch();
             finishOperationQuietly("APK_EXPORT", output.getName());
             return output;
+        } catch (IOException | RuntimeException | Error error) {
+            primaryFailure = error;
+            throw error;
         } finally {
-            if (temp.exists()) temp.delete();
+            deleteTemporaryFile(temp, primaryFailure);
         }
     }
 
@@ -405,6 +434,9 @@ final class ApkProjectWorkspace {
 
     private void saveMetadata(long rev, String originalHash, String workingHash) throws IOException {
         File metadata = new File(root, "project.properties");
+        File temp = new File(root, "project.properties.tmp");
+        if (!isSafeDirectChild(root, metadata) || !isSafeDirectChild(root, temp))
+            throw new IOException("APK project metadata paths are unsafe.");
         Properties previous = metadata.isFile() ? loadProperties(metadata) : new Properties();
         Properties p = new Properties();
         p.setProperty("id", id);
@@ -477,7 +509,7 @@ final class ApkProjectWorkspace {
             }
             out.flush();
         } catch (Exception error) {
-            output.delete();
+            deleteTemporaryFile(output, error);
             if (error instanceof IOException) throw (IOException) error;
             throw new IOException(error);
         }
@@ -496,7 +528,7 @@ final class ApkProjectWorkspace {
             }
             out.flush();
         } catch (IOException error) {
-            output.delete();
+            deleteTemporaryFile(output, error);
             throw error;
         }
     }
@@ -583,6 +615,7 @@ final class ApkProjectWorkspace {
     }
 
     private static Properties loadProperties(File file) throws IOException {
+        ensureSafeFile(file);
         if (file == null || Files.isSymbolicLink(file.toPath()) || !file.isFile())
             throw new IOException("Project metadata file is unavailable or linked.");
         if (file.length() > MAX_PROJECT_METADATA_BYTES)

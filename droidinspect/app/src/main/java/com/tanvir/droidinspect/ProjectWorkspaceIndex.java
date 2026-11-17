@@ -119,6 +119,7 @@ final class ProjectWorkspaceIndex {
     }
 
     private static String readName(File marker, String fallback) {
+        if (marker.length() > 4096 || Files.isSymbolicLink(marker.toPath())) return fallback;
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(
                 new FileInputStream(marker), StandardCharsets.UTF_8))) {
             String line = reader.readLine();

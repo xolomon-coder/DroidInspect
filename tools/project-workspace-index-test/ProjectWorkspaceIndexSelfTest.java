@@ -66,6 +66,21 @@ public final class ProjectWorkspaceIndexSelfTest {
             require(linkedPathIncomplete,
                     "required project paths reject symbolic links even when targets remain inside the project");
             
+            File oversizedMarkerProject = new File(root, "project_oversized_marker");
+            require(oversizedMarkerProject.mkdir(), "create oversized marker project");
+            File oversizedMarker = new File(oversizedMarkerProject, ".droidinspect-project");
+            byte[] markerBytes = new byte[4097];
+            java.util.Arrays.fill(markerBytes, (byte) 'X');
+            Files.write(oversizedMarker.toPath(), markerBytes);
+            List<ProjectWorkspaceIndex.Entry> markerEntries = ProjectWorkspaceIndex.scan(
+                    root, ".droidinspect-project", "C# SOURCE", null);
+            boolean oversizedUsesFallback = false;
+            for (ProjectWorkspaceIndex.Entry entry : markerEntries) {
+                if ("project_oversized_marker".equals(entry.id))
+                    oversizedUsesFallback = "project_oversized_marker".equals(entry.name);
+            }
+            require(oversizedUsesFallback, "oversized project marker uses a safe fallback name");
+            
             File[] unrelated = new File[ProjectWorkspaceIndex.MAX_SCANNED_ROOT_ENTRIES + 1];
             for (int i = 0; i < unrelated.length; i++) {
                 unrelated[i] = new File(root, String.format("unrelated_%04d", i));

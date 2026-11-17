@@ -7,6 +7,7 @@ import android.net.Uri;
 import android.os.Build;
 
 import java.io.File;
+import java.nio.file.Files;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InterruptedIOException;
@@ -29,16 +30,18 @@ final class FileInspectionEngine {
 
     static String inspect(Context context, Uri uri) throws Exception {
         File file = copyToCache(context, uri);
+        Throwable primaryFailure = null;
         try {
             String name = queryName(context, uri);
             String lower = name.toLowerCase(Locale.ROOT);
             if (lower.endsWith(".apk") || hasApkManifest(file)) return inspectApk(context, file, name);
             if (lower.endsWith(".dll") || lower.endsWith(".exe") || hasMzSignature(file)) return inspectPe(file, name);
             return inspectUnknown(file, name);
+        } catch (Exception | Error error) {
+            primaryFailure = error;
+            throw error;
         } finally {
-            // The temporary copy is no longer needed after inspection.
-            //noinspection ResultOfMethodCallIgnored
-            file.delete();
+            deleteTemporaryCopy(file, primaryFailure);
         }
     }
 
@@ -58,10 +61,21 @@ final class FileInspectionEngine {
             }
             fos.flush();
             return out;
-        } catch (Exception e) {
-            //noinspection ResultOfMethodCallIgnored
-            out.delete();
-            throw e;
+        } catch (Exception | Error error) {
+            deleteTemporaryCopy(out, error);
+            throw error;
+        }
+    }
+
+    private static void deleteTemporaryCopy(File file, Throwable primaryFailure) throws IOException {
+        if (file == null) return;
+        try {
+            Files.deleteIfExists(file.toPath());
+        } catch (IOException | SecurityException cleanupError) {
+            IOException reported = new IOException(
+                    "Could not remove temporary inspection copy: " + file.getName(), cleanupError);
+            if (primaryFailure != null) primaryFailure.addSuppressed(reported);
+            else throw reported;
         }
     }
 
