@@ -1,9 +1,13 @@
 package com.tanvir.droidinspect;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -15,10 +19,13 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.InterruptedIOException;
 import java.io.OutputStream;
+import java.lang.ref.WeakReference;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -30,6 +37,8 @@ public final class DotNetResourceActivity extends Activity {
     private static final int PICK_ASSEMBLY = 6201, CREATE_OUTPUT = 6202;
     private static final long MAX_INPUT = 512L * 1024L * 1024L;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private boolean busy;
     private volatile boolean destroyed;
     private final ArrayList<ResourceItem> resources = new ArrayList<>();
     private File assemblyCopy;
@@ -114,62 +123,83 @@ public final class DotNetResourceActivity extends Activity {
     }
 
     private void loadAssembly(Uri uri) {
+        if (busy) return;
+        busy = true;
         chooseButton.setEnabled(false);
         exportButton.setEnabled(false);
         status.setText("Reading managed resource metadata…");
+        final Context app = getApplicationContext();
+        final File cacheDir = app.getCacheDir();
+        final WeakReference<DotNetResourceActivity> owner = new WeakReference<>(this);
+        final Handler ui = mainHandler;
         worker.execute(() -> {
             File copy = null;
+            Throwable problem = null;
+            List<ResourceItem> parsed = null;
             try {
-                copy = File.createTempFile("droidinspect-resource-source-", ".dll", getCacheDir());
+                copy = File.createTempFile("droidinspect-resource-source-", ".dll", cacheDir);
                 long total = 0;
-                try (InputStream in = getContentResolver().openInputStream(uri);
+                try (InputStream in = app.getContentResolver().openInputStream(uri);
                      FileOutputStream out = new FileOutputStream(copy)) {
-                    if (in == null) throw new IllegalStateException("Unable to open selected assembly.");
+                    if (in == null) throw new IOException("Unable to open selected assembly.");
                     byte[] buffer = new byte[32768];
                     int n;
                     while ((n = in.read(buffer)) != -1) {
                         checkCancelled();
                         total += n;
-                        if (total > MAX_INPUT) throw new IllegalArgumentException("Assembly exceeds the 512 MB inspection limit.");
+                        if (total > MAX_INPUT) throw new IOException("Assembly exceeds the 512 MB inspection limit.");
                         out.write(buffer, 0, n);
                     }
+                    out.flush();
+                    out.getFD().sync();
                 }
+                checkCancelled();
                 String metadata = FileInspectionEngine.inspectPe(copy, copy.getName());
                 if (!metadata.contains(".NET CLI header: PRESENT"))
                     throw new IllegalArgumentException("Selected file is not a recognized managed .NET assembly.");
-                List<ResourceItem> parsed = parseResources(metadata);
-                File old = assemblyCopy;
-                assemblyCopy = copy;
+                parsed = parseResources(metadata);
+                checkCancelled();
+            } catch (Exception | Error error) {
+                problem = error;
+                if (copy != null) deleteOwnedFile(copy, cacheDir, problem);
                 copy = null;
-                if (old != null) old.delete();
-                runOnUiThread(() -> {
-                    if (destroyed || isFinishing() || isDestroyed()) return;
-                    resources.clear();
-                    resources.addAll(parsed);
-                    selected = null;
-                    pendingBytes = null;
-                    ArrayAdapter<ResourceItem> adapter = new ArrayAdapter<>(this,
-                            android.R.layout.simple_list_item_1, resources);
-                    list.setAdapter(adapter);
-                    details.setText("");
-                    exportButton.setEnabled(false);
-                    status.setText("Found " + resources.size() + " manifest resource record(s). Linked resources are listed but not exported.");
-                    chooseButton.setEnabled(true);
-                });
-            } catch (Exception error) {
-                if (copy != null) copy.delete();
-                String message = "RESOURCE INSPECTION FAILED: " + error.getClass().getSimpleName()
-                        + ": " + (error.getMessage() == null ? "No details." : error.getMessage());
-                runOnUiThread(() -> {
-                    if (destroyed || isFinishing() || isDestroyed()) return;
-                    status.setText(message);
-                    chooseButton.setEnabled(true);
-                });
             }
+            final File ready = copy;
+            final List<ResourceItem> items = parsed;
+            final String errorText = problem == null ? null : describe(problem);
+            ui.post(() -> {
+                DotNetResourceActivity activity = owner.get();
+                if (activity == null || activity.destroyed || activity.isFinishing() || activity.isDestroyed()) {
+                    deleteOwnedFileAsync(ready, cacheDir);
+                    return;
+                }
+                activity.busy = false;
+                activity.chooseButton.setEnabled(true);
+                if (errorText != null || items == null) {
+                    activity.status.setText("RESOURCE INSPECTION FAILED: " + safe(errorText));
+                    activity.exportButton.setEnabled(false);
+                    deleteOwnedFileAsync(ready, cacheDir);
+                    return;
+                }
+                File old = activity.assemblyCopy;
+                activity.assemblyCopy = ready;
+                deleteOwnedFileAsync(old, cacheDir);
+                activity.resources.clear();
+                activity.resources.addAll(items);
+                activity.selected = null;
+                activity.pendingBytes = null;
+                ArrayAdapter<ResourceItem> adapter = new ArrayAdapter<>(activity,
+                        android.R.layout.simple_list_item_1, activity.resources);
+                activity.list.setAdapter(adapter);
+                activity.details.setText("");
+                activity.exportButton.setEnabled(false);
+                activity.status.setText("Found " + activity.resources.size()
+                        + " manifest resource record(s). Linked resources are listed but not exported.");
+            });
         });
     }
 
-    private List<ResourceItem> parseResources(String metadata) {
+    private static List<ResourceItem> parseResources(String metadata) {
         ArrayList<ResourceItem> result = new ArrayList<>();
         boolean inSection = false;
         for (String raw : metadata.split("\\n")) {
@@ -209,55 +239,94 @@ public final class DotNetResourceActivity extends Activity {
     }
 
     private void exportSelected() {
-        if (selected == null || assemblyCopy == null || !"embedded".equals(selected.implementation)) return;
+        if (busy || selected == null || assemblyCopy == null || !"embedded".equals(selected.implementation)) return;
+        final File source = assemblyCopy;
+        final long offset = selected.offset;
+        final String fileName = safeFilename(selected.name);
+        if (!source.isFile()) return;
+        busy = true;
         exportButton.setEnabled(false);
+        chooseButton.setEnabled(false);
         status.setText("Validating and reading resource payload…");
+        final WeakReference<DotNetResourceActivity> owner = new WeakReference<>(this);
+        final Handler ui = mainHandler;
         worker.execute(() -> {
+            byte[] bytes = null;
+            Throwable problem = null;
             try {
-                byte[] bytes = FileInspectionEngine.extractEmbeddedManagedResource(assemblyCopy, selected.offset);
-                pendingBytes = bytes;
-                String name = safeFilename(selected.name);
-                runOnUiThread(() -> {
-                    if (destroyed || isFinishing() || isDestroyed()) return;
-                    status.setText("Resource ready: " + bytes.length + " bytes. Choose where to save it.");
-                    exportButton.setEnabled(true);
-                    Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-                    intent.addCategory(Intent.CATEGORY_OPENABLE);
-                    intent.setType("application/octet-stream");
-                    intent.putExtra(Intent.EXTRA_TITLE, name);
-                    startActivityForResult(intent, CREATE_OUTPUT);
-                });
-            } catch (Exception error) {
-                runOnUiThread(() -> {
-                    if (destroyed || isFinishing() || isDestroyed()) return;
-                    status.setText("EXTRACTION FAILED: " + error.getClass().getSimpleName()
-                            + ": " + (error.getMessage() == null ? "No details." : error.getMessage()));
-                    exportButton.setEnabled(true);
-                });
+                checkCancelled();
+                bytes = FileInspectionEngine.extractEmbeddedManagedResource(source, offset);
+                checkCancelled();
+            } catch (Exception | Error error) {
+                problem = error;
             }
+            final byte[] ready = bytes;
+            final String errorText = problem == null ? null : describe(problem);
+            ui.post(() -> {
+                DotNetResourceActivity activity = owner.get();
+                if (activity == null || activity.destroyed || activity.isFinishing() || activity.isDestroyed()) return;
+                activity.busy = false;
+                activity.chooseButton.setEnabled(true);
+                activity.status.setText(errorText == null
+                        ? "Resource ready: " + (ready == null ? 0 : ready.length) + " bytes. Choose where to save it."
+                        : "EXTRACTION FAILED: " + errorText);
+                if (errorText != null || ready == null) {
+                    activity.exportButton.setEnabled(true);
+                    return;
+                }
+                activity.pendingBytes = ready;
+                activity.exportButton.setEnabled(true);
+                Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("application/octet-stream");
+                intent.putExtra(Intent.EXTRA_TITLE, fileName);
+                activity.startActivityForResult(intent, CREATE_OUTPUT);
+            });
         });
     }
 
-    private String safeFilename(String name) {
+    private static String safeFilename(String name) {
         String value = name == null ? "resource.bin" : name.replaceAll("[\\\\/:*?\"<>|]", "_");
         if (value.isEmpty()) value = "resource.bin";
         return value.length() > 120 ? value.substring(0, 120) : value;
     }
 
     private void writeOutput(Uri uri) {
-        byte[] bytes = pendingBytes;
+        final byte[] bytes = pendingBytes;
         pendingBytes = null;
-        if (bytes == null) return;
-        try (OutputStream out = getContentResolver().openOutputStream(uri, "w")) {
-            if (out == null) throw new IllegalStateException("Unable to create destination document.");
-            out.write(bytes);
-            out.flush();
-            status.setText("Exported " + bytes.length + " bytes. Original assembly was not modified.");
-            Toast.makeText(this, "Resource exported", Toast.LENGTH_SHORT).show();
-        } catch (Exception error) {
-            status.setText("SAVE FAILED: " + error.getClass().getSimpleName()
-                    + ": " + (error.getMessage() == null ? "No details." : error.getMessage()));
-        }
+        if (bytes == null || busy) return;
+        busy = true;
+        chooseButton.setEnabled(false);
+        exportButton.setEnabled(false);
+        status.setText("Saving embedded resource…");
+        final Context app = getApplicationContext();
+        final WeakReference<DotNetResourceActivity> owner = new WeakReference<>(this);
+        final Handler ui = mainHandler;
+        worker.execute(() -> {
+            Throwable problem = null;
+            try (OutputStream out = app.getContentResolver().openOutputStream(uri, "w")) {
+                if (out == null) throw new IOException("Unable to create destination document.");
+                out.write(bytes);
+                out.flush();
+            } catch (Exception | Error error) {
+                problem = error;
+            }
+            final String errorText = problem == null ? null : describe(problem);
+            ui.post(() -> {
+                DotNetResourceActivity activity = owner.get();
+                if (activity == null || activity.destroyed || activity.isFinishing() || activity.isDestroyed()) return;
+                activity.busy = false;
+                activity.chooseButton.setEnabled(true);
+                activity.exportButton.setEnabled(activity.selected != null
+                        && activity.assemblyCopy != null && "embedded".equals(activity.selected.implementation));
+                if (errorText == null) {
+                    activity.status.setText("Exported " + bytes.length + " bytes. Original assembly was not modified.");
+                    Toast.makeText(activity, "Resource exported", Toast.LENGTH_SHORT).show();
+                } else {
+                    activity.status.setText("SAVE FAILED: " + errorText);
+                }
+            });
+        });
     }
 
     private static void checkCancelled() throws InterruptedIOException {
@@ -265,21 +334,61 @@ public final class DotNetResourceActivity extends Activity {
             throw new InterruptedIOException("Resource operation cancelled because the activity was closed.");
     }
 
+    private static String safe(String value) { return value == null ? "unknown" : value; }
+
+    private static String describe(Throwable error) {
+        StringBuilder text = new StringBuilder(error.getClass().getSimpleName()).append(": ").append(safe(error.getMessage()));
+        for (Throwable suppressed : error.getSuppressed())
+            text.append("\nCleanup warning: ").append(suppressed.getClass().getSimpleName())
+                    .append(": ").append(safe(suppressed.getMessage()));
+        return text.toString();
+    }
+
+    private static void deleteOwnedFile(File file, File cacheDir, Throwable primary) {
+        if (file == null) return;
+        try {
+            File absolute = file.getAbsoluteFile();
+            if (!cacheDir.getAbsoluteFile().equals(absolute.getParentFile())
+                    || !absolute.getName().startsWith("droidinspect-resource-source-")
+                    || Files.isSymbolicLink(absolute.toPath()))
+                throw new IOException("Refusing to delete a file outside the private assembly cache.");
+            Files.deleteIfExists(absolute.toPath());
+            if (absolute.exists()) throw new IOException("Assembly temporary file still exists after deletion.");
+        } catch (IOException | RuntimeException cleanupError) {
+            IOException reported = cleanupError instanceof IOException ? (IOException) cleanupError
+                    : new IOException("Assembly temporary-file cleanup failed.", cleanupError);
+            if (primary != null) primary.addSuppressed(reported);
+            else Log.e("DroidInspectResource", "Temporary file could not be removed: " + file, reported);
+        }
+    }
+
+    private static void deleteOwnedFileAsync(File file, File cacheDir) {
+        if (file == null) return;
+        Thread cleanup = new Thread(() -> deleteOwnedFile(file, cacheDir, null), "droidinspect-resource-file-cleanup");
+        cleanup.setDaemon(true);
+        cleanup.start();
+    }
+
     @Override protected void onDestroy() {
         destroyed = true;
-        worker.shutdownNow();
+        final ExecutorService executor = worker;
+        final File cacheDir = getCacheDir();
+        final File copy = assemblyCopy;
+        assemblyCopy = null;
+        pendingBytes = null;
+        executor.shutdownNow();
         super.onDestroy();
         Thread cleanup = new Thread(() -> {
-            try {
-                while (!worker.awaitTermination(1, TimeUnit.DAYS)) { }
-            } catch (InterruptedException interrupted) {
-                Thread.currentThread().interrupt();
-                return;
+            boolean interrupted = false;
+            while (true) {
+                try {
+                    if (executor.awaitTermination(1, TimeUnit.MINUTES)) break;
+                } catch (InterruptedException ignored) {
+                    interrupted = true;
+                }
             }
-            File copy = assemblyCopy;
-            assemblyCopy = null;
-            if (copy != null) copy.delete();
-            pendingBytes = null;
+            deleteOwnedFile(copy, cacheDir, null);
+            if (interrupted) Thread.currentThread().interrupt();
         }, "droidinspect-resource-cleanup");
         cleanup.setDaemon(true);
         cleanup.start();
