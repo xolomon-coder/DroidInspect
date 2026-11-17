@@ -7,6 +7,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -509,9 +510,13 @@ public final class ApkResourceActivity extends Activity {
     }
 
     private void deletePendingOutput() {
-        if (pendingOutput != null) {
-            pendingOutput.delete();
-            pendingOutput = null;
+        File owned = pendingOutput;
+        pendingOutput = null;
+        try {
+            deleteTemporaryFile(owned, null);
+        } catch (RuntimeException cleanupFailure) {
+            Log.e("DroidInspectApkResource", "Could not remove discarded APK output: " + owned, cleanupFailure);
+            status.setText("Cleanup warning: " + message(cleanupFailure));
         }
     }
 
@@ -570,7 +575,10 @@ public final class ApkResourceActivity extends Activity {
 
     private static void closeModuleQuietly(ApkModule module) {
         if (module == null) return;
-        try { module.close(); } catch (Exception | Error ignored) { }
+        try { module.close(); }
+        catch (Exception | Error cleanupError) {
+            Log.e("DroidInspectApkResource", "Could not close APK module during teardown.", cleanupError);
+        }
     }
 
     private static void deleteTemporaryFile(File file, Throwable primaryFailure) {
@@ -588,7 +596,9 @@ public final class ApkResourceActivity extends Activity {
     private static void deleteQuietly(File file) {
         if (file == null) return;
         try { Files.deleteIfExists(file.toPath()); }
-        catch (IOException | RuntimeException ignored) { }
+        catch (IOException | RuntimeException cleanupError) {
+            Log.e("DroidInspectApkResource", "Could not remove owned APK temporary file: " + file, cleanupError);
+        }
     }
 
     @Override protected void onDestroy() {
