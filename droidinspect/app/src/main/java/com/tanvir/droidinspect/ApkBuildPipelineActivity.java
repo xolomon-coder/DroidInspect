@@ -242,12 +242,12 @@ public final class ApkBuildPipelineActivity extends Activity {
                 signers = signerFingerprints(copy);
             } catch (Exception | Error e) {
                 error = e.getClass().getSimpleName() + ": " + (e.getMessage() == null ? "No details." : e.getMessage());
-                for (Throwable cleanup : e.getSuppressed())
-                    error += "\nCleanup: " + cleanup.getMessage();
                 if (copy != null) {
                     try { deleteTemporaryFile(copy, e); }
                     catch (Exception ignored) { }
                 }
+                for (Throwable cleanup : e.getSuppressed())
+                    error += "\nCleanup: " + cleanup.getMessage();
                 copy = null;
             }
             final File ready = copy;
@@ -347,9 +347,10 @@ public final class ApkBuildPipelineActivity extends Activity {
                         projectUpdateError = message(projectError);
                     }
                 }
-            } catch (Exception failureCause) {
+            } catch (Exception | Error failureCause) {
                 primaryFailure = failureCause;
-                error = message(failureCause);
+                error = failureCause.getClass().getSimpleName() + ": "
+                        + (failureCause.getMessage() == null ? "No details." : failureCause.getMessage());
             } finally {
                 if (copy != null) {
                     try {
