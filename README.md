@@ -3922,3 +3922,119 @@ Their source was inspected, but **none of these four suites was executed in this
 7. Only then prepare the consolidated M12–M20 phone-based CodeAssist test checklist.
 
 **Current documentation status:** this README synchronization records the current inspected checkpoint and outstanding work. It does not mark the APK signing refactor, M19/M20, production CI, or release verification complete.
+
+
+---
+
+## 6.1 Master completion session update — 2026-11-17
+
+This section is the authoritative status for the completion work recorded below. It supersedes earlier “in progress” notes where the current source differs. It does **not** convert unexecuted tests or pending device checks into acceptance.
+
+### Repository and completion status
+
+- Repository: `xolomon-coder/DroidInspect`
+- Branch: `main` only.
+- Starting checkpoint for this session: `ef7e7b2efa88360c9686e0b115dc7f84dd57aafd`.
+- Latest source commit before this documentation-only update: `da7451318045666032200874411b217ab34a6dca`.
+- M11 remains accepted. Its device acceptance was not repeated.
+- M12–M18 remain implemented for their documented supported scope; their consolidated Android 11 device acceptance remains pending. The new lifecycle changes in this session have not yet been built or regression-tested, so earlier CI passes do not verify this newer source.
+- M19 workspace persistence/recovery code and the four requested host self-tests are present. **M19 is not accepted** because the current source/test suite has not completed on CI and process-restart/device recovery has not been tested.
+- M20 lifecycle/cleanup hardening has been implemented across the files listed below. **M20 is not accepted** because current Android compilation, regression execution, cancellation/lifecycle instrumentation, and device acceptance have not been verified.
+- No milestone is accepted solely from the commits below.
+
+### Source implementation recorded in this session
+
+The following source changes were committed directly to `main`:
+
+| Commit | Main source change |
+|---|---|
+| `b1e336f6ee0edd05e86900953069d34eb54b7368` | `ApkSigningActivity.java`: use app context and weak UI delivery for workers; snapshot inputs; clear password fields into temporary character arrays and wipe them; verify signed output before publishing it; re-read and verify exported output; check owned temporary-file deletion and preserve cleanup failures. |
+| `1fa75fbf68be823e23d605b3be406e72890c1d60` | `DotNetIlActivity.java`: detach IL load/edit/rename/export work from the Activity; use context-based file access, cancellation checks, weak callbacks, and checked cleanup. |
+| `f8a67198519039a5f42346c4afe15be1602d483f` | `DotNetResourceActivity.java`: detach managed-resource parsing, extraction, and SAF export; perform output writing off the UI thread; add checked cleanup. |
+| `e82e117cb81f55cbf562a3e2744b79f78613c87f` | `ApkComponentExplorerActivity.java`: detach APK manifest analysis and owned-copy cleanup from the Activity lifecycle. |
+| `fd1ffd3e38a337b3474bc117bccd2586811479d7` | `ApkResourceCatalogActivity.java`: detach resource-table indexing and use bounded, checked temporary-copy cleanup. |
+| `34523a2d7b3bdbe176168d5238cd235aa7f6819f` | `ApkSplitSetActivity.java`: snapshot SAF inputs, detach split-set inspection, and clean all owned copies after worker termination. |
+| `81301981e06f384c53baed43b20c752390bbf8e6` | `DexAnalysisActivity.java`: correct the malformed executor launch (`execute(...).start()`) and detach DEX inspection from the Activity lifecycle. |
+| `81fd3bf88bf2e387f294df4a95b7d6db8fb6a2d6` | `AssemblyComparisonActivity.java`: detach comparison inputs and parsing, protect source copies with checked cleanup, and deliver results through a weak UI reference. |
+| `4e7bb6fff9e7387766f6a3c9bc5626e6f71daa44` | `AssemblyExplorerActivity.java`: move source copying/indexing/bookmark-store initialization off Activity-owned state and add checked temporary-file cleanup. |
+| `96cc1894f6437c7aa4afd3405d0b2ac09d959483` | `ApkResourceActivity.java`: surface discarded-output and module-close cleanup failures instead of silently ignoring them. |
+| `c10de816dc8dacbc422cfb35b93d5eadf1fdef65` | `ProjectWorkspaceMetadata.java`: make atomic metadata-writer temporary-file cleanup observable and preserve the primary failure. |
+| `da7451318045666032200874411b217ab34a6dca` | `AssemblyComparisonActivity.java`: correct the report-method declaration found during post-edit source review. |
+
+Lifecycle pattern used where applicable: background I/O receives application context and local input snapshots; UI delivery uses a main-thread handler and weak Activity reference; operations check interruption; owned temp files are not deleted until the worker has stopped using them; cleanup errors are logged or attached as suppressed errors instead of replacing the primary operation error. Operations that persist data in a project workspace keep the existing journal/rollback behavior rather than deleting user-owned project files.
+
+These are **implemented source changes, not build-verified changes**. A text-level delimiter and method-declaration review was performed after the source edits, but it is not a substitute for Java/Android compilation.
+
+### M19 and M20 verification inventory
+
+All four requested M19 host tests exist and are wired into `.github/workflows/phase1-android.yml`:
+
+1. `ProjectWorkspaceMetadataSelfTest`
+2. `ProjectWorkspaceIndexSelfTest`
+3. `BoundedSourceTreeSelfTest`
+4. `BoundedProjectFilesSelfTest`
+
+The same workflow also contains the other host checks for .NET metadata decoding, embedded resource extraction, IL reading, APK update-compatibility assessment, assembly-comparison diffing, assembly bookmark persistence, and DEX parsing (11 host test steps in total).
+
+**Execution result for the current HEAD: NOT RUN / NOT VERIFIED.** The four M19 tests and the remaining host tests were inspected in source/workflow configuration, but none was executed successfully against this final source state. There is no dedicated Android Activity lifecycle instrumentation test in the current host suite; M20 lifecycle cancellation and destruction behavior still needs an actual Android runtime test.
+
+### Production CI and artifacts
+
+The production workflow is `.github/workflows/phase1-android.yml`. A source change triggers its `build-debug-apk` job, which is named “Host parser tests, Android compile, and debug APK”.
+
+The latest production run associated with the latest source commit is:
+
+- Run: [#646](https://github.com/xolomon-coder/DroidInspect/actions/runs/44116121191)
+- Commit: `da7451318045666032200874411b217ab34a6dca`
+- Job conclusion: `failure`
+- Runner: GitHub reported `runner_id = 0` and an empty runner name.
+- Executed steps: `0`.
+- Artifacts: none.
+
+The earlier source-triggered runs #635–#645 also concluded without producing a verified build for this code series. The inspected job records show the same runner-allocation/startup pattern: no runner was assigned and no workflow step ran. This does not establish a Java/Gradle source failure, but it also provides **no evidence that the source compiles or the tests pass**. The workflow job did not reach checkout, Java setup, host tests, Gradle, Android SDK setup, signing, ABI verification, or artifact upload.
+
+Consequently, for the current source state:
+
+- Host regression suite: **not verified**.
+- Android Java compilation/resource processing: **not verified**.
+- Debug APK: **not built/verified**.
+- Unsigned release APK: **not built/verified**.
+- CI signing/tamper verification: **not executed**.
+- ARM64 native-library packaging inside the APK: **not verified**.
+- Release dependency graph and final transitive license/security review: **not captured**.
+- Build artifacts and checksums: **none available from run #646**.
+
+Do not use older successful run artifacts as evidence for the newer source changes above. Re-run the production workflow on this latest `main` commit when a GitHub-hosted runner can be allocated; continue fixing any actual source or build failures shown by the resulting steps.
+
+### Security, dependencies, and compatibility review
+
+- Android configuration: namespace/application ID `com.tanvir.droidinspect`; `compileSdk 36`, `targetSdk 36`, `minSdk 26`; Java source/target compatibility 1.8; Android Gradle Plugin 8.13.0; the production workflow configures Gradle 8.13.
+- The production manifest contains no `INTERNET`, broad storage, or legacy external-storage permission declaration. File access is based on Android's Storage Access Framework. `allowBackup` is disabled. Only the launcher Activity is exported.
+- Direct Gradle dependencies: `io.github.reandroid:ARSCLib:1.4.0` and `com.android.tools.build:apksig:8.13.0`. The Gradle dependency graph was not generated for this current HEAD because the workflow never reached Gradle.
+- `THIRD-PARTY-NOTICES.md` records the direct ILSpy/.NET runtime/reference and Roslyn notices. It explicitly states that a complete transitive NuGet dependency/license audit still requires the exact restore/publish graph. That audit remains open; no complete transitive vulnerability or license scan is claimed here.
+- The source tree contains ARM64 native payloads for the offline compiler/decompiler path. The workflow's packaged-APK ABI and native inventory checks did not run for this HEAD. ARM64 is the supported device ABI recorded for this project; other ABIs are not claimed.
+- The APK signer continues to use v1, v2 and v3 signing schemes. APK Signature Scheme v4 sidecar generation remains unsupported. The Gradle release build is configured without a production signing key; the workflow's intended CI key is ephemeral and is not a user production key.
+- Size limits and parser caps remain part of the safety boundary. They do not prove that every malformed archive/PE/DEX input is harmless; unsupported or oversized inputs must continue to fail closed.
+- No online decompilation service or Internet permission was introduced.
+
+### Consolidated phone test batch — M12 through M20
+
+Run this only after a fresh CodeAssist build succeeds. Use copies of known test APKs/DLLs/EXEs and preserve the original fixtures.
+
+1. **Install and baseline:** install the new debug APK on Android 11 / ARM64; launch the app; confirm no crash and that offline operation does not request network access.
+2. **M12 — source edit/compiler:** open a supported managed assembly; inspect C# source; create an editable working copy; edit and save a .cs file; compile; inspect diagnostics; intentionally compile invalid source and confirm the prior valid output is preserved; reopen a successful output in DroidInspect; confirm original input hashes/files remain unchanged.
+3. **M13 — dependency intelligence:** test a matching local reference, a missing reference, and a framework/version mismatch; confirm the warning classification is accurate and no incompatible reference is silently substituted; repeat offline.
+4. **M14 — Assembly Explorer/IL:** navigate assembly/module/namespace/type/member nodes; search names and tokens; inspect IL bytes/opcodes; test bookmarks and return navigation; reopen the same assembly and confirm bookmarks persist.
+5. **M15 — C# editor:** verify line numbers, syntax highlighting, find/replace, file selection, save/reopen, and unsaved-change prompts; try a multi-file source project within the documented editor scope.
+6. **M16 — comparison/resources:** compare a known identical pair and a pair with known added/removed/changed members; verify the report labels structural differences only; extract an embedded resource to a new SAF destination; compare exported bytes with the fixture and confirm neither input assembly changed.
+7. **M17 — APK analysis:** inspect a known APK manifest; search components/permissions; browse all DEX files/classes/members; navigate supported invoke references; inspect the resource catalog; select a base/split APK set and review identity/dependency warnings; test oversized and malformed inputs.
+8. **M18 — APK edit/build/sign:** make a supported manifest or named string edit; rebuild to a separate unsigned APK; generate an Android Keystore key and separately test imported PKCS#12/JKS; sign and verify; confirm signer details and v1/v2/v3 status; tamper with a copy and confirm verification rejects it; review update-compatibility results without overwriting the original APK.
+9. **M19 — workspace persistence/recovery:** create separate APK and .NET projects; import files; add metadata/bookmarks/notes/search state where available; close and reopen each project; force-stop/relaunch the app and reopen; verify project isolation; exercise interruption/rollback and malformed metadata handling using disposable test projects; confirm valid project files remain intact.
+10. **M20 — lifecycle/reliability:** start a large APK/assembly operation and leave the Activity while it runs; repeat with cancellation/back navigation; rapidly switch screens; trigger invalid input and failed export; reopen the app and projects; confirm no crash, stale UI update, partial signed result, corruption of originals, or unexplained temp-file accumulation.
+11. **Final compatibility:** repeat the key workflows after a process restart; note memory pressure, operation duration, and any Android 11/CodeAssist-specific failure; send the actual build output and test observations before any M12–M20 acceptance is recorded.
+
+**Acceptance rule:** user phone results are still pending. Passing this checklist must be recorded from actual device evidence; do not mark M12–M20 accepted based solely on CI, code review, or an installed APK.
+
+### Immediate next action
+
+The next cloud-side action is to run the production workflow against the latest `main` commit once GitHub provisions an actual runner, then inspect all host-test, Android build, signing, ABI, security, and artifact steps. The next user-side action is to download the current `main` ZIP and use the `droidinspect/` directory as the Gradle project in CodeAssist only after the build can be verified; the consolidated phone test batch above remains pending.
