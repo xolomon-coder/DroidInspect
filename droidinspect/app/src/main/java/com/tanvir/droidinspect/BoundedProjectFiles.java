@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.nio.file.DirectoryIteratorException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -12,8 +13,10 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
-/** Bounded, symlink-safe inventory helpers for private APK project folders. */
+/** Bounded, symlink-safe inventory and cleanup helpers for private APK project folders. */
 final class BoundedProjectFiles {
+    private static final int MAX_DELETE_DEPTH = 64;
+
     private BoundedProjectFiles() { }
 
     static List<File> listFiles(File directory, int maxScannedEntries, String suffix)
@@ -76,5 +79,57 @@ final class BoundedProjectFiles {
             if (child.isDirectory() && depth < maxDepth)
                 appendTree(root, child, result, depth + 1, maxEntries, maxDepth, visited);
         }
+    }
+
+    /**
+     * Deletes one private temporary tree without following links. The scan budget is global
+     * across the tree; interruption and any failed directory read/delete abort the cleanup.
+     */
+    static void deleteTree(File root, int maxEntries) throws IOException {
+        if (root == null) return;
+        Path rootPath = root.toPath();
+        if (!Files.exists(rootPath, LinkOption.NOFOLLOW_LINKS)) return;
+        if (Files.isSymbolicLink(rootPath))
+            throw new IOException("Refusing to delete a symbolic-link workspace root.");
+        File canonicalRoot = root.getCanonicalFile();
+        int[] visited = {0};
+        deleteEntry(canonicalRoot, canonicalRoot, 0, maxEntries, visited);
+    }
+
+    private static void deleteEntry(File root, File entry, int depth, int maxEntries,
+                                    int[] visited) throws IOException {
+        checkDeleteCancelled();
+        Path path = entry.toPath();
+        if (Files.isSymbolicLink(path)) {
+            Files.delete(path);
+            return;
+        }
+        String canonical = entry.getCanonicalPath();
+        if (!canonical.equals(root.getPath())
+                && !canonical.startsWith(root.getPath() + File.separator))
+            throw new IOException("Refusing to delete a path outside the temporary workspace.");
+        if (Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) {
+            if (depth >= MAX_DELETE_DEPTH)
+                throw new IOException("Temporary workspace exceeds the " + MAX_DELETE_DEPTH
+                        + " level cleanup safety limit.");
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
+                for (Path child : stream) {
+                    checkDeleteCancelled();
+                    if (++visited[0] > maxEntries)
+                        throw new IOException("Temporary workspace exceeds the " + maxEntries
+                                + " entry cleanup safety limit.");
+                    deleteEntry(root, child.toFile(), depth + 1, maxEntries, visited);
+                }
+            } catch (DirectoryIteratorException error) {
+                throw new IOException("Cannot enumerate temporary workspace during cleanup.", error);
+            }
+        }
+        checkDeleteCancelled();
+        Files.delete(path);
+    }
+
+    private static void checkDeleteCancelled() throws IOException {
+        if (Thread.currentThread().isInterrupted())
+            throw new java.io.InterruptedIOException("Temporary workspace cleanup was interrupted.");
     }
 }
