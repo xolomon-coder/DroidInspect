@@ -100,11 +100,11 @@ public final class BoundedProjectFilesSelfTest {
 
             File rootLink = new File(root, "cleanup-root-link");
             try {
-                Files.createSymbolicLink(rootLink.toPath(), cleanupRoot.toPath());
+                Files.createSymbolicLink(rootLink.toPath(), reports.toPath());
                 boolean rootLinkRejected = false;
                 try { BoundedProjectFiles.deleteTree(rootLink, root, 10); }
                 catch (IOException expected) { rootLinkRejected = true; }
-                check(rootLinkRejected && cleanupRoot.exists(),
+                check(rootLinkRejected && reports.exists(),
                         "cleanup refuses a symbolic-link workspace root");
             } catch (UnsupportedOperationException | SecurityException ignored) {
                 // Symlink creation is not available on every host.
