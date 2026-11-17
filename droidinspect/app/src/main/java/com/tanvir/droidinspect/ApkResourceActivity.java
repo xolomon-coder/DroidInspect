@@ -1,9 +1,12 @@
 package com.tanvir.droidinspect;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -26,10 +29,13 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.lang.ref.WeakReference;
+import java.nio.file.Files;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipFile;
@@ -113,7 +119,14 @@ public final class ApkResourceActivity extends Activity {
 
     private void loadApk() {
         setBusy(true, "Copying APK and decoding binary manifest/resources…");
+        final Context appContext = getApplicationContext();
+        final Uri activeSourceUri = sourceUri;
+        final File activeSourceFile = sourceFile;
+        final Handler ui = new Handler(Looper.getMainLooper());
+        final WeakReference<ApkResourceActivity> owner = new WeakReference<>(this);
         worker.execute(() -> {
+            File copy = null;
+            ApkModule loadedModule = null;
             String error = null;
             String xml = "";
             String report = "";
@@ -124,21 +137,18 @@ public final class ApkResourceActivity extends Activity {
             ArrayList<String> foundLabels = new ArrayList<>();
             try {
                 checkCancelled();
-                sourceCopy = File.createTempFile("droidinspect-resource-", ".apk", getCacheDir());
-                long copied = sourceFile == null ? copyUri(sourceUri, sourceCopy) : copyFile(sourceFile, sourceCopy);
-                apkModule = ApkModule.loadApkFile(sourceCopy);
-                // Load resources.arsc first so the APK's own resource package is linked.
-                TableBlock table = apkModule.getTableBlock();
-                // Load ARSCLib's Android framework table before serializing binary XML.
-                // Without framework resources, Android attribute IDs (for example
-                // 0x01010003) can be printed as r0x... instead of android:name.
-                // Passing null asks ARSCLib to auto-detect the framework API level
-                // from the APK metadata, rather than assuming this device's API level.
-                apkModule.initializeAndroidFramework((Integer) null);
-                if (!apkModule.hasAndroidManifest()) {
+                copy = File.createTempFile("droidinspect-resource-", ".apk", appContext.getCacheDir());
+                long copied = activeSourceFile == null
+                        ? copyUri(appContext, activeSourceUri, copy)
+                        : copyFile(activeSourceFile, copy);
+                checkCancelled();
+                loadedModule = ApkModule.loadApkFile(copy);
+                TableBlock table = loadedModule.getTableBlock();
+                loadedModule.initializeAndroidFramework((Integer) null);
+                if (!loadedModule.hasAndroidManifest()) {
                     throw new IllegalArgumentException("The APK does not contain AndroidManifest.xml.");
                 }
-                AndroidManifestBlock manifest = apkModule.getAndroidManifest();
+                AndroidManifestBlock manifest = loadedModule.getAndroidManifest();
                 if (manifest == null) throw new IllegalArgumentException("The binary Android manifest could not be decoded.");
                 pkg = safe(manifest.getPackageName());
                 verName = safe(manifest.getVersionName());
@@ -153,18 +163,17 @@ public final class ApkResourceActivity extends Activity {
                 b.append("Package: ").append(pkg).append('\n');
                 b.append("Version name: ").append(verName).append('\n');
                 b.append("Version code: ").append(verCode).append('\n');
-
                 if (table == null) {
                     b.append("Resource table: not present\n");
                 } else {
                     b.append("Resource table: parsed\n");
                     b.append("Resource packages: ").append(table.size()).append('\n');
                     for (int i = 0; i < table.size() && i < 100; i++) {
+                        checkCancelled();
                         PackageBlock p = table.get(i);
                         b.append(" • ").append(p == null ? "(unavailable)" : p.getName()).append('\n');
                     }
                     if (table.size() > 100) b.append(" • Remaining package names omitted by display cap.\n");
-
                     Iterator<ResourceEntry> entries = table.getResources();
                     int scanned = 0;
                     while (entries.hasNext() && scanned < MAX_RESOURCE_SCAN
@@ -194,33 +203,50 @@ public final class ApkResourceActivity extends Activity {
                 b.append("The original selected APK is never overwritten.");
                 report = b.toString();
                 checkCancelled();
-            } catch (Exception e) {
-                error = e.getClass().getSimpleName() + ": " + safe(e.getMessage());
+            } catch (Exception failure) {
+                error = message(failure);
+                closeModule(loadedModule, failure);
+                loadedModule = null;
+                deleteTemporaryFile(copy, failure);
+                copy = null;
+                for (Throwable cleanup : failure.getSuppressed())
+                    error += "\nCleanup: " + cleanup.getMessage();
+            } catch (Error fatal) {
+                closeModule(loadedModule, fatal);
+                deleteTemporaryFile(copy, fatal);
+                throw fatal;
             }
+            final File readyCopy = copy;
+            final ApkModule readyModule = loadedModule;
             final String fError = error, fXml = xml, fReport = report;
             final String fPkg = pkg, fName = verName, fCode = verCode;
             final ArrayList<ResourceEntry> fStrings = foundStrings;
             final ArrayList<String> fLabels = foundLabels;
-            runOnUiThread(() -> {
-                if (destroyed || isFinishing() || isDestroyed()) return;
-                setBusy(false, fError == null ? "Manifest and resource analysis complete." : "APK resource analysis failed.");
+            postToActivity(ui, owner, activity -> {
                 if (fError != null) {
-                    summary.setText("APK RESOURCE ANALYSIS FAILED\n\n" + fError
+                    activity.setBusy(false, "APK resource analysis failed.");
+                    activity.summary.setText("APK RESOURCE ANALYSIS FAILED\n\n" + fError
                             + "\n\nThe original APK was not modified.");
-                    manifestText.setText("");
+                    activity.manifestText.setText("");
                     return;
                 }
-                packageName.setText(fPkg);
-                versionName.setText(fName);
-                versionCode.setText(fCode);
-                summary.setText(fReport);
-                manifestText.setText(fXml);
-                stringResources.clear();
-                stringResources.addAll(fStrings);
-                stringResourceLabels.clear();
-                stringResourceLabels.addAll(fLabels);
-                resourceAdapter.notifyDataSetChanged();
-                saveButton.setEnabled(true);
+                activity.sourceCopy = readyCopy;
+                activity.apkModule = readyModule;
+                activity.setBusy(false, "Manifest and resource analysis complete.");
+                activity.packageName.setText(fPkg);
+                activity.versionName.setText(fName);
+                activity.versionCode.setText(fCode);
+                activity.summary.setText(fReport);
+                activity.manifestText.setText(fXml);
+                activity.stringResources.clear();
+                activity.stringResources.addAll(fStrings);
+                activity.stringResourceLabels.clear();
+                activity.stringResourceLabels.addAll(fLabels);
+                activity.resourceAdapter.notifyDataSetChanged();
+                activity.saveButton.setEnabled(true);
+            }, () -> {
+                closeModuleQuietly(readyModule);
+                deleteQuietly(readyCopy);
             });
         });
     }
@@ -240,7 +266,7 @@ public final class ApkResourceActivity extends Activity {
                 + " (only its default configuration will be changed)");
     }
 
-    private long copyFile(File source, File destination) throws Exception {
+    private static long copyFile(File source, File destination) throws IOException {
         long total = 0;
         try (InputStream in = new FileInputStream(source);
              FileOutputStream out = new FileOutputStream(destination)) {
@@ -249,17 +275,21 @@ public final class ApkResourceActivity extends Activity {
             while ((n = in.read(buffer)) != -1) {
                 checkCancelled();
                 total += n;
-                if (total > MAX_APK_BYTES) throw new IllegalArgumentException("Project APK exceeds the 512 MB editor limit.");
+                if (total > MAX_APK_BYTES)
+                    throw new IllegalArgumentException("Project APK exceeds the 512 MB editor limit.");
                 out.write(buffer, 0, n);
             }
             out.flush();
+            return total;
+        } catch (IOException | RuntimeException | Error failure) {
+            deleteTemporaryFile(destination, failure);
+            throw failure;
         }
-        return total;
     }
 
-    private long copyUri(Uri uri, File destination) throws Exception {
+    private static long copyUri(Context context, Uri uri, File destination) throws IOException {
         long total = 0;
-        try (InputStream in = getContentResolver().openInputStream(uri);
+        try (InputStream in = context.getContentResolver().openInputStream(uri);
              FileOutputStream out = new FileOutputStream(destination)) {
             if (in == null) throw new IllegalStateException("Android could not open the selected APK.");
             byte[] buffer = new byte[32768];
@@ -267,11 +297,16 @@ public final class ApkResourceActivity extends Activity {
             while ((n = in.read(buffer)) != -1) {
                 checkCancelled();
                 total += n;
-                if (total > MAX_APK_BYTES) throw new IllegalArgumentException("APK exceeds the 512 MB analysis limit.");
+                if (total > MAX_APK_BYTES)
+                    throw new IllegalArgumentException("APK exceeds the 512 MB analysis limit.");
                 out.write(buffer, 0, n);
             }
+            out.flush();
+            return total;
+        } catch (IOException | RuntimeException | Error failure) {
+            deleteTemporaryFile(destination, failure);
+            throw failure;
         }
-        return total;
     }
 
     private void prepareModifiedApk() {
@@ -280,7 +315,11 @@ public final class ApkResourceActivity extends Activity {
         final String codeText = versionCode.getText().toString().trim();
         final ResourceEntry resourceToEdit = selectedResource;
         final String newResourceValue = resourceStringValue.getText().toString();
-
+        final ApkModule activeModule = apkModule;
+        if (activeModule == null) {
+            status.setText("APK resource workspace is not ready.");
+            return;
+        }
         if (!newPackage.matches("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*")) {
             packageName.setError("Enter a valid dotted package identifier.");
             return;
@@ -304,12 +343,15 @@ public final class ApkResourceActivity extends Activity {
         }
 
         setBusy(true, "Applying selected edits and validating a new unsigned APK…");
+        final Context appContext = getApplicationContext();
+        final Handler ui = new Handler(Looper.getMainLooper());
+        final WeakReference<ApkResourceActivity> owner = new WeakReference<>(this);
         worker.execute(() -> {
             File output = null;
             String error = null;
             try {
                 checkCancelled();
-                AndroidManifestBlock manifest = apkModule.getAndroidManifest();
+                AndroidManifestBlock manifest = activeModule.getAndroidManifest();
                 manifest.setPackageName(newPackage);
                 manifest.setVersionName(newVersionName);
                 manifest.setVersionCode(newVersionCode);
@@ -325,9 +367,7 @@ public final class ApkResourceActivity extends Activity {
                     valueEntry.setValueAsString(newResourceValue);
                 }
 
-                // Remove v1 signature files and the parsed APK Signing Block;
-                // any content modification invalidates the source signatures.
-                InputSource[] sources = apkModule.getInputSources();
+                InputSource[] sources = activeModule.getInputSources();
                 for (InputSource source : sources) {
                     checkCancelled();
                     String alias = source.getAlias();
@@ -335,22 +375,19 @@ public final class ApkResourceActivity extends Activity {
                     if (upper.startsWith("META-INF/") && (upper.endsWith(".SF")
                             || upper.endsWith(".RSA") || upper.endsWith(".DSA")
                             || upper.endsWith(".EC") || "META-INF/MANIFEST.MF".equals(upper))) {
-                        apkModule.removeInputSource(alias);
+                        activeModule.removeInputSource(alias);
                     }
                 }
-                apkModule.setApkSignatureBlock(null);
+                activeModule.setApkSignatureBlock(null);
 
-                output = File.createTempFile("droidinspect-modified-", ".apk", getCacheDir());
-                apkModule.writeApk(output);
+                output = File.createTempFile("droidinspect-modified-", ".apk", appContext.getCacheDir());
+                activeModule.writeApk(output);
                 checkCancelled();
-
                 try (ZipFile zip = new ZipFile(output)) {
-                    if (zip.getEntry("AndroidManifest.xml") == null) {
+                    if (zip.getEntry("AndroidManifest.xml") == null)
                         throw new IllegalStateException("Written APK is missing AndroidManifest.xml.");
-                    }
-                    if (zip.getEntry("resources.arsc") == null && resourceToEdit != null) {
+                    if (zip.getEntry("resources.arsc") == null && resourceToEdit != null)
                         throw new IllegalStateException("Written APK is missing resources.arsc after a resource edit.");
-                    }
                 }
                 ApkModule verify = ApkModule.loadApkFile(output);
                 try {
@@ -375,31 +412,35 @@ public final class ApkResourceActivity extends Activity {
                     verify.close();
                 }
                 checkCancelled();
-            } catch (Exception e) {
-                error = e.getClass().getSimpleName() + ": " + safe(e.getMessage());
-                if (output != null) output.delete();
+            } catch (Exception failure) {
+                error = message(failure);
+                if (output != null) {
+                    deleteTemporaryFile(output, failure);
+                    for (Throwable cleanup : failure.getSuppressed())
+                        error += "\nCleanup: " + cleanup.getMessage();
+                }
                 output = null;
+            } catch (Error fatal) {
+                deleteTemporaryFile(output, fatal);
+                throw fatal;
             }
             final File ready = output;
             final String failure = error;
-            runOnUiThread(() -> {
-                if (destroyed || isFinishing() || isDestroyed()) {
-                    if (ready != null) ready.delete();
-                    return;
-                }
-                setBusy(false, failure == null ? "Modified APK reopened and validated. Choose where to save it." : "APK edit failed.");
+            postToActivity(ui, owner, activity -> {
+                activity.setBusy(false, failure == null
+                        ? "Modified APK reopened and validated. Choose where to save it." : "APK edit failed.");
                 if (failure != null || ready == null) {
-                    summary.append("\n\nEDIT FAILED\n" + safe(failure));
-                    saveButton.setEnabled(true);
+                    activity.summary.append("\n\nEDIT FAILED\n" + safe(failure));
+                    activity.saveButton.setEnabled(true);
                     return;
                 }
-                pendingOutput = ready;
+                activity.pendingOutput = ready;
                 Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
                 intent.addCategory(Intent.CATEGORY_OPENABLE);
                 intent.setType("application/vnd.android.package-archive");
                 intent.putExtra(Intent.EXTRA_TITLE, "DroidInspect-modified-unsigned.apk");
-                startActivityForResult(intent, REQUEST_CREATE_APK);
-            });
+                activity.startActivityForResult(intent, REQUEST_CREATE_APK);
+            }, () -> deleteQuietly(ready));
         });
     }
 
@@ -421,39 +462,49 @@ public final class ApkResourceActivity extends Activity {
             getContentResolver().takePersistableUriPermission(destination,
                     data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION));
         } catch (SecurityException ignored) { }
+        final File activeOutput = pendingOutput;
+        if (activeOutput == null || !activeOutput.isFile()) {
+            status.setText("Modified APK temporary output is unavailable.");
+            setResult(returnOutputUri ? RESULT_CANCELED : RESULT_OK);
+            if (returnOutputUri) finish();
+            return;
+        }
         setBusy(true, "Exporting validated modified APK…");
+        final Context appContext = getApplicationContext();
+        final Handler ui = new Handler(Looper.getMainLooper());
+        final WeakReference<ApkResourceActivity> owner = new WeakReference<>(this);
         worker.execute(() -> {
             String error = null;
-            try (InputStream in = new FileInputStream(pendingOutput);
-                 OutputStream out = getContentResolver().openOutputStream(destination, "w")) {
+            try (InputStream in = new FileInputStream(activeOutput);
+                 OutputStream out = appContext.getContentResolver().openOutputStream(destination, "w")) {
                 if (out == null) throw new IllegalStateException("The document provider did not create an output stream.");
                 byte[] buffer = new byte[32768];
                 int n;
                 while ((n = in.read(buffer)) != -1) { checkCancelled(); out.write(buffer, 0, n); }
                 out.flush();
-            } catch (Exception e) {
-                error = e.getClass().getSimpleName() + ": " + safe(e.getMessage());
+            } catch (Exception failure) {
+                error = message(failure);
             }
             final String failure = error;
-            runOnUiThread(() -> {
-                if (destroyed || isFinishing() || isDestroyed()) return;
-                setBusy(false, failure == null ? "Export complete. Output is unsigned and needs signing." : "Export failed: " + failure);
-                if (failure == null) summary.append("\n\nEXPORT: PASS — modified unsigned APK saved.");
-                else summary.append("\n\nEXPORT FAILED: " + failure);
-                deletePendingOutput();
-                saveButton.setEnabled(true);
-                if (returnOutputUri) {
+            postToActivity(ui, owner, activity -> {
+                activity.setBusy(false, failure == null
+                        ? "Export complete. Output is unsigned and needs signing." : "Export failed: " + failure);
+                if (failure == null) activity.summary.append("\n\nEXPORT: PASS — modified unsigned APK saved.");
+                else activity.summary.append("\n\nEXPORT FAILED: " + failure);
+                activity.deletePendingOutput();
+                activity.saveButton.setEnabled(true);
+                if (activity.returnOutputUri) {
                     Intent result = new Intent();
                     if (failure == null) {
                         result.setData(destination);
                         result.putExtra("exported_apk_uri", destination.toString());
-                        setResult(RESULT_OK, result);
+                        activity.setResult(RESULT_OK, result);
                     } else {
-                        setResult(RESULT_CANCELED);
+                        activity.setResult(RESULT_CANCELED);
                     }
-                    finish();
+                    activity.finish();
                 }
-            });
+            }, () -> deleteQuietly(activeOutput));
         });
     }
 
@@ -472,35 +523,95 @@ public final class ApkResourceActivity extends Activity {
 
     private static String safe(String value) { return value == null ? "" : value; }
 
+    private static String message(Throwable error) {
+        return error.getClass().getSimpleName() + ": "
+                + (error.getMessage() == null ? "No details." : error.getMessage());
+    }
+
     private static void checkCancelled() throws InterruptedIOException {
         if (Thread.currentThread().isInterrupted())
             throw new InterruptedIOException("APK operation cancelled because the activity was closed.");
     }
 
+    private interface ActivityCallback { void deliver(ApkResourceActivity activity); }
+
+    private static void postToActivity(Handler handler,
+                                       WeakReference<ApkResourceActivity> owner,
+                                       ActivityCallback callback) {
+        postToActivity(handler, owner, callback, null);
+    }
+
+    private static void postToActivity(Handler handler,
+                                       WeakReference<ApkResourceActivity> owner,
+                                       ActivityCallback callback,
+                                       Runnable onDiscard) {
+        handler.post(() -> {
+            ApkResourceActivity activity = owner.get();
+            if (activity == null || activity.destroyed
+                    || activity.isFinishing() || activity.isDestroyed()) {
+                if (onDiscard != null) {
+                    Thread cleanup = new Thread(onDiscard, "droidinspect-resource-discard-cleanup");
+                    cleanup.setDaemon(true);
+                    cleanup.start();
+                }
+                return;
+            }
+            callback.deliver(activity);
+        });
+    }
+
+    private static void closeModule(ApkModule module, Throwable primaryFailure) {
+        if (module == null) return;
+        try { module.close(); }
+        catch (Exception | RuntimeException cleanupError) {
+            if (primaryFailure != null) primaryFailure.addSuppressed(cleanupError);
+        }
+    }
+
+    private static void closeModuleQuietly(ApkModule module) {
+        if (module == null) return;
+        try { module.close(); } catch (Exception | RuntimeException ignored) { }
+    }
+
+    private static void deleteTemporaryFile(File file, Throwable primaryFailure) {
+        if (file == null) return;
+        try {
+            Files.deleteIfExists(file.toPath());
+        } catch (IOException | RuntimeException cleanupError) {
+            IOException reported = new IOException(
+                    "Could not remove temporary APK resource file: " + file.getName(), cleanupError);
+            if (primaryFailure != null) primaryFailure.addSuppressed(reported);
+            else throw new IllegalStateException(reported);
+        }
+    }
+
+    private static void deleteQuietly(File file) {
+        if (file == null) return;
+        try { Files.deleteIfExists(file.toPath()); }
+        catch (IOException | RuntimeException ignored) { }
+    }
+
     @Override protected void onDestroy() {
         destroyed = true;
         worker.shutdownNow();
+        final java.util.concurrent.ExecutorService activeWorker = worker;
+        final ApkModule module = apkModule;
+        apkModule = null;
+        final File source = sourceCopy;
+        sourceCopy = null;
+        final File pending = pendingOutput;
+        pendingOutput = null;
         super.onDestroy();
-        // Wait off the UI thread: never close ApkModule or delete working files
-        // while an interrupted worker may still be using them.
         Thread cleanup = new Thread(() -> {
-            try {
-                while (!worker.awaitTermination(1, TimeUnit.DAYS)) { }
-            } catch (InterruptedException interrupted) {
-                Thread.currentThread().interrupt();
-                return;
+            boolean interrupted = false;
+            while (!activeWorker.isTerminated()) {
+                try { activeWorker.awaitTermination(1, TimeUnit.DAYS); }
+                catch (InterruptedException ignored) { interrupted = true; }
             }
-            ApkModule module = apkModule;
-            apkModule = null;
-            if (module != null) {
-                try { module.close(); } catch (Exception ignored) { }
-            }
-            File source = sourceCopy;
-            sourceCopy = null;
-            if (source != null) source.delete();
-            File pending = pendingOutput;
-            pendingOutput = null;
-            if (pending != null) pending.delete();
+            closeModuleQuietly(module);
+            deleteQuietly(source);
+            deleteQuietly(pending);
+            if (interrupted) Thread.currentThread().interrupt();
         }, "droidinspect-apk-cleanup");
         cleanup.setDaemon(true);
         cleanup.start();
