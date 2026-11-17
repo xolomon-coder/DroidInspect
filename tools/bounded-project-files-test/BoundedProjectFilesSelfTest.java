@@ -55,6 +55,47 @@ public final class BoundedProjectFilesSelfTest {
             catch (IOException expected) { treeBounded = true; }
             check(treeBounded, "tree rejects directories beyond global scan budget");
 
+            File cleanupRoot = new File(root, "cleanup");
+            File cleanupNested = new File(cleanupRoot, "nested");
+            if (!cleanupNested.mkdirs()) throw new AssertionError("cleanup nested directory");
+            write(new File(cleanupNested, "temporary.bin"));
+            File preserved = File.createTempFile("droidinspect-preserved", ".bin");
+            try {
+                try {
+                    Files.createSymbolicLink(cleanupRoot.toPath().resolve("outside-link"), preserved.toPath());
+                } catch (UnsupportedOperationException | SecurityException ignored) {
+                    // Symlink creation is not available on every host.
+                } catch (IOException ignored) {
+                    // Filesystem may not support symlinks.
+                }
+                BoundedProjectFiles.deleteTree(cleanupRoot, 10);
+                check(!cleanupRoot.exists(), "bounded cleanup removes temporary workspace");
+                check(preserved.exists(), "cleanup never follows a symbolic link outside the workspace");
+            } finally {
+                preserved.delete();
+            }
+
+            File limitedRoot = new File(root, "limited-cleanup");
+            if (!limitedRoot.mkdir()) throw new AssertionError("limited cleanup directory");
+            write(new File(limitedRoot, "one.bin"));
+            write(new File(limitedRoot, "two.bin"));
+            boolean cleanupBounded = false;
+            try { BoundedProjectFiles.deleteTree(limitedRoot, 1); }
+            catch (IOException expected) { cleanupBounded = true; }
+            check(cleanupBounded && limitedRoot.exists(), "cleanup stops at its global entry budget");
+            BoundedProjectFiles.deleteTree(limitedRoot, 10);
+
+            File interruptedRoot = new File(root, "interrupted-cleanup");
+            if (!interruptedRoot.mkdir()) throw new AssertionError("interrupted cleanup directory");
+            write(new File(interruptedRoot, "temporary.bin"));
+            Thread.currentThread().interrupt();
+            boolean interrupted = false;
+            try { BoundedProjectFiles.deleteTree(interruptedRoot, 10); }
+            catch (java.io.InterruptedIOException expected) { interrupted = true; }
+            finally { Thread.interrupted(); }
+            check(interrupted && interruptedRoot.exists(), "cleanup honors thread interruption");
+            BoundedProjectFiles.deleteTree(interruptedRoot, 10);
+
             System.out.println("BoundedProjectFilesSelfTest: PASS");
         } finally {
             delete(root);
