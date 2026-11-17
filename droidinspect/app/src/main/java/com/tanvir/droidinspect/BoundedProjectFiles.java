@@ -90,10 +90,23 @@ final class BoundedProjectFiles {
     }
 
     /**
-     * Deletes a private temporary tree and, when supplied, verifies that its root is a
-     * direct child of the expected trusted workspace parent before removing anything.
+     * Normal cleanup honors worker interruption and reports incomplete cleanup.
      */
     static void deleteTree(File root, File expectedParent, int maxEntries) throws IOException {
+        deleteTreeInternal(root, expectedParent, maxEntries, true);
+    }
+
+    /**
+     * Rollback cleanup is allowed to finish after worker interruption. It still enforces
+     * the exact same trusted-parent, symlink, entry-count and depth restrictions.
+     */
+    static void deleteTreeForRollback(File root, File expectedParent, int maxEntries)
+            throws IOException {
+        deleteTreeInternal(root, expectedParent, maxEntries, false);
+    }
+
+    private static void deleteTreeInternal(File root, File expectedParent, int maxEntries,
+                                           boolean honorInterruption) throws IOException {
         if (root == null) return;
         if (maxEntries < 0) throw new IllegalArgumentException("maxEntries must not be negative.");
         Path rootPath = root.toPath();
@@ -109,12 +122,12 @@ final class BoundedProjectFiles {
                 throw new IOException("Refusing to delete a workspace outside its trusted parent.");
         }
         int[] visited = {0};
-        deleteEntry(canonicalRoot, canonicalRoot, 0, maxEntries, visited);
+        deleteEntry(canonicalRoot, canonicalRoot, 0, maxEntries, visited, honorInterruption);
     }
 
     private static void deleteEntry(File root, File entry, int depth, int maxEntries,
-                                    int[] visited) throws IOException {
-        checkDeleteCancelled();
+                                    int[] visited, boolean honorInterruption) throws IOException {
+        checkDeleteCancelled(honorInterruption);
         Path path = entry.toPath();
         if (Files.isSymbolicLink(path)) {
             Files.delete(path);
@@ -130,17 +143,17 @@ final class BoundedProjectFiles {
                         + " level cleanup safety limit.");
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
                 for (Path child : stream) {
-                    checkDeleteCancelled();
+                    checkDeleteCancelled(honorInterruption);
                     if (++visited[0] > maxEntries)
                         throw new IOException("Temporary workspace exceeds the " + maxEntries
                                 + " entry cleanup safety limit.");
-                    deleteEntry(root, child.toFile(), depth + 1, maxEntries, visited);
+                    deleteEntry(root, child.toFile(), depth + 1, maxEntries, visited, honorInterruption);
                 }
             } catch (DirectoryIteratorException error) {
                 throw new IOException("Cannot enumerate temporary workspace during cleanup.", error);
             }
         }
-        checkDeleteCancelled();
+        checkDeleteCancelled(honorInterruption);
         Files.delete(path);
     }
 
@@ -170,8 +183,8 @@ final class BoundedProjectFiles {
         }
     }
 
-    private static void checkDeleteCancelled() throws IOException {
-        if (Thread.currentThread().isInterrupted())
+    private static void checkDeleteCancelled(boolean honorInterruption) throws IOException {
+        if (honorInterruption && Thread.currentThread().isInterrupted())
             throw new java.io.InterruptedIOException("Temporary workspace cleanup was interrupted.");
     }
 }

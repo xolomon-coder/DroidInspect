@@ -155,6 +155,53 @@ public final class BoundedProjectFilesSelfTest {
             check(interrupted && interruptedRoot.exists(), "cleanup honors thread interruption");
             BoundedProjectFiles.deleteTree(interruptedRoot, 10);
 
+
+            File interruptedRollback = new File(root, "interrupted-rollback");
+            File interruptedRollbackNested = new File(interruptedRollback, "nested");
+            if (!interruptedRollbackNested.mkdirs())
+                throw new AssertionError("interrupted rollback workspace");
+            write(new File(interruptedRollbackNested, "temporary.bin"));
+            File rollbackTarget = File.createTempFile("droidinspect-rollback-target", ".bin");
+            try {
+                try {
+                    Files.createSymbolicLink(new File(interruptedRollback, "outside-link").toPath(),
+                            rollbackTarget.toPath());
+                } catch (UnsupportedOperationException | SecurityException ignored) {
+                    // Symlink creation is not available on every host.
+                } catch (IOException ignored) {
+                    // Filesystem may not support symlinks.
+                }
+                Thread.currentThread().interrupt();
+                try {
+                    BoundedProjectFiles.deleteTreeForRollback(interruptedRollback, root, 10);
+                } finally {
+                    Thread.interrupted();
+                }
+                check(!interruptedRollback.exists(),
+                        "rollback cleanup completes even when the worker is interrupted");
+                check(rollbackTarget.exists(),
+                        "interrupted rollback removes links without following their targets");
+            } finally {
+                rollbackTarget.delete();
+            }
+
+            File interruptedLimited = new File(root, "interrupted-limited-rollback");
+            if (!interruptedLimited.mkdir()) throw new AssertionError("interrupted limited rollback");
+            write(new File(interruptedLimited, "one.bin"));
+            write(new File(interruptedLimited, "two.bin"));
+            boolean rollbackBudgetEnforced = false;
+            Thread.currentThread().interrupt();
+            try {
+                BoundedProjectFiles.deleteTreeForRollback(interruptedLimited, root, 1);
+            } catch (IOException expected) {
+                rollbackBudgetEnforced = !(expected instanceof java.io.InterruptedIOException);
+            } finally {
+                Thread.interrupted();
+            }
+            check(rollbackBudgetEnforced && interruptedLimited.exists(),
+                    "rollback ignores interruption but still enforces its global entry budget");
+            BoundedProjectFiles.deleteTreeForRollback(interruptedLimited, root, 10);
+
             System.out.println("BoundedProjectFilesSelfTest: PASS");
         } finally {
             delete(root);

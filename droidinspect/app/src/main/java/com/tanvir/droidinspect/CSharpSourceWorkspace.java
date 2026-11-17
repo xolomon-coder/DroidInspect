@@ -367,7 +367,7 @@ final class CSharpSourceWorkspace {
 
     private static void cleanupFailedCreation(File root, File expectedParent, Throwable failure) {
         try {
-            BoundedProjectFiles.deleteTree(root, expectedParent, 10000);
+            BoundedProjectFiles.deleteTreeForRollback(root, expectedParent, 10000);
         } catch (IOException cleanupError) {
             failure.addSuppressed(cleanupError);
         }

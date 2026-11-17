@@ -101,7 +101,7 @@ final class ApkProjectWorkspace {
             return project;
         } catch (Exception error) {
             try {
-                BoundedProjectFiles.deleteTree(root, MAX_PROJECT_DIRECTORY_ENTRIES);
+                BoundedProjectFiles.deleteTreeForRollback(root, base, MAX_PROJECT_DIRECTORY_ENTRIES);
             } catch (IOException cleanupError) {
                 error.addSuppressed(cleanupError);
             }
