@@ -3796,3 +3796,61 @@ Additional M20 changes since the previous checkpoint:
 4. Prepare the single consolidated M12–M20 phone test checklist only after implementation and available automated verification are complete.
 
 **Current branch:** `main`. The commit for this checkpoint is recorded in the GitHub commit history; inspect the live branch head before the next edit.
+
+
+### M19/M20 continuation — unchecked rollback and APK build-pipeline lifecycle — 2026-11-17
+
+**M19 filesystem and rollback corrections now on `main`:**
+- `BoundedProjectFiles.rollbackDirectChildren()` now accepts the original failure as a `Throwable`, so batch rollback can run when an import fails with an `IOException`, unchecked exception, or `Error`. Directory and child-path validation failures are attached to the primary failure rather than masking it. Symlinks are removed as links; rollback is confined to direct children of the trusted import directory.
+- Added a host regression for rollback after an `AssertionError`, in addition to the existing runtime-exception, symlink, trusted-parent and interruption cases.
+- `ApkProjectWorkspace` now also cleans partial file copies after unchecked/fatal failures. Project-creation rollback and temp-file deletion preserve cleanup failures as suppressed diagnostics.
+- `DotNetDependencyWorkspace` import rollback now covers checked, unchecked and fatal failures; its temporary input copy is removed on all those failure paths.
+- `CSharpSourceWorkspace.copyOriginalAssembly()` now stages the original assembly through a sibling temporary file and uses one checked cleanup path for failed reads, cancellation, empty input and activation failure. Partial source-import cleanup and creation rollback also retain cleanup diagnostics.
+- `DecompilationWorkspace` continues to keep normal cleanup separate from interruption-resistant rollback. Reference-staging rollback and partial-input cleanup now also preserve runtime filesystem failures.
+- `FileInspectionEngine` temporary-copy cleanup reports both I/O and runtime filesystem failures. No cleanup helper follows symbolic links or relaxes the bounded trusted-root rules.
+
+**M20 Activity lifecycle and cancellation audit:**
+- `ApkBuildPipelineActivity` now passes the application Context into the persistent project-open operation and its background copy/inspection work. Its four worker operations (project open, edited-export save, original APK inspection, final signed-output verification) use a main-thread Handler plus a WeakReference callback instead of direct `runOnUiThread()` closures.
+- The pipeline's file-copy helpers are static and application-context based. Partial cache copies are removed for checked, unchecked and fatal failures. If the Activity is gone before the inspection callback is delivered, the unclaimed copy is deleted on a separate cleanup thread. The Activity teardown worker waits off the UI thread and then removes the retained original copy.
+- The project/dashboard/dependency/decompiler/editor workers inspected in this checkpoint already use application context and weak lifecycle-checked callbacks in their updated paths. `DotNetDependencyActivity` checks interruption before and after the synchronous native dependency resolver. `CSharpDecompileActivity` closes its bounded workspace after JNI returns, including interruption-resistant rollback when needed. `CSharpSourceEditorActivity` explicitly allows synchronous Native AOT compilation to finish its private output/report writes because the native call cannot be safely interrupted; its UI callback is lifecycle guarded.
+- The broader legacy Activity sweep is **not complete**. `ApkResourceActivity` and `ApkSigningActivity` still contain worker closures that call `runOnUiThread()` directly (with destroyed/finishing checks and off-UI-thread teardown cleanup). Their Activity-retention paths, as well as remaining analysis screens with their own workers, still need a dedicated pass. Do not interpret this checkpoint as proof that every Activity is lifecycle-detached.
+
+**Exact files changed in this continuation:**
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/BoundedProjectFiles.java`
+- `tools/bounded-project-files-test/BoundedProjectFilesSelfTest.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/ApkProjectWorkspace.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/DotNetDependencyWorkspace.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/CSharpSourceWorkspace.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/DecompilationWorkspace.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/FileInspectionEngine.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/ApkBuildPipelineActivity.java`
+
+**Commits on `main` (oldest to newest in this continuation):**
+- `24e84759f2a48912c0e0fab91ab16f3411cf1e2d` — make workspace import rollback cover unchecked failures.
+- `3755ebc7c9a820f54083e55ab96979307ab29284` — detach APK build-pipeline workers from Activity.
+- `4081a9b87a76abd4ad7cc92c21af44c4426d8e78` — correct APK pipeline cleanup callback compatibility.
+- `e5af4edd4fd3d8ce5e9b394799a825412e918f7e` — preserve APK pipeline cleanup diagnostics.
+- `9e63ceda32ad0edc85294dda9aa9f936a207af80` — clean abandoned APK inspection copies on lifecycle exit.
+- `5afff9f4915d70e84250226aa0d9f3db7790e032` — preserve primary failures across bounded cleanup paths.
+- `e03c3ddcd312751daeb1a64715ded8f34a35d43a` — run discarded inspection cleanup off the UI thread.
+
+**Host tests, CI and release verification:**
+- The production workflow remains `.github/workflows/phase1-android.yml` and is wired to compile/run `ProjectWorkspaceIndexSelfTest`, `ProjectWorkspaceMetadataSelfTest`, `BoundedSourceTreeSelfTest` and `BoundedProjectFilesSelfTest` before the Android build. The separate proof workflows remain `.github/workflows/m11-nativeaot-poc.yml` and `.github/workflows/m12-roslyn-compiler-poc.yml`.
+- The metadata host-test source covers notes, bookmarks, saved searches, project isolation, operation-journal/recovery-marker behavior after metadata-store recreation, bounded listing, malformed/oversized metadata and symlink rejection. This does not by itself verify Android process-kill/restart or a full `ApkProjectWorkspace` reopen on-device.
+- **No M19 host suite was rerun at this source HEAD.** Prior local Java 8 host PASS entries elsewhere in this README refer to earlier source snapshots; they are not new verification of these changes.
+- Production Actions runs #626–#632 have all ended before executing a workflow step. In the inspectable job records, runner assignment is `runner_id=0`, runner name is blank, the step list is empty and no artifacts are present. Latest run #632 is [run ID 44082406359](https://github.com/xolomon-coder/DroidInspect/actions/runs/44082406359), targeting source commit `e03c3ddcd312751daeb1a64715ded8f34a35d43a`; its job did not reach checkout, test, Android compilation or APK build. These are runner-allocation failures, not evidence of a source test failure and not evidence of success.
+- No debug/release APK, signing/tamper verification, ARM64 ABI/native payload inventory, compressed/uncompressed payload size, dependency/license report or CI checksum has been inspected for this continuation. Do not claim the production release gate passed.
+
+**Milestone and persistence status:**
+- **M19 — IN PROGRESS.** Source-level bounds, safe rollback and metadata-store host coverage are present. Latest source changes still need all four host suites executed. Actual APK project create/reopen, Android process-restart persistence, cross-project integration isolation, interrupted-operation recovery and device acceptance remain open.
+- **M20 — IN PROGRESS.** Workspace rollback and several important worker paths are improved. The remaining Activity lifecycle sweep, full host execution, runner-backed Android builds/release checks and device lifecycle verification remain open.
+- **M12–M18** remain implementation-integrated with consolidated device acceptance pending. **M11 remains user-accepted; do not repeat M11 acceptance testing.**
+
+**Exact next actions:**
+1. Continue the lifecycle pass on `ApkResourceActivity`, `ApkSigningActivity` and the remaining worker-owning analysis Activities; detach remaining strong Activity captures where warranted, keep UI delivery lifecycle guarded, and document any non-interruptible JNI/native task behavior.
+2. Complete the M19 persistence/recovery integration audit, distinguishing metadata-store host coverage from real Android project create/reopen/process-restart verification.
+3. Re-run the four M19 host suites and other applicable host tests when a runner can execute steps; inspect a fresh Actions job before any retry. Do not repeatedly dispatch while `runner_id=0`.
+4. Once runners execute the workflow, resolve any demonstrated test/build failures, then verify production debug/release APKs, signing/tamper rejection, ARM64/native inventory, dependencies, licenses and checksums.
+5. Prepare the single consolidated M12–M20 Android 11 / CodeAssist checklist only after implementation and available automated verification are complete.
+
+**Current source stopping point:** `main`, source HEAD `e03c3ddcd312751daeb1a64715ded8f34a35d43a` before this README-only update. M19 and M20 remain IN PROGRESS. No new Android testing is requested yet.
