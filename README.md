@@ -4038,3 +4038,111 @@ Run this only after a fresh CodeAssist build succeeds. Use copies of known test 
 ### Immediate next action
 
 The next cloud-side action is to run the production workflow against the latest `main` commit once GitHub provisions an actual runner, then inspect all host-test, Android build, signing, ABI, security, and artifact steps. The next user-side action is to download the current `main` ZIP and use the `droidinspect/` directory as the Gradle project in CodeAssist only after the build can be verified; the consolidated phone test batch above remains pending.
+
+
+---
+
+# Current verification checkpoint — 2026-11-18
+
+This update supersedes earlier stopping-point and test-status notes. It records the source checkpoint inspected in this session and does not convert source review into Android build or device acceptance.
+
+## Repository and changes
+
+- Branch: **main only**.
+- Source checkpoint before this README update: **f7371dc4e7e18c4ca7b216bf263df2b54f4d5e01**.
+- Production package: **com.tanvir.droidinspect**.
+- Latest production run for that source checkpoint: [run #654](https://github.com/xolomon-coder/DroidInspect/actions/runs/44260929630).
+- No branches or pull requests were created.
+
+Source commits in this continuation:
+- **e2c37cdb** — restored missing APK project operation-journal methods. Three methods called by ApkProjectWorkspace had no implementation and were a source-level Java compile blocker.
+- **70765204** — staged and validated APK working-file replacement, snapshot rollback, synced atomic metadata replacement, and a host transaction regression test wired into CI.
+- **07c3c662** — fixed dangling-symbolic-link cleanup in the new test.
+- **d4e4e896** — made APK build-pipeline cleanup failures visible in logs instead of silently swallowing them.
+- **0dbc9dc2** — added byte-for-byte SHA-256 comparison of the signed source and SAF-exported APK before reporting export success.
+- **9ba9f5f7** — added safe installation of a new project export without overwriting an existing file, including validation-failure cleanup.
+- **bd02c714** — made existing APK project exports transactional, retaining a rollback copy and restoring the old export if later metadata persistence fails.
+- **f7371dc4** — added host regression assertions for install, validation rollback, and refusing to overwrite an existing export.
+
+The new WorkspaceFileTransaction helper rejects linked/non-regular paths, requires staging and destination to share the project directory, uses atomic moves when supported, and restores from an app-owned rollback copy without abandoning recovery merely because the worker thread was interrupted.
+
+## Host-JVM execution
+
+Five pure-Java self-test suites were compiled with **JDK 21**, using **javac -Xlint:all -Werror**, and each ran with exit code 0 in the local host environment:
+
+| Test | Result |
+|---|---|
+| ProjectWorkspaceMetadataSelfTest | PASS |
+| ProjectWorkspaceIndexSelfTest | PASS |
+| BoundedSourceTreeSelfTest | PASS |
+| BoundedProjectFilesSelfTest | PASS |
+| WorkspaceFileTransactionSelfTest | PASS |
+
+The first four cover bounded metadata/index/tree/file-inventory and recovery helpers. The transaction test covers staged replacement, new-file installation, validation failure rollback, interrupted rollback, path-boundary checks, and symbolic-link rejection where supported by the host filesystem.
+
+**Scope limitation:** these are local host-JVM tests of pure-Java helpers, not GitHub Actions execution, Android Activity instrumentation, Android filesystem integration, or phone acceptance. They do not prove APK project create/import/export/reopen/process-restart end-to-end behavior.
+
+## Production CI and APK status
+
+[Run #654](https://github.com/xolomon-coder/DroidInspect/actions/runs/44260929630), on commit **f7371dc4e7e18c4ca7b216bf263df2b54f4d5e01**, completed with failure before any workflow step:
+
+- Job: Host parser tests, Android compile, and debug APK.
+- Job ID: 134653809718.
+- Runner ID: 0; runner name empty.
+- Executed steps: 0.
+- Logs and artifacts: none.
+
+Runs #647–#653 show the same runner-allocation pattern. These are **not Java/Gradle build failures**: GitHub did not start the job, so checkout, host tests, Android resource processing, Gradle compilation, APK signing, tamper verification, ABI inspection, dependency capture, and artifact upload never ran.
+
+No current-source debug APK, release APK, signed CI APK, dependency-graph artifact, or checksum artifact is verified. The available host environment has JDK 21 but no Gradle executable or Android SDK manager, so a local Android build was not possible. Do not use an older artifact as proof for this source checkpoint.
+
+The production workflow still includes 12 host-test steps, Android SDK 36 / Build Tools 36, Gradle 8.13 debug and release builds, v1/v2/v3 CI signing and verification, tamper rejection, native ABI/size checks, checksums, and artifact upload. README-only changes are ignored by the workflow path filter, so this documentation commit does not constitute a new build attempt. Retry only when GitHub can allocate a real runner.
+
+## Lifecycle and signing review
+
+The source-level review covered the main file-owning/background-work Activities: APK signing/build/resources/projects, DEX, assembly comparison/explorer, C# decompilation/source editing, .NET IL/resources/dependencies, APK components/splits/catalog, and the main inspection screen.
+
+- Activities generally use single-thread workers, application context for file work, weak Activity references for UI delivery, and destroyed/finishing checks before UI updates.
+- Signing, APK pipeline/resources, comparison/explorer, DEX, .NET IL/resources, APK components/splits/catalog use post-destruction cleanup workers that wait for owned worker termination before deleting app-owned cache files. No Activity waits for worker termination on the UI thread.
+- Native AOT decompilation/compilation cannot be reliably interrupted inside synchronous JNI. Those workers may finish their private workspace operation; weak UI callbacks are discarded after Activity destruction.
+- Source/dependency imports use bounded copies, cancellation checks, stream closure, and rollback of partial batches. Dependency-resolution cancellation deliberately leaves an in-progress operation marker for recovery reporting on the next open.
+- APK signing source review confirms generated non-exportable Android Keystore RSA keys, PKCS#12/JKS import paths, password clearing and char-array wiping, separate signed output, v1/v2/v3 enablement, and ApkVerifier checks. Export also compares SHA-256 of the signed source with the SAF-exported copy before success.
+- Cleanup failures are logged or attached as suppressed errors in the inspected paths. User-selected original files and SAF destination documents are not intentionally deleted during Activity teardown.
+
+This is source review, not lifecycle instrumentation. Activity destruction during long native or I/O operations, storage-provider failure behavior, and Android 11 process death still require phone testing.
+
+## Security and compatibility snapshot
+
+- Production manifest review: no INTERNET permission declaration; allowBackup is false; feature Activities are not exported; only the launcher Activity is exported. File selection uses Android document-picker flows.
+- Build configuration: min SDK 26, compile/target SDK 36, Java 8 source/target, Android Gradle Plugin 8.13.0, Gradle 8.13.
+- The tracked production native payload is ARM64-only (arm64-v8a), approximately 81.3 MB across four engine/JNI shared objects. This is a source-tree inventory only; actual APK packaging and compressed APK size remain unverified until CI builds.
+- Direct notices identify ILSpy 11.2.0.10050 and Roslyn 5.12.0 as MIT-licensed; the Android Gradle file identifies ARSCLib 1.4.0 and apksig 8.13.0 as Apache-2.0. The complete transitive NuGet license/security review remains open because the exact restore/lock graph was unavailable. Existing notices do not claim the transitive audit is complete.
+- Offline-first operation is preserved; no Internet permission or online decompilation dependency was added.
+
+## Milestone state
+
+| Milestone | Status | Evidence / remaining gate |
+|---|---|---|
+| M11 | **ACCEPTED** | Previously accepted by the user. No M11 retest was performed. |
+| M12–M18 | **Implementation-integrated; device acceptance pending** | Existing supported scope remains recorded above. Current source is not build-verified; consolidated device tests remain pending. |
+| M19 | **IN PROGRESS — host tests pass locally** | Four requested host suites plus the transaction test pass. Android project create/import/export/reopen, process-restart persistence, project isolation, and recovery remain unverified end to end. |
+| M20 | **IN PROGRESS — source review and helper regression pass** | Activity lifecycle/file-owner paths reviewed and targeted fixes committed. Android lifecycle instrumentation/build/device execution remains open. |
+| Production release gate | **BLOCKED / NOT VERIFIED** | GitHub runner allocation fails before step 1; no current debug/release APK or artifact. |
+| Transitive NuGet audit | **OPEN** | Exact restored dependency graph and generated native notices still need review. |
+
+No milestone M12–M20 is accepted by this update. Acceptance requires consolidated Android 11 / CodeAssist results from the user.
+
+## Next verification and device acceptance
+
+When a production runner is available, run the workflow against the latest source on main and inspect every host test, Android resource/Java compile, debug and release APK, native packaging/ABI, signature/tamper check, dependency graph, SHA-256 manifest, and uploaded artifact. Fix genuine failures and repeat against the resulting final source commit.
+
+Only after an artifact exists for the final source checkpoint:
+
+1. Download the latest main ZIP and open the droidinspect/ directory as the project in CodeAssist; build/install the current debug APK on Android 11 / Infinix X689B (ARM64).
+2. Test M12 with valid and invalid multi-file C# projects; confirm a failed compile does not replace a previously valid DLL. Test M13 offline dependency matches, missing references, and version-mismatch warnings.
+3. Test M14–M18 within the supported scope: assembly navigation/comparison, source editing, APK manifest/resource edits, split/resource/component inspection, APK build pipeline, PKCS#12/JKS import, Android Keystore generation, signing/verification, tamper rejection, and preservation of original inputs. Do not repeat M11 acceptance.
+4. Test M19 with disposable APK and .NET projects: create, import, notes/bookmarks/search, export, close/reopen, force-stop/relaunch, project isolation, history restore, malformed metadata warning, and interrupted-operation rollback.
+5. Test M20 by closing Activities during long file operations/native compilation, cancelling imports/exports, rapidly navigating, and reopening projects. Confirm no crash, stale UI, original-file changes, partial project revision, unsafe user-document deletion, or persistent owned temporary files.
+6. Record build ID, device/API, actual outputs, warnings, and PASS/FAIL per case. Do not record M12–M20 acceptance until those results exist.
+
+**Current next action:** production build verification remains blocked by GitHub runner allocation. Once a verifiable APK is available, perform the single consolidated phone acceptance batch; previously accepted M11 device tests are not to be repeated.
