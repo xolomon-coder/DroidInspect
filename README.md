@@ -4146,3 +4146,12 @@ Only after an artifact exists for the final source checkpoint:
 6. Record build ID, device/API, actual outputs, warnings, and PASS/FAIL per case. Do not record M12–M20 acceptance until those results exist.
 
 **Current next action:** production build verification remains blocked by GitHub runner allocation. Once a verifiable APK is available, perform the single consolidated phone acceptance batch; previously accepted M11 device tests are not to be repeated.
+
+
+## Final journal consistency follow-up — 2026-11-18
+
+Source commit **dc554bdfca6bedf0b9a198d2f402ac6c284ac7c1** closes one additional M19 edge case in ApkProjectWorkspace: if APK import/revision restoration fails before a rollback snapshot is created, the operation journal is now explicitly finished with the unchanged-working-file outcome. APK export failures also close their journal record when the prior export state remains intact; if rollback or cleanup errors are suppressed onto the primary failure, the STARTED marker is deliberately retained for recovery review.
+
+Production run [#655](https://github.com/xolomon-coder/DroidInspect/actions/runs/44262500000) targets this source commit and has the same external failure: its sole job (134658976217) completed with runner ID 0, empty runner name, and zero steps. Therefore no Java/Gradle/Android result is available for this additional source commit.
+
+**Latest source checkpoint:** dc554bdfca6bedf0b9a198d2f402ac6c284ac7c1. The M19 host self-tests listed above remain valid for the unchanged pure-Java helpers; the new journal wiring is Android-project code and still awaits an Android build and device recovery test. All previous milestone acceptance restrictions remain in force.
