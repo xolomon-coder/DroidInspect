@@ -655,4 +655,41 @@ final class ApkProjectWorkspace {
     }
 
 
+
+    /**
+     * Record project operations through the shared bounded journal. Journal failures are
+     * diagnostic only: they must not turn a successful APK operation into a failed one.
+     * A failed STARTED/FINISHED write is logged, and an uncleared STARTED marker remains
+     * visible as a recovery warning when the workspace is next opened.
+     */
+    private void beginOperationQuietly(String operation, String detail) {
+        try {
+            new ProjectWorkspaceMetadata(root).beginOperation(operation, detail);
+        } catch (IOException | RuntimeException journalFailure) {
+            android.util.Log.w("DroidInspectApkProject",
+                    "Could not write APK project operation-start marker: " + operation,
+                    journalFailure);
+        }
+    }
+
+    private void finishOperationQuietly(String operation, String detail) {
+        try {
+            new ProjectWorkspaceMetadata(root).finishOperation(operation, detail);
+        } catch (IOException | RuntimeException journalFailure) {
+            android.util.Log.w("DroidInspectApkProject",
+                    "Could not finish APK project operation journal: " + operation,
+                    journalFailure);
+        }
+    }
+
+    private void recordOperationQuietly(String operation, String detail) {
+        try {
+            new ProjectWorkspaceMetadata(root).recordOperation(operation, detail);
+        } catch (IOException | RuntimeException journalFailure) {
+            android.util.Log.w("DroidInspectApkProject",
+                    "Could not record APK project operation: " + operation,
+                    journalFailure);
+        }
+    }
+
 }
