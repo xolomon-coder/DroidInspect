@@ -489,8 +489,13 @@ public final class ApkBuildPipelineActivity extends Activity {
 
     private static void deleteQuietly(File file) {
         if (file == null) return;
-        try { java.nio.file.Files.deleteIfExists(file.toPath()); }
-        catch (IOException | SecurityException ignored) { }
+        try {
+            java.nio.file.Files.deleteIfExists(file.toPath());
+        } catch (IOException | SecurityException cleanupError) {
+            android.util.Log.e("DroidInspectPipeline",
+                    "Could not remove owned APK pipeline temporary file: " + file,
+                    cleanupError);
+        }
     }
 
     private void appendReport(String text) {
