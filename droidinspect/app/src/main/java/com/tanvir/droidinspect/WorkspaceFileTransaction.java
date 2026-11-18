@@ -45,6 +45,32 @@ final class WorkspaceFileTransaction {
         }
     }
 
+    /** Install a staged new file only when no previous destination exists. */
+    static void installNew(File destination, File staged, Validator validator) throws IOException {
+        File destinationParent = requireDestination(destination, false, "destination");
+        requireRegularFile(staged, "staged file");
+        if (!destinationParent.equals(staged.getCanonicalFile().getParentFile()))
+            throw new IOException("Staged file must be in the destination directory.");
+        if (Files.exists(destination.toPath(), LinkOption.NOFOLLOW_LINKS))
+            throw new IOException("Refusing to overwrite an existing project file without a rollback copy.");
+
+        try {
+            moveNew(staged.toPath(), destination.toPath());
+            if (validator != null) validator.validate(destination);
+        } catch (IOException | RuntimeException | Error failure) {
+            try {
+                if (Files.exists(destination.toPath(), LinkOption.NOFOLLOW_LINKS)) {
+                    if (Files.isSymbolicLink(destination.toPath()))
+                        throw new IOException("Refusing to remove an unexpected symbolic-link destination.");
+                    Files.delete(destination.toPath());
+                }
+            } catch (IOException | RuntimeException | Error cleanupFailure) {
+                failure.addSuppressed(cleanupFailure);
+            }
+            throw failure;
+        }
+    }
+
     static void restore(File destination, File backup) throws IOException {
         File destinationParent = requireDestination(destination, false, "destination");
         requireRegularFile(backup, "rollback copy");
@@ -115,6 +141,14 @@ final class WorkspaceFileTransaction {
 
     private static boolean samePath(File first, File second) throws IOException {
         return first.getCanonicalFile().equals(second.getCanonicalFile());
+    }
+
+    private static void moveNew(Path source, Path destination) throws IOException {
+        try {
+            Files.move(source, destination, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException unsupported) {
+            Files.move(source, destination);
+        }
     }
 
     private static void moveReplacing(Path source, Path destination) throws IOException {
