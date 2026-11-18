@@ -4187,3 +4187,10 @@ Run #655 has no artifacts. Its job summary reports runner ID 0, no runner name, 
 - **Verification state at this checkpoint:** repository edits are prepared for commit; no new Actions execution or Android build result is claimed here. The next step is to inspect the resulting main commit and its workflow run, if a runner is assigned.
 - **Milestone state unchanged:** M11 remains accepted. M12–M18 device acceptance remains pending; M19 and M20 remain in progress pending complete verification and the consolidated phone test. The transitive dependency/license audit remains open.
 - **Next action:** inspect every step of the artifact-free CI run, fix any demonstrated failures on `main`, and only then prepare the consolidated M12–M20 CodeAssist device-test session. Do not repeat M11 acceptance tests.
+
+
+## Latest CI compile finding — 2026-11-18
+
+The first runner-backed execution of the artifact-free workflow completed all 12 host-JVM test steps successfully, resolved the release dependency graph, and reached Android debug compilation. Javac then found four `unclosed string literal` errors in `MainActivity.java` lines 112–117: the initial help text contained raw line breaks inside quoted Java strings. The correction replaces those raw line breaks with explicit Java `\n\n` escapes without changing the displayed text or menu behavior.
+
+The Gradle setup action is also configured with `cache-disabled: true` to follow the no-unnecessary-cache policy. The next push will rerun the full host and Android verification. No release build, signing, tamper, payload, or device acceptance is claimed until the new run reaches and passes those checks.

@@ -109,12 +109,8 @@ public class MainActivity extends Activity {
             intent.putExtra("assembly_name", selectedName);
             startActivity(intent);
         });
-        reportView.setText("Choose an APK, DLL, or EXE file to begin.
-
-"
-                + "APK: archive listing, DEX detection, package metadata, manifest/resource analysis and selected manifest editing.
-
-"
+        reportView.setText("Choose an APK, DLL, or EXE file to begin.\n\n"
+                + "APK: archive listing, DEX detection, package metadata, manifest/resource analysis and selected manifest editing.\n\n"
                 + ".NET DLL/EXE: PE structure, CLI header, runtime version and metadata inspection.");
     }
 
