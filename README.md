@@ -4194,3 +4194,14 @@ Run #655 has no artifacts. Its job summary reports runner ID 0, no runner name, 
 The first runner-backed execution of the artifact-free workflow completed all 12 host-JVM test steps successfully, resolved the release dependency graph, and reached Android debug compilation. Javac then found four `unclosed string literal` errors in `MainActivity.java` lines 112–117: the initial help text contained raw line breaks inside quoted Java strings. The correction replaces those raw line breaks with explicit Java `\n\n` escapes without changing the displayed text or menu behavior.
 
 The Gradle setup action is also configured with `cache-disabled: true` to follow the no-unnecessary-cache policy. The next push will rerun the full host and Android verification. No release build, signing, tamper, payload, or device acceptance is claimed until the new run reaches and passes those checks.
+
+
+## Second Android compiler finding — 2026-11-18
+
+After fixing the MainActivity help-text literal, the next debug compile exposed additional integration defects that had been hidden by the earlier compiler failures:
+
+- `FileInspectionEngine.java` and `ApkSigningActivity.java` use `IOException` but lacked its import.
+- `DotNetIlActivity.java` checks a `busy` state but did not declare/store that state.
+- `CSharpDecompileActivity.java` referenced a local `ui` Handler outside the method where it was declared.
+
+These are being corrected narrowly: add the missing imports, make the IL activity's busy flag explicit and synchronize it in `setBusy`, and capture the activity's existing main-thread Handler in the source-workspace method. The prior run's 12 host tests passed; Android release compilation, signing, tamper and payload checks were skipped after debug compilation failed. No successful Android build is claimed yet.

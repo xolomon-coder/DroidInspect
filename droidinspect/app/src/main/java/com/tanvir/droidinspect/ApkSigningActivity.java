@@ -21,6 +21,7 @@ import com.android.apksig.ApkSigner;
 import com.android.apksig.ApkVerifier;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;

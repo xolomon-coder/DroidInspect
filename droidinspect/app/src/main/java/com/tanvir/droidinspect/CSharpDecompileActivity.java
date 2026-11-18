@@ -276,6 +276,7 @@ public class CSharpDecompileActivity extends Activity {
         final Uri originalUri = selectedAssemblyUri;
         final Context appContext = getApplicationContext();
         final WeakReference<CSharpDecompileActivity> reference = new WeakReference<>(this);
+        final Handler ui = handler;
         setLoading(true, "Preparing a separate C# source project…");
         worker.execute(() -> {
             CSharpSourceWorkspace created = null;

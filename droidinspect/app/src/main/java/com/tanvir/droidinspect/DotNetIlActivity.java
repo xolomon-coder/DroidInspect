@@ -53,6 +53,7 @@ public final class DotNetIlActivity extends Activity {
     private TextView status;
     private ProgressBar progress;
     private volatile boolean destroyed;
+    private boolean busy;
     private File sourceCopy;
     private File pendingOutput;
 
@@ -355,6 +356,7 @@ public final class DotNetIlActivity extends Activity {
     }
 
     private void setBusy(boolean busy, String message) {
+        this.busy = busy;
         progress.setVisibility(busy ? View.VISIBLE : View.GONE);
         search.setEnabled(!busy);
         list.setEnabled(!busy);
