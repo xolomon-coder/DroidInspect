@@ -112,6 +112,14 @@ jobs:
             tools/bounded-project-files-test/BoundedProjectFilesSelfTest.java
           java -cp /tmp/droidinspect-bounded-project-files-test com.tanvir.droidinspect.BoundedProjectFilesSelfTest
 
+      - name: Test APK workspace replacement and interruption-safe rollback
+        run: |
+          mkdir -p /tmp/droidinspect-workspace-file-transaction-test
+          javac -d /tmp/droidinspect-workspace-file-transaction-test \
+            droidinspect/app/src/main/java/com/tanvir/droidinspect/WorkspaceFileTransaction.java \
+            tools/project-workspace-file-transaction-test/WorkspaceFileTransactionSelfTest.java
+          java -cp /tmp/droidinspect-workspace-file-transaction-test com.tanvir.droidinspect.WorkspaceFileTransactionSelfTest
+
       - name: Test DEX parser on host JVM
         run: |
           mkdir -p /tmp/droidinspect-dex-test

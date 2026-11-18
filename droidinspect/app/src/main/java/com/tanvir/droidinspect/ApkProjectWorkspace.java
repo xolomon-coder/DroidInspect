@@ -267,24 +267,27 @@ final class ApkProjectWorkspace {
     File getNotesFile() { return notesFile; }
 
     synchronized void replaceWorkingFromUri(Uri source) throws IOException {
+        long previousRevision = revision;
+        Properties previousMetadata = loadProperties(new File(root, "project.properties"));
+        String previousOriginalHash = previousMetadata.getProperty("originalSha256", "");
+        String previousWorkingHash = previousMetadata.getProperty("workingSha256", "");
         beginOperationQuietly("APK_WORKING_REPLACE", "Replace working APK from selected document");
         File incoming = new File(new File(root, "working"), "working-incoming.tmp");
+        File rollbackSnapshot = null;
         Throwable primaryFailure = null;
         try {
             copyUri(context, source, incoming, MAX_APK_BYTES);
             validateApk(incoming);
-            snapshotCurrent();
-            if (workingApk.exists() && !workingApk.delete())
-                throw new IOException("Cannot replace the current working APK.");
-            if (!incoming.renameTo(workingApk)) {
-                copyFile(incoming, workingApk);
-                deleteTemporaryFile(incoming, null);
-            }
-            revision++;
+            rollbackSnapshot = snapshotCurrent();
+            WorkspaceFileTransaction.replace(
+                    workingApk, incoming, rollbackSnapshot, ApkProjectWorkspace::validateApk);
+            revision = previousRevision + 1;
             saveMetadata(revision, sha256(originalApk), sha256(workingApk));
             finishOperationQuietly("APK_WORKING_REPLACE", "revision " + revision);
         } catch (IOException | RuntimeException | Error error) {
             primaryFailure = error;
+            rollbackWorkingRevision(rollbackSnapshot, previousRevision,
+                    previousOriginalHash, previousWorkingHash, "APK_WORKING_REPLACE", error);
             throw error;
         } finally {
             deleteTemporaryFile(incoming, primaryFailure);
@@ -295,31 +298,34 @@ final class ApkProjectWorkspace {
         if (snapshot == null || Files.isSymbolicLink(snapshot.toPath())
                 || !isSafeDirectChild(historyDirectory, snapshot) || !snapshot.isFile())
             throw new IOException("Selected recovery revision is not a safe file inside this project's history folder.");
+        long previousRevision = revision;
+        Properties previousMetadata = loadProperties(new File(root, "project.properties"));
+        String previousOriginalHash = previousMetadata.getProperty("originalSha256", "");
+        String previousWorkingHash = previousMetadata.getProperty("workingSha256", "");
         beginOperationQuietly("APK_REVISION_RESTORE", "Restore a saved working revision");
         File incoming = new File(new File(root, "working"), "working-restore.tmp");
+        File rollbackSnapshot = null;
         Throwable primaryFailure = null;
         try {
             copyFile(snapshot, incoming);
             validateApk(incoming);
-            snapshotCurrent();
-            if (workingApk.exists() && !workingApk.delete())
-                throw new IOException("Cannot replace the current working APK.");
-            if (!incoming.renameTo(workingApk)) {
-                copyFile(incoming, workingApk);
-                deleteTemporaryFile(incoming, null);
-            }
-            revision++;
+            rollbackSnapshot = snapshotCurrent();
+            WorkspaceFileTransaction.replace(
+                    workingApk, incoming, rollbackSnapshot, ApkProjectWorkspace::validateApk);
+            revision = previousRevision + 1;
             saveMetadata(revision, sha256(originalApk), sha256(workingApk));
             finishOperationQuietly("APK_REVISION_RESTORE", "revision " + revision);
         } catch (IOException | RuntimeException | Error error) {
             primaryFailure = error;
+            rollbackWorkingRevision(rollbackSnapshot, previousRevision,
+                    previousOriginalHash, previousWorkingHash, "APK_REVISION_RESTORE", error);
             throw error;
         } finally {
             deleteTemporaryFile(incoming, primaryFailure);
         }
     }
 
-    private void snapshotCurrent() throws IOException {
+    private File snapshotCurrent() throws IOException {
         // Validate and bound the existing inventory before creating the next snapshot.
         List<File> files = BoundedProjectFiles.listFiles(
                 historyDirectory, MAX_PROJECT_DIRECTORY_ENTRIES, ".apk");
@@ -331,6 +337,27 @@ final class ApkProjectWorkspace {
                 .thenComparing(File::getName));
         for (int i = MAX_HISTORY_REVISIONS; i < files.size(); i++)
             deleteTemporaryFile(files.get(i), null);
+        return snapshot;
+    }
+
+    private void rollbackWorkingRevision(File snapshot, long previousRevision,
+                                         String originalHash, String workingHash,
+                                         String operation, Throwable primaryFailure) {
+        if (snapshot == null) return;
+        try {
+            // Rollback deliberately ignores thread interruption so cancellation cannot
+            // strand a deleted or partially copied working APK.
+            WorkspaceFileTransaction.restore(workingApk, snapshot);
+            revision = previousRevision;
+            saveMetadata(previousRevision, originalHash, workingHash);
+            recordOperationQuietly("ROLLBACK", operation + " restored revision " + previousRevision);
+            finishOperationQuietly(operation, "rolled back to revision " + previousRevision);
+        } catch (IOException | RuntimeException | Error rollbackFailure) {
+            primaryFailure.addSuppressed(rollbackFailure);
+            android.util.Log.e("DroidInspectApkProject",
+                    "Could not restore the previous working APK after " + operation,
+                    rollbackFailure);
+        }
     }
 
     List<File> listHistory() throws IOException {
@@ -451,14 +478,16 @@ final class ApkProjectWorkspace {
         try {
             try (FileOutputStream out = new FileOutputStream(temp)) {
                 p.store(out, "DroidInspect APK project");
+                out.flush();
+                out.getFD().sync();
             }
-            if (!temp.renameTo(metadata)) {
-                if (metadata.exists() && !metadata.delete())
-                    throw new IOException("Cannot replace existing project metadata.");
-                if (!temp.renameTo(metadata)) {
-                    copyFile(temp, metadata);
-                    deleteTemporaryFile(temp, null);
-                }
+            try {
+                Files.move(temp.toPath(), metadata.toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                        java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+            } catch (java.nio.file.AtomicMoveNotSupportedException unsupported) {
+                Files.move(temp.toPath(), metadata.toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             }
             revision = rev;
         } catch (IOException | RuntimeException | Error error) {
