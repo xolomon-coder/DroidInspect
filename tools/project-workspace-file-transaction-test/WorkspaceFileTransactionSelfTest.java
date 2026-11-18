@@ -63,6 +63,41 @@ public final class WorkspaceFileTransactionSelfTest {
             require(occupiedRejected && "preserve-this-export".equals(read(occupiedExport)),
                     "new-file installation refuses to overwrite an existing output");
 
+            File firstExport = new File(root, "new-export.apk");
+            File firstExportStage = new File(root, "new-export.tmp");
+            write(firstExportStage, "new-export-bytes");
+            WorkspaceFileTransaction.installNew(firstExport, firstExportStage,
+                    file -> require("new-export-bytes".equals(read(file)), "validator sees newly installed file"));
+            require("new-export-bytes".equals(read(firstExport)), "new export is installed without an old destination");
+            require(!firstExportStage.exists(), "successful new export consumes staging file");
+
+            File rejectedExport = new File(root, "rejected-export.apk");
+            File rejectedStage = new File(root, "rejected-export.tmp");
+            write(rejectedStage, "invalid-export");
+            boolean invalidNewExportRejected = false;
+            try {
+                WorkspaceFileTransaction.installNew(rejectedExport, rejectedStage, file -> {
+                    throw new IOException("simulated new-export validation failure");
+                });
+            } catch (IOException expected) {
+                invalidNewExportRejected = true;
+            }
+            require(invalidNewExportRejected && !rejectedExport.exists(),
+                    "invalid new export is removed after validation failure");
+
+            File occupiedExport = new File(root, "occupied-export.apk");
+            File occupiedStage = new File(root, "occupied-export.tmp");
+            write(occupiedExport, "preserve-this-export");
+            write(occupiedStage, "must-not-replace");
+            boolean occupiedRejected = false;
+            try {
+                WorkspaceFileTransaction.installNew(occupiedExport, occupiedStage, null);
+            } catch (IOException expected) {
+                occupiedRejected = true;
+            }
+            require(occupiedRejected && "preserve-this-export".equals(read(occupiedExport)),
+                    "new-file installation refuses to overwrite an existing output");
+
             WorkspaceFileTransaction.restore(working, backup);
             require("original-valid-apk".equals(read(working)), "manual recovery restores original working bytes");
 
