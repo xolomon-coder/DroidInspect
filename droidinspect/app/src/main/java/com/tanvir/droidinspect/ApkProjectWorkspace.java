@@ -286,8 +286,13 @@ final class ApkProjectWorkspace {
             finishOperationQuietly("APK_WORKING_REPLACE", "revision " + revision);
         } catch (IOException | RuntimeException | Error error) {
             primaryFailure = error;
-            rollbackWorkingRevision(rollbackSnapshot, previousRevision,
-                    previousOriginalHash, previousWorkingHash, "APK_WORKING_REPLACE", error);
+            if (rollbackSnapshot != null) {
+                rollbackWorkingRevision(rollbackSnapshot, previousRevision,
+                        previousOriginalHash, previousWorkingHash, "APK_WORKING_REPLACE", error);
+            } else {
+                finishOperationQuietly("APK_WORKING_REPLACE",
+                        "failed before replacement; previous working APK was not changed");
+            }
             throw error;
         } finally {
             deleteTemporaryFile(incoming, primaryFailure);
@@ -317,8 +322,13 @@ final class ApkProjectWorkspace {
             finishOperationQuietly("APK_REVISION_RESTORE", "revision " + revision);
         } catch (IOException | RuntimeException | Error error) {
             primaryFailure = error;
-            rollbackWorkingRevision(rollbackSnapshot, previousRevision,
-                    previousOriginalHash, previousWorkingHash, "APK_REVISION_RESTORE", error);
+            if (rollbackSnapshot != null) {
+                rollbackWorkingRevision(rollbackSnapshot, previousRevision,
+                        previousOriginalHash, previousWorkingHash, "APK_REVISION_RESTORE", error);
+            } else {
+                finishOperationQuietly("APK_REVISION_RESTORE",
+                        "failed before replacement; previous working APK was not changed");
+            }
             throw error;
         } finally {
             deleteTemporaryFile(incoming, primaryFailure);
@@ -411,6 +421,13 @@ final class ApkProjectWorkspace {
                     android.util.Log.e("DroidInspectApkProject",
                             "Could not roll back project export after a metadata failure.", rollbackFailure);
                 }
+            }
+            // A suppressed rollback/cleanup failure keeps the journal's STARTED marker,
+            // so the next project open can request recovery. Otherwise close the failed
+            // operation and report that the previous export remains the valid state.
+            if (error.getSuppressed().length == 0) {
+                finishOperationQuietly("APK_EXPORT",
+                        "failed; previous export state retained: " + error.getClass().getSimpleName());
             }
             throw error;
         } finally {
