@@ -4155,3 +4155,14 @@ Source commit **dc554bdfca6bedf0b9a198d2f402ac6c284ac7c1** closes one additional
 Production run [#655](https://github.com/xolomon-coder/DroidInspect/actions/runs/44262500000) targets this source commit and has the same external failure: its sole job (134658976217) completed with runner ID 0, empty runner name, and zero steps. Therefore no Java/Gradle/Android result is available for this additional source commit.
 
 **Latest source checkpoint:** dc554bdfca6bedf0b9a198d2f402ac6c284ac7c1. The M19 host self-tests listed above remain valid for the unchanged pure-Java helpers; the new journal wiring is Android-project code and still awaits an Android build and device recovery test. All previous milestone acceptance restrictions remain in force.
+
+
+## Regression-test deduplication follow-up — 2026-11-18
+
+Source commit **82eb4a474c8d39ec88ad2456b32d2f63afa413f7** removes a duplicated block of APK workspace transaction assertions from `WorkspaceFileTransactionSelfTest.java`. The duplicate repeated the same new-export success, validation-failure cleanup, and overwrite-refusal cases; retaining it added no coverage and obscured the actual test sequence. The original assertions remain once, followed by restore, replacement rollback, interruption, path-boundary, and symbolic-link checks.
+
+This is a test-maintenance correction only; it does not claim new M19 runtime coverage. The production workflow `.github/workflows/phase1-android.yml` was inspected on main and contains 12 host-JVM self-test steps followed by Android SDK 36 setup, release dependency capture, debug/release Gradle builds, CI v1/v2/v3 signing and verification, tamper rejection, ARM64/native payload checks, checksums, and artifact upload. The workflow uses `ubuntu-latest` and is triggered by pushes to main except README-only changes. The test-source commit therefore requests a fresh production CI run.
+
+Run #655 has no artifacts. Its job summary reports runner ID 0, no runner name, and no steps; this remains a GitHub runner allocation/startup failure, not a source compilation result. The just-committed test cleanup has not yet been compiled or executed by CI. Android build, release signing verification, dependency graph capture, and M12–M20 device acceptance remain unverified. The exact transitive NuGet graph is still unavailable and its license/security audit remains open.
+
+**Current source/documentation checkpoint:** `82eb4a474c8d39ec88ad2456b32d2f63afa413f7` (test-source cleanup). No branch other than `main` was created. Next action: inspect the CI run triggered by this commit; if the runner starts, fix any actual host-test or Android build failures. If runner allocation again fails before step 1, preserve the evidence and continue independent source/test audits without claiming build success.
