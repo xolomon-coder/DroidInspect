@@ -293,4 +293,4 @@ jobs:
             artifacts/packaged-native-inventory.txt
             artifacts/SHA256SUMS.txt
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 1
