@@ -197,7 +197,7 @@ final class ProjectWorkspaceMetadata {
     }
 
     private File child(String name) throws IOException {
-        if (name == null || name.isEmpty() || name.indexOf('/') >= 0 || name.indexOf('\\\\') >= 0
+        if (name == null || name.isEmpty() || name.indexOf('/') >= 0 || name.indexOf('\\') >= 0
                 || Files.isSymbolicLink(root.toPath()) || !root.isDirectory())
             throw new IOException("Metadata path or project folder is unsafe.");
         File candidate = new File(root, name);

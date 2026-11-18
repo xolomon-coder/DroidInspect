@@ -1,5 +1,14 @@
 # DroidInspect
 
+> **Current authoritative development policy — 18 November 2026**
+>
+> DroidInspect uses a **source-first, artifact-free** workflow. GitHub `main` is the source of truth; development changes are committed directly to `main` only. GitHub Actions may run host tests, Android debug/release compilation, signing/tamper checks, and APK payload/security verification, but it must not upload or download APKs, ZIPs, or generated reports. Verification results are retained in normal Actions logs and the job summary; runner-local build outputs are discarded when the job ends. No GitHub Releases are used as an artifact workaround.
+>
+> The user downloads [the latest main ZIP](https://github.com/xolomon-coder/DroidInspect/archive/refs/heads/main.zip), imports/updates the `droidinspect/` project in Android CodeAssist, builds and installs the APK locally, and reports device-test results. A CI pass is not phone acceptance. Preserve accepted tests, do not create branches or pull requests, and keep this README and the handoff current.
+>
+> This policy supersedes older workflow and artifact-delivery instructions in the historical development journal below. Historical entries are retained as records of what was true at the time.
+
+
 Offline-first Android APK and .NET assembly inspection and analysis application.
 
 ANDROID APP DEVELOPMENT WORKFLOW
@@ -4166,3 +4175,15 @@ This is a test-maintenance correction only; it does not claim new M19 runtime co
 Run #655 has no artifacts. Its job summary reports runner ID 0, no runner name, and no steps; this remains a GitHub runner allocation/startup failure, not a source compilation result. The just-committed test cleanup has not yet been compiled or executed by CI. Android build, release signing verification, dependency graph capture, and M12–M20 device acceptance remain unverified. The exact transitive NuGet graph is still unavailable and its license/security audit remains open.
 
 **Current source/documentation checkpoint:** `82eb4a474c8d39ec88ad2456b32d2f63afa413f7` (test-source cleanup). No branch other than `main` was created. Next action: inspect the CI run triggered by this commit; if the runner starts, fix any actual host-test or Android build failures. If runner allocation again fails before step 1, preserve the evidence and continue independent source/test audits without claiming build success.
+
+
+## Current continuation checkpoint — 2026-11-18
+
+- Inspected source HEAD before this update: `f73e6b697729f87d69620f13f47edb6d3684314f`.
+- Corrected malformed Java character literals in `ProjectWorkspaceMetadata.java` and `ProjectWorkspaceIndex.java`.
+- Removed the pull-request trigger and the Actions artifact-upload step from `.github/workflows/phase1-android.yml`. The workflow remains available for pushes to `main` and manual dispatch.
+- Added stable step IDs and an always-run GitHub Actions job summary reporting each host test, dependency resolution, debug/release compilation, signing/tamper verification, and payload/security check. Skipped checks are reported as skipped.
+- CI does not publish APKs, ZIPs, or reports. Runner-local APKs and temporary audit outputs are discarded when the runner ends.
+- **Verification state at this checkpoint:** repository edits are prepared for commit; no new Actions execution or Android build result is claimed here. The next step is to inspect the resulting main commit and its workflow run, if a runner is assigned.
+- **Milestone state unchanged:** M11 remains accepted. M12–M18 device acceptance remains pending; M19 and M20 remain in progress pending complete verification and the consolidated phone test. The transitive dependency/license audit remains open.
+- **Next action:** inspect every step of the artifact-free CI run, fix any demonstrated failures on `main`, and only then prepare the consolidated M12–M20 CodeAssist device-test session. Do not repeat M11 acceptance tests.

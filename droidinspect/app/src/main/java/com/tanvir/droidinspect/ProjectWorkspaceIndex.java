@@ -101,8 +101,8 @@ final class ProjectWorkspaceIndex {
 
     private static boolean hasSafeRequiredPath(File folder, String relative) throws IOException {
         if (relative == null || relative.trim().isEmpty()) return false;
-        String normalized = relative.replace('\\\\', '/');
-        if (normalized.startsWith("/") || normalized.indexOf('\\0') >= 0) return false;
+        String normalized = relative.replace('\\', '/');
+        if (normalized.startsWith("/") || normalized.indexOf('\0') >= 0) return false;
         File canonicalRoot = folder.getCanonicalFile();
         File current = folder;
         for (String segment : normalized.split("/")) {

@@ -5,10 +5,6 @@ on:
     branches: [ main ]
     paths-ignore:
       - 'README.md'
-  pull_request:
-    branches: [ main ]
-    paths-ignore:
-      - 'README.md'
   workflow_dispatch:
 
 permissions:
@@ -30,6 +26,7 @@ jobs:
           java-version: '17'
 
       - name: Test ECMA-335 metadata decoder
+        id: metadata_decoder
         run: |
           mkdir -p /tmp/droidinspect-metadata-test
           javac -d /tmp/droidinspect-metadata-test \
@@ -38,6 +35,7 @@ jobs:
           java -cp /tmp/droidinspect-metadata-test com.tanvir.droidinspect.DotNetMetadataReaderSelfTest
 
       - name: Test embedded .NET resource extraction
+        id: embedded_resources
         run: |
           mkdir -p /tmp/droidinspect-resource-test
           javac -d /tmp/droidinspect-resource-test \
@@ -46,6 +44,7 @@ jobs:
           java -cp /tmp/droidinspect-resource-test com.tanvir.droidinspect.DotNetResourceExtractorSelfTest
 
       - name: Test .NET IL reader on host JVM
+        id: dotnet_il_reader
         run: |
           mkdir -p /tmp/droidinspect-il-test
           javac -d /tmp/droidinspect-il-test \
@@ -55,6 +54,7 @@ jobs:
           java -cp /tmp/droidinspect-il-test com.tanvir.droidinspect.DotNetIlReaderSelfTest
 
       - name: Test APK update compatibility assessment
+        id: apk_update_compatibility
         run: |
           mkdir -p /tmp/droidinspect-apk-compatibility-test
           javac -d /tmp/droidinspect-apk-compatibility-test \
@@ -63,6 +63,7 @@ jobs:
           java -cp /tmp/droidinspect-apk-compatibility-test com.tanvir.droidinspect.ApkUpdateCompatibilitySelfTest
 
       - name: Test assembly comparison diff engine
+        id: assembly_comparison
         run: |
           mkdir -p /tmp/droidinspect-comparison-test
           javac -d /tmp/droidinspect-comparison-test \
@@ -73,6 +74,7 @@ jobs:
           java -cp /tmp/droidinspect-comparison-test com.tanvir.droidinspect.AssemblyComparisonDiffSelfTest
 
       - name: Test persistent project workspace metadata and recovery
+        id: workspace_metadata
         run: |
           mkdir -p /tmp/droidinspect-project-workspace-test
           javac -d /tmp/droidinspect-project-workspace-test \
@@ -81,6 +83,7 @@ jobs:
           java -cp /tmp/droidinspect-project-workspace-test com.tanvir.droidinspect.ProjectWorkspaceMetadataSelfTest
 
       - name: Test project workspace index on host JVM
+        id: workspace_index
         run: |
           mkdir -p /tmp/droidinspect-project-index-test
           javac -d /tmp/droidinspect-project-index-test \
@@ -89,6 +92,7 @@ jobs:
           java -cp /tmp/droidinspect-project-index-test com.tanvir.droidinspect.ProjectWorkspaceIndexSelfTest
 
       - name: Test assembly-scoped bookmark persistence
+        id: assembly_bookmarks
         run: |
           mkdir -p /tmp/droidinspect-assembly-bookmarks-test
           javac -d /tmp/droidinspect-assembly-bookmarks-test \
@@ -97,6 +101,7 @@ jobs:
           java -cp /tmp/droidinspect-assembly-bookmarks-test com.tanvir.droidinspect.AssemblyExplorerBookmarkStoreSelfTest
 
       - name: Test bounded C# source project traversal
+        id: bounded_source_tree
         run: |
           mkdir -p /tmp/droidinspect-source-tree-test
           javac -d /tmp/droidinspect-source-tree-test \
@@ -105,6 +110,7 @@ jobs:
           java -cp /tmp/droidinspect-source-tree-test com.tanvir.droidinspect.BoundedSourceTreeSelfTest
 
       - name: Test bounded APK project file inventories
+        id: bounded_project_files
         run: |
           mkdir -p /tmp/droidinspect-bounded-project-files-test
           javac -d /tmp/droidinspect-bounded-project-files-test \
@@ -113,6 +119,7 @@ jobs:
           java -cp /tmp/droidinspect-bounded-project-files-test com.tanvir.droidinspect.BoundedProjectFilesSelfTest
 
       - name: Test APK workspace replacement and interruption-safe rollback
+        id: workspace_transaction
         run: |
           mkdir -p /tmp/droidinspect-workspace-file-transaction-test
           javac -d /tmp/droidinspect-workspace-file-transaction-test \
@@ -121,6 +128,7 @@ jobs:
           java -cp /tmp/droidinspect-workspace-file-transaction-test com.tanvir.droidinspect.WorkspaceFileTransactionSelfTest
 
       - name: Test DEX parser on host JVM
+        id: dex_parser
         run: |
           mkdir -p /tmp/droidinspect-dex-test
           javac -d /tmp/droidinspect-dex-test \
@@ -142,6 +150,7 @@ jobs:
           gradle-version: '8.13'
 
       - name: Capture resolved release dependency graph
+        id: release_dependencies
         working-directory: droidinspect
         run: |
           mkdir -p ../artifacts
@@ -150,14 +159,17 @@ jobs:
           test -s ../artifacts/release-runtime-dependencies.txt
 
       - name: Compile debug APK
+        id: compile_debug
         working-directory: droidinspect
         run: gradle --no-daemon --stacktrace :app:assembleDebug
 
       - name: Build unsigned release APK for signing tests
+        id: compile_release
         working-directory: droidinspect
         run: gradle --no-daemon --stacktrace :app:assembleRelease
 
       - name: Sign, verify, and tamper-test APK with Android Build Tools
+        id: signing_verification
         shell: bash
         run: |
           set -euo pipefail
@@ -204,6 +216,7 @@ jobs:
           ls -lh "$SIGNED"
 
       - name: Verify debug and release APK payload, ABI, offline permissions and size
+        id: payload_verification
         shell: bash
         run: |
           set -euo pipefail
@@ -280,17 +293,35 @@ jobs:
 
           sha256sum "$DEBUG_APK" "$RELEASE_APK" artifacts/droidinspect-ci-signed.apk \
             | tee artifacts/SHA256SUMS.txt
-
-      - name: Upload verified Phase 3 build and audit artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: DroidInspect-Phase3-builds
-          path: |
-            droidinspect/app/build/outputs/apk/debug/app-debug.apk
-            artifacts/droidinspect-ci-signed.apk
-            artifacts/release-runtime-dependencies.txt
-            artifacts/native-payload-inventory.txt
-            artifacts/packaged-native-inventory.txt
-            artifacts/SHA256SUMS.txt
-          if-no-files-found: error
-          retention-days: 1
+- name: Publish verification summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "# DroidInspect CI verification"
+            echo
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Overall job: **${{ job.status }}**"
+            echo
+            echo "| Verification | Result |"
+            echo "|---|---|"
+            echo "| ECMA-335 metadata decoder | ${{ steps.metadata_decoder.outcome || 'skipped' }} |"
+            echo "| Embedded .NET resources | ${{ steps.embedded_resources.outcome || 'skipped' }} |"
+            echo "| .NET IL reader | ${{ steps.dotnet_il_reader.outcome || 'skipped' }} |"
+            echo "| APK update compatibility | ${{ steps.apk_update_compatibility.outcome || 'skipped' }} |"
+            echo "| Assembly comparison | ${{ steps.assembly_comparison.outcome || 'skipped' }} |"
+            echo "| Workspace metadata/recovery | ${{ steps.workspace_metadata.outcome || 'skipped' }} |"
+            echo "| Workspace index | ${{ steps.workspace_index.outcome || 'skipped' }} |"
+            echo "| Assembly bookmarks | ${{ steps.assembly_bookmarks.outcome || 'skipped' }} |"
+            echo "| Bounded C# source traversal | ${{ steps.bounded_source_tree.outcome || 'skipped' }} |"
+            echo "| Bounded APK inventories | ${{ steps.bounded_project_files.outcome || 'skipped' }} |"
+            echo "| Workspace transaction/rollback | ${{ steps.workspace_transaction.outcome || 'skipped' }} |"
+            echo "| DEX parser | ${{ steps.dex_parser.outcome || 'skipped' }} |"
+            echo "| Release dependency resolution | ${{ steps.release_dependencies.outcome || 'skipped' }} |"
+            echo "| Android debug compilation | ${{ steps.compile_debug.outcome || 'skipped' }} |"
+            echo "| Android release compilation | ${{ steps.compile_release.outcome || 'skipped' }} |"
+            echo "| APK signing/tamper verification | ${{ steps.signing_verification.outcome || 'skipped' }} |"
+            echo "| APK payload/ABI/security checks | ${{ steps.payload_verification.outcome || 'skipped' }} |"
+            echo
+            echo "APK files and temporary audit outputs are not uploaded. Runner-local build outputs are discarded when the job ends."
+          } >> "$GITHUB_STEP_SUMMARY"
