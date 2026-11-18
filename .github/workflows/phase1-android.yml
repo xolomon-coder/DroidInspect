@@ -293,7 +293,7 @@ jobs:
 
           sha256sum "$DEBUG_APK" "$RELEASE_APK" artifacts/droidinspect-ci-signed.apk \
             | tee artifacts/SHA256SUMS.txt
-- name: Publish verification summary
+      - name: Publish verification summary
         if: always()
         shell: bash
         run: |
