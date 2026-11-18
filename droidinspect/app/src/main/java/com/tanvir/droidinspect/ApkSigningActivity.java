@@ -30,6 +30,7 @@ import java.lang.ref.WeakReference;
 import java.nio.file.Files;
 import java.math.BigInteger;
 import java.security.KeyPairGenerator;
+import java.security.MessageDigest;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
@@ -143,6 +144,9 @@ public final class ApkSigningActivity extends Activity {
                     try {
                         checkCancelled();
                         exportedCopy = copyDocument(app, destination, ".apk", MAX_APK);
+                        if (!MessageDigest.isEqual(sha256(source), sha256(exportedCopy)))
+                            throw new IllegalStateException(
+                                    "The exported APK bytes do not match the verified signed output.");
                         ApkVerifier.Result checked = new ApkVerifier.Builder(exportedCopy).build().verify();
                         if (!checked.isVerified())
                             throw new IllegalStateException("The exported document failed signature verification: "
@@ -510,6 +514,24 @@ public final class ApkSigningActivity extends Activity {
     private static boolean isZip(File f) throws Exception {
         try (java.util.zip.ZipFile z = new java.util.zip.ZipFile(f)) { return z.getEntry("AndroidManifest.xml") != null; }
     }
+    private static byte[] sha256(File file) throws IOException {
+        final MessageDigest digest;
+        try {
+            digest = MessageDigest.getInstance("SHA-256");
+        } catch (java.security.NoSuchAlgorithmException unavailable) {
+            throw new IOException("SHA-256 is unavailable on this Android device.", unavailable);
+        }
+        try (InputStream input = new FileInputStream(file)) {
+            byte[] buffer = new byte[32768];
+            int count;
+            while ((count = input.read(buffer)) != -1) {
+                checkCancelled();
+                digest.update(buffer, 0, count);
+            }
+        }
+        return digest.digest();
+    }
+
     private static String hex(byte[] data) {
         StringBuilder b = new StringBuilder(); for (byte v : data) b.append(String.format(Locale.ROOT, "%02X", v & 255)); return b.toString();
     }
