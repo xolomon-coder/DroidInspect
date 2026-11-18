@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.LinkOption;
 
 /** Host regression tests for atomic project-file replacement and cancellation-safe rollback. */
 public final class WorkspaceFileTransactionSelfTest {
@@ -120,9 +121,12 @@ public final class WorkspaceFileTransactionSelfTest {
     }
 
     private static void deleteTree(File file) throws IOException {
-        if (!file.exists()) return;
-        File[] children = file.listFiles();
-        if (children != null) for (File child : children) deleteTree(child);
+        if (!Files.exists(file.toPath(), LinkOption.NOFOLLOW_LINKS)) return;
+        if (!Files.isSymbolicLink(file.toPath())
+                && Files.isDirectory(file.toPath(), LinkOption.NOFOLLOW_LINKS)) {
+            File[] children = file.listFiles();
+            if (children != null) for (File child : children) deleteTree(child);
+        }
         Files.deleteIfExists(file.toPath());
     }
 }
