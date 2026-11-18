@@ -372,24 +372,61 @@ final class ApkProjectWorkspace {
         File output = new File(exportsDirectory, filename);
         File temp = new File(exportsDirectory, filename + ".tmp");
         ensureSafeFile(output);
+        boolean hadPreviousOutput = output.isFile();
+        File rollbackCopy = hadPreviousOutput
+                ? new File(exportsDirectory, filename + ".rollback-" + UUID.randomUUID() + ".tmp")
+                : null;
+        boolean outputCommitted = false;
         Throwable primaryFailure = null;
         try {
             copyUri(context, source, temp, MAX_APK_BYTES);
             validateApk(temp);
-            if (output.exists() && !output.delete())
-                throw new IOException("Cannot replace existing project export.");
-            if (!temp.renameTo(output)) {
-                copyFile(temp, output);
-                deleteTemporaryFile(temp, null);
+            if (hadPreviousOutput) {
+                // Preserve an existing project export until its replacement has been installed
+                // and re-opened successfully. The backup is app-private and never user-owned.
+                copyFile(output, rollbackCopy);
+                WorkspaceFileTransaction.replace(
+                        output, temp, rollbackCopy, ApkProjectWorkspace::validateApk);
+            } else {
+                WorkspaceFileTransaction.installNew(
+                        output, temp, ApkProjectWorkspace::validateApk);
             }
+            outputCommitted = true;
             touch();
             finishOperationQuietly("APK_EXPORT", output.getName());
             return output;
         } catch (IOException | RuntimeException | Error error) {
             primaryFailure = error;
+            if (outputCommitted) {
+                try {
+                    if (rollbackCopy != null) {
+                        WorkspaceFileTransaction.restore(output, rollbackCopy);
+                    } else {
+                        if (Files.isSymbolicLink(output.toPath()))
+                            throw new IOException("Refusing to roll back an export through a symbolic link.");
+                        Files.deleteIfExists(output.toPath());
+                    }
+                } catch (IOException | RuntimeException | Error rollbackFailure) {
+                    error.addSuppressed(rollbackFailure);
+                    android.util.Log.e("DroidInspectApkProject",
+                            "Could not roll back project export after a metadata failure.", rollbackFailure);
+                }
+            }
             throw error;
         } finally {
-            deleteTemporaryFile(temp, primaryFailure);
+            try { deleteTemporaryFile(temp, primaryFailure); }
+            catch (IOException cleanupFailure) {
+                android.util.Log.w("DroidInspectApkProject",
+                        "Could not remove staged APK export: " + temp.getName(), cleanupFailure);
+            }
+            if (rollbackCopy != null) {
+                try { deleteTemporaryFile(rollbackCopy, primaryFailure); }
+                catch (IOException cleanupFailure) {
+                    android.util.Log.w("DroidInspectApkProject",
+                            "Could not remove temporary APK export rollback copy: " + rollbackCopy.getName(),
+                            cleanupFailure);
+                }
+            }
         }
     }
 
