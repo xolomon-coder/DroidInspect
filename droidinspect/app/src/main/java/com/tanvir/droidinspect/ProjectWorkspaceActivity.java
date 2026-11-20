@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -21,12 +23,20 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /** Unified recent-project launcher for APK, C# source and offline dependency projects. */
 public final class ProjectWorkspaceActivity extends Activity {
     private final ArrayList<ProjectEntry> entries = new ArrayList<>();
+    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private LinearLayout root;
     private TextView status;
+    private ArrayAdapter<ProjectEntry> adapter;
+    private volatile boolean destroyed;
+    private boolean skipInitialResumeRefresh;
+    private int loadGeneration;
 
     private static final class ProjectEntry {
         final String kind, id, name;
@@ -44,12 +54,17 @@ public final class ProjectWorkspaceActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
-        if (root != null) showProjects();
+        if (skipInitialResumeRefresh) {
+            skipInitialResumeRefresh = false;
+            return;
+        }
+        if (root != null) loadProjects();
     }
 
     private int dp(int n) { return (int)(n * getResources().getDisplayMetrics().density + 0.5f); }
 
     private void showProjects() {
+        skipInitialResumeRefresh = true;
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(12), dp(12), dp(12), dp(12));
@@ -61,7 +76,7 @@ public final class ProjectWorkspaceActivity extends Activity {
         root.addView(title);
         status = new TextView(this);
         status.setTextColor(0xFF80CBC4);
-        status.setText("Tap a project to reopen it. Long-press any project to manage notes, bookmarks, saved searches and recovery history. Project data remains in private app storage.");
+        status.setText("Project indexing runs in the background. Project data remains in private app storage.");
         root.addView(status);
         Button apk = new Button(this);
         apk.setText("OPEN APK PROJECTS");
@@ -78,14 +93,14 @@ public final class ProjectWorkspaceActivity extends Activity {
         deps.setOnClickListener(v -> openDependencies(DotNetDependencyWorkspace.getLastProjectId(this)));
         root.addView(deps);
 
-        collectProjects();
         TextView heading = new TextView(this);
-        heading.setText("RECENT PROJECTS (" + entries.size() + ")");
+        heading.setText("RECENT PROJECTS");
         heading.setTextColor(0xFFFFFFFF);
         heading.setPadding(0, dp(12), 0, dp(6));
         root.addView(heading);
         ListView list = new ListView(this);
-        list.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, entries));
+        adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, entries);
+        list.setAdapter(adapter);
         root.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
         list.setOnItemClickListener((parent, view, position, row) -> open(entries.get(position)));
         list.setOnItemLongClickListener((parent, view, position, row) -> {
@@ -100,25 +115,62 @@ public final class ProjectWorkspaceActivity extends Activity {
         });
         root.addView(tools);
         setContentView(root);
+        loadProjects();
     }
 
-    private void collectProjects() {
-        entries.clear();
-        for (ApkProjectWorkspace.ProjectSummary p : ApkProjectWorkspace.listRecentProjects(this))
-            entries.add(new ProjectEntry("APK", p.id, p.name, p.updated));
-        addIndexedDirectory(new File(getFilesDir(), "csharp-projects"), ".droidinspect-project",
-                "C# SOURCE", new String[]{"src", "original/OriginalAssembly.bin"});
-        addIndexedDirectory(new File(getFilesDir(), "dotnet-dependency-projects"), ".droidinspect-dependency-project",
-                ".NET DEPENDENCIES", new String[]{"OriginalAssembly.bin", "local-dependencies"});
-        Collections.sort(entries, (a,b) -> Long.compare(b.updated, a.updated));
+    /** Scan persistent project folders away from the UI thread; stale results are discarded. */
+    private void loadProjects() {
+        if (destroyed || status == null || adapter == null) return;
+        final int request = ++loadGeneration;
+        status.setText("Scanning recent APK, C# source and dependency projects…");
+        final android.content.Context appContext = getApplicationContext();
+        worker.execute(() -> {
+            ArrayList<ProjectEntry> discovered = new ArrayList<>();
+            StringBuilder warnings = new StringBuilder();
+            try {
+                discovered = collectProjects(appContext, warnings);
+            } catch (RuntimeException error) {
+                warnings.append("PROJECT INDEX WARNING: ").append(error.getMessage());
+            }
+            final ArrayList<ProjectEntry> result = discovered;
+            final String warning = warnings.toString();
+            mainHandler.post(() -> {
+                if (destroyed || isFinishing() || isDestroyed() || request != loadGeneration) return;
+                entries.clear();
+                entries.addAll(result);
+                adapter.notifyDataSetChanged();
+                String message = "Recent projects: " + entries.size();
+                status.setText(warning.isEmpty() ? message : message + "\\n" + warning);
+            });
+        });
     }
 
-    private void addIndexedDirectory(File base, String markerName, String kind, String[] required) {
+    private static ArrayList<ProjectEntry> collectProjects(
+            android.content.Context context, StringBuilder warnings) {
+        ArrayList<ProjectEntry> result = new ArrayList<>();
+        for (ApkProjectWorkspace.ProjectSummary project : ApkProjectWorkspace.listRecentProjects(context))
+            result.add(new ProjectEntry("APK", project.id, project.name, project.updated));
+        addIndexedDirectory(context, result, new File(context.getFilesDir(), "csharp-projects"),
+                ".droidinspect-project", "C# SOURCE",
+                new String[]{"src", "original/OriginalAssembly.bin"}, warnings);
+        addIndexedDirectory(context, result, new File(context.getFilesDir(), "dotnet-dependency-projects"),
+                ".droidinspect-dependency-project", ".NET DEPENDENCIES",
+                new String[]{"OriginalAssembly.bin", "local-dependencies"}, warnings);
+        Collections.sort(result, (a,b) -> Long.compare(b.updated, a.updated));
+        return result;
+    }
+
+    private static void addIndexedDirectory(android.content.Context context,
+                                            List<ProjectEntry> target, File base,
+                                            String markerName, String kind, String[] required,
+                                            StringBuilder warnings) {
         try {
             for (ProjectWorkspaceIndex.Entry item : ProjectWorkspaceIndex.scan(base, markerName, kind, required))
-                entries.add(new ProjectEntry(item.kind, item.id, item.name + "  [" + item.state + "]", item.updated));
+                target.add(new ProjectEntry(item.kind, item.id,
+                        item.name + "  [" + item.state + "]", item.updated));
         } catch (Exception error) {
-            status.setText("PROJECT INDEX WARNING: " + error.getMessage());
+            if (warnings.length() > 0) warnings.append('\\n');
+            warnings.append(kind).append(" index: ").append(error.getMessage());
         }
     }
 
@@ -223,5 +275,12 @@ public final class ProjectWorkspaceActivity extends Activity {
         Intent intent = new Intent(this, DotNetDependencyActivity.class);
         intent.putExtra("project_id", id);
         startActivity(intent);
+    }
+
+    @Override protected void onDestroy() {
+        destroyed = true;
+        loadGeneration++;
+        worker.shutdownNow();
+        super.onDestroy();
     }
 }
