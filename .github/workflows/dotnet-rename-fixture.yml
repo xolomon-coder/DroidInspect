@@ -94,11 +94,3 @@ jobs:
           else
             echo "Published fixture is already up to date."
           fi
-
-      - name: Upload unsigned DLL artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: DroidInspect-Unsigned-DotNet-Test-DLL
-          path: artifacts/unsigned-fixture/
-          if-no-files-found: error
-          retention-days: 30
