@@ -1,6 +1,6 @@
 # DroidInspect
 
-> **Current authoritative development policy — 18 November 2026**
+> **Current authoritative development policy — 21 November 2026**
 >
 > DroidInspect uses a **source-first, artifact-free** workflow. GitHub `main` is the source of truth; development changes are committed directly to `main` only. GitHub Actions may run host tests, Android debug/release compilation, signing/tamper checks, and APK payload/security verification, but it must not upload or download APKs, ZIPs, or generated reports. Verification results are retained in normal Actions logs and the job summary; runner-local build outputs are discarded when the job ends. No GitHub Releases are used as an artifact workaround.
 >
@@ -8,6 +8,64 @@
 >
 > This policy supersedes older workflow and artifact-delivery instructions in the historical development journal below. Historical entries are retained as records of what was true at the time.
 
+## Current continuation checkpoint — 21 November 2026
+
+**Repository:** [xolomon-coder/DroidInspect](https://github.com/xolomon-coder/DroidInspect)  
+**Branch:** `main` only. No feature branches or pull requests.  
+**Source checkpoint before this documentation update:** `84413f5a93a3225ca5cc844837436872fc3e82db` — added the artifact-free NuGet audit to the production workflow.  
+**Production package:** `com.tanvir.droidinspect`. **M11:** accepted; do not repeat its device tests.
+
+### CI failure investigation — run #660
+
+Run [#660](https://github.com/xolomon-coder/DroidInspect/actions/runs/44302103843) targeted commit `66f90efc08fde0052d8fd9e692fdb26a103968f4`. The job-list endpoint returned zero jobs and the commit-status endpoint returned no checks; consequently there is no step log or runner output to quote. The commit diff identifies the workflow defect: `Publish verification summary` was placed at the YAML root rather than under `jobs.build-debug-apk.steps`. The next main commit `bfcaf647135d1070e0fc337113dfb04e96b7fb5b` corrected its indentation. This was a workflow-definition failure before job creation, not evidence of a Java or Gradle compile failure. The exact GitHub YAML parser message was not available.
+
+Subsequent runner-backed history recorded 12 host tests and release dependency resolution passing, then found and fixed a Java help-string compile error (`6cd93e1`) and additional missing imports / lifecycle state / Handler scope errors (`73fb7c3`). No post-fix Android compilation result has been verified in this continuation session. The current GitHub connector exposes no push-run listing; the latest push job IDs and logs could not be retrieved. Do not infer CI success.
+
+### M19/M20 source hardening committed on main
+
+- `ProjectWorkspaceMetadata.java`: replaced object-instance-only synchronization with a canonical-project lock shared by every metadata-store instance for the same project. This protects concurrent notes, bookmarks, saved searches, operation history, recovery markers, and overview reads from lost updates.
+- `ProjectWorkspaceMetadataSelfTest.java`: added an eight-thread regression that creates separate metadata instances and performs 160 concurrent history writes, then verifies that all records remain present. This is a new test, not yet executed by CI.
+- `ProjectWorkspaceActivity.java`: moved unified APK / C# source / .NET dependency project discovery to a single background executor. Results return on the main thread, stale scans are discarded using a generation counter, and Activity destruction invalidates callbacks and shuts down the worker.
+- Existing M19 transaction, project-index, metadata persistence, symlink-boundary, rollback, and bounded-traversal tests remain in the host workflow. Their current post-change execution is pending.
+
+### Repository-wide artifact-free Actions policy
+
+The production workflow and the three legacy proof/fixture workflows were inspected directly on `main`. All four currently contain zero `actions/upload-artifact` and zero `actions/download-artifact` steps. APKs, ZIPs, test DLLs, dependency inventories and temporary reports may be produced only inside the ephemeral runner for verification; they are not published as downloadable workflow artifacts. The M11/M12 workflows may still commit verified native source payloads to `main`, which is source code/input for CodeAssist rather than a workflow artifact.
+
+### NuGet audit added; results still pending
+
+The artifact-free production workflow now restores and audits these three .NET projects:
+
+- `tools/m11-poc/engine/DroidInspect.M11.Engine.csproj`
+- `tools/m12-poc/engine/DroidInspect.M12.Compiler.csproj`
+- `tools/m11-poc/dependency-assembly-tests/DependencyAssemblyTests.csproj`
+
+It prints the transitive package graph, NuGet vulnerability-advisory results, and license expression / license-file / license-URL metadata parsed from each restored package's nuspec into Actions logs and the job summary. Missing license metadata is marked for manual review. This is verification machinery only: no NuGet audit has passed in this session, and the transitive license/security review remains open until real results are inspected and every flagged package is resolved.
+
+### Current acceptance state
+
+| Area | Status |
+|---|---|
+| M11 C# decompilation | **ACCEPTED** by the user; no retest required |
+| M12–M18 | Implementation integrated; consolidated Android 11 device acceptance pending |
+| M19 | In progress; cross-instance metadata serialization and background project indexing added; host/Android execution pending |
+| M20 | In progress; project-index UI blocking reduced; lifecycle, performance and stress testing pending |
+| Android debug/release build, CI signing and tamper checks | Not verified for the current source checkpoint |
+| NuGet transitive license/security audit | Added to CI; results and manual review pending |
+| Final release / project completion | **NOT ACCEPTED / NOT READY** |
+
+**Exact source and workflow files changed in this checkpoint:**
+
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/ProjectWorkspaceMetadata.java`
+- `tools/project-workspace-test/ProjectWorkspaceMetadataSelfTest.java`
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/ProjectWorkspaceActivity.java`
+- `.github/workflows/dotnet-rename-fixture.yml`
+- `.github/workflows/m11-nativeaot-poc.yml`
+- `.github/workflows/m12-roslyn-compiler-poc.yml`
+- `.github/workflows/phase1-android.yml`
+- `README.md`
+
+**Next action:** inspect the first runner-backed execution after source checkpoint `84413f5`; inspect every host test, NuGet audit output, Android debug/release compile, signing/tamper check and payload check; fix only verified failures on `main`. Once CI verification is complete, prepare one consolidated M12–M20 CodeAssist / Android 11 acceptance session. Do not repeat M11 tests, do not download CI artifacts, and do not declare project completion before device acceptance.
 
 Offline-first Android APK and .NET assembly inspection and analysis application.
 
