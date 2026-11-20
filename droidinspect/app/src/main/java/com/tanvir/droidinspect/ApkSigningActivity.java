@@ -202,7 +202,10 @@ public final class ApkSigningActivity extends Activity {
                 try { copy = copyDocument(app, uri, ".keystore", MAX_KEYSTORE); }
                 catch (Exception | Error e) {
                     problem = e;
-                    if (copy != null) deleteTemporaryFile(copy, cacheDir, problem);
+                    if (copy != null) {
+                        try { deleteTemporaryFile(copy, cacheDir, problem); }
+                        catch (IOException cleanupFailure) { problem.addSuppressed(cleanupFailure); }
+                    }
                     copy = null;
                 }
                 final File ready = copy;
@@ -242,7 +245,10 @@ public final class ApkSigningActivity extends Activity {
                 if (!isZip(copy)) throw new IllegalArgumentException("Selected file is not a readable APK/ZIP archive.");
             } catch (Exception | Error e) {
                 problem = e;
-                if (copy != null) deleteTemporaryFile(copy, cacheDir, problem);
+                if (copy != null) {
+                    try { deleteTemporaryFile(copy, cacheDir, problem); }
+                    catch (IOException cleanupFailure) { problem.addSuppressed(cleanupFailure); }
+                }
                 copy = null;
             }
             final File ready = copy;
@@ -424,7 +430,10 @@ public final class ApkSigningActivity extends Activity {
                 resultText = formatVerification(verified);
             } catch (Exception | Error e) {
                 problem = e;
-                if (output != null) deleteTemporaryFile(output, cacheDir, problem);
+                if (output != null) {
+                    try { deleteTemporaryFile(output, cacheDir, problem); }
+                    catch (IOException cleanupFailure) { problem.addSuppressed(cleanupFailure); }
+                }
                 output = null;
             } finally {
                 Arrays.fill(storePassValue, '\0');
