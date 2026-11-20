@@ -4332,3 +4332,37 @@ After fixing the MainActivity help-text literal, the next debug compile exposed 
 - `CSharpDecompileActivity.java` referenced a local `ui` Handler outside the method where it was declared.
 
 These are being corrected narrowly: add the missing imports, make the IL activity's busy flag explicit and synchronize it in `setBusy`, and capture the activity's existing main-thread Handler in the source-workspace method. The prior run's 12 host tests passed; Android release compilation, signing, tamper and payload checks were skipped after debug compilation failed. No successful Android build is claimed yet.
+
+---
+
+## Latest M19–M20 and CI continuation checkpoint — 2026-11-21
+
+**Branch:** `main` only.  
+**HEAD immediately before this documentation-only commit:** `61d8615c0b1639524326ba184572ae6c87fab257`.  
+**Latest source-hardening commit:** `35d28c260c17156362a53d99a6e6a1ebcafdcca4`.  
+**Latest production CI workflow commit:** `549598ba46952c86ef5696d3a5c1dac4f0598d96`.
+
+### Verified source changes in this continuation
+
+1. **M19 metadata concurrency:** `ProjectWorkspaceMetadata` now obtains a shared lock keyed by the canonical project path. Separate Activity/store instances for the same project serialize notes, bookmarks, searches, history, recovery-marker changes and overview reads. The host regression now launches eight threads using separate store instances and checks that all 160 concurrent journal records survive.
+2. **M20 project index responsiveness:** `ProjectWorkspaceActivity` scans APK, C# source and dependency workspaces using a single background executor. Results are posted to the main thread; a generation counter rejects stale results; destruction invalidates outstanding results and shuts the executor down. The Java newline literals in the resulting status and warning messages were corrected and the file was cleaned up.
+3. **Repository-wide workflow artifact removal:** direct reads of all four current workflows (`phase1-android.yml`, `dotnet-rename-fixture.yml`, `m11-nativeaot-poc.yml`, and `m12-roslyn-compiler-poc.yml`) confirm zero `actions/upload-artifact` and zero `actions/download-artifact` steps. Runner-local build products are used only for verification. Verified native engine/JNI source payloads may still be committed to `main`; this is source needed by the app, not a workflow artifact.
+4. **Production CI:** the main workflow restores three .NET 11 projects, prints their full transitive NuGet package graphs, lists known vulnerability advisories, and extracts license expressions/files/URLs from restored nuspec files. Packages with missing license metadata are marked for manual review. The audit outcome is included in the job summary. A fixed concurrency group cancels superseded production CI runs.
+5. **Documentation:** this README contains the consolidated M12–M20 Android 11/CodeAssist acceptance checklist. M11 is intentionally excluded because the user already accepted it.
+
+### Verification status — do not infer success
+
+- Run #660 (`44302103843`) failed before job creation. Its job and status endpoints returned no jobs/checks. The commit diff showed `Publish verification summary` incorrectly placed outside the job's `steps` list; commit `bfcaf647135d1070e0fc337113dfb04e96b7fb5b` fixed the indentation. No exact parser log was obtainable.
+- The subsequent MainActivity Java literal and Android compile integration findings were fixed in `6cd93e1` and `73fb7c3`.
+- No status checks were returned for the source/workflow commits in this continuation. The available GitHub connector does not expose push-triggered run listing, and the latest push job IDs/logs could not be obtained. Therefore the new concurrency test, all current host tests, the NuGet audit, Android debug/release compilation, CI signing/tamper verification and native packaging remain **NOT VERIFIED**.
+- The NuGet audit machinery is present, but no package graph, vulnerability result or final license conclusion has been inspected. Do not claim the dependency audit is complete.
+- M12–M18 Android 11 device acceptance remains pending. Documented limitations still include Native AOT trim-analysis warnings, the M15 lightweight file-selector model rather than a tabbed editor, M16 structural/raw-signature comparison and linked-resource limitations, M17 split-set inventory without merge/install, and no M18 DEX bytecode editing.
+- M19 and M20 are **IN PROGRESS**, not accepted. Cross-instance metadata serialization and asynchronous project indexing are source changes only until their new tests and actual phone behavior are verified.
+
+### Exact current next action
+
+Inspect the first production `main` push run after workflow commit `549598ba46952c86ef5696d3a5c1dac4f0598d96`. Inspect every host test, NuGet restore/audit output, Android debug and release build, signing/tamper check, native ABI/payload check and job summary. Fix only verified failures directly on `main`; do not create branches or PRs and do not upload artifacts.
+
+Only after that CI run is demonstrably green should the user download the [latest main ZIP](https://github.com/xolomon-coder/DroidInspect/archive/refs/heads/main.zip), import `droidinspect/` into CodeAssist, build and install locally, and perform the one consolidated M12–M20 acceptance batch recorded above. Preserve/export important app-private workspaces before any reinstall that could be required by a signing-key mismatch. M11 must not be retested without a concrete regression.
+
+**Final state at this checkpoint:** source hardening and artifact-free workflow configuration are committed; CI, dependency audit, M19/M20 runtime verification and final device acceptance remain open. The project is **NOT COMPLETE**.
