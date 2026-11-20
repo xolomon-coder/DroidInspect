@@ -12,7 +12,7 @@
 
 **Repository:** [xolomon-coder/DroidInspect](https://github.com/xolomon-coder/DroidInspect)  
 **Branch:** `main` only. No feature branches or pull requests.  
-**Latest source-hardening commit before this README refresh:** `35d28c260c17156362a53d99a6e6a1ebcafdcca4`. **Latest CI workflow commit before this refresh:** `3b01e0963691e26bfd5084e4a3f6e9952785261d` — added the NuGet audit outcome to the job summary.  
+**Latest source-hardening commit before this README refresh:** `35d28c260c17156362a53d99a6e6a1ebcafdcca4`. **Latest CI workflow commit before this refresh:** `549598ba46952c86ef5696d3a5c1dac4f0598d96` — added latest-run concurrency control; the workflow also performs the NuGet audit and reports its outcome in the job summary.  
 **Production package:** `com.tanvir.droidinspect`. **M11:** accepted; do not repeat its device tests.
 
 ### CI failure investigation — run #660
@@ -132,7 +132,7 @@ It prints the transitive package graph, NuGet vulnerability-advisory results, an
 - `.github/workflows/phase1-android.yml`
 - `README.md`
 
-**Next action:** inspect the first runner-backed execution after source checkpoint `35d28c2` and CI workflow checkpoint `3b01e09`; inspect every host test, NuGet audit output, Android debug/release compile, signing/tamper check and payload check; fix only verified failures on `main`. Once CI verification is complete, use the consolidated M12–M20 device checklist below. Do not repeat M11 tests, do not download CI artifacts, and do not declare project completion before device acceptance.
+**Next action:** inspect the first runner-backed execution after source checkpoint `35d28c2` and CI workflow checkpoint `549598b`; inspect every host test, NuGet audit output, Android debug/release compile, signing/tamper check and payload check; fix only verified failures on `main`. Once CI verification is complete, use the consolidated M12–M20 device checklist below. Do not repeat M11 tests, do not download CI artifacts, and do not declare project completion before device acceptance.
 
 Offline-first Android APK and .NET assembly inspection and analysis application.
 
