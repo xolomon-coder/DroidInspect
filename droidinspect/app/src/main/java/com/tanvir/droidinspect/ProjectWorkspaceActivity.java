@@ -16,6 +16,7 @@ import android.widget.ListView;
 import android.widget.TextView;
 
 import java.io.File;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -120,6 +121,8 @@ public final class ProjectWorkspaceActivity extends Activity {
         final int request = ++loadGeneration;
         status.setText("Scanning recent APK, C# source and dependency projects…");
         final android.content.Context appContext = getApplicationContext();
+        final WeakReference<ProjectWorkspaceActivity> screenRef = new WeakReference<>(this);
+        final Handler handler = mainHandler;
         worker.execute(() -> {
             ArrayList<ProjectEntry> discovered = new ArrayList<>();
             StringBuilder warnings = new StringBuilder();
@@ -130,13 +133,15 @@ public final class ProjectWorkspaceActivity extends Activity {
             }
             final ArrayList<ProjectEntry> result = discovered;
             final String warning = warnings.toString();
-            mainHandler.post(() -> {
-                if (destroyed || isFinishing() || isDestroyed() || request != loadGeneration) return;
-                entries.clear();
-                entries.addAll(result);
-                adapter.notifyDataSetChanged();
-                String message = "Recent projects: " + entries.size();
-                status.setText(warning.isEmpty() ? message : message + "\n" + warning);
+            handler.post(() -> {
+                ProjectWorkspaceActivity screen = screenRef.get();
+                if (screen == null || screen.destroyed || screen.isFinishing()
+                        || screen.isDestroyed() || request != screen.loadGeneration) return;
+                screen.entries.clear();
+                screen.entries.addAll(result);
+                screen.adapter.notifyDataSetChanged();
+                String message = "Recent projects: " + screen.entries.size();
+                screen.status.setText(warning.isEmpty() ? message : message + "\\n" + warning);
             });
         });
     }
