@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /** Small, bounded, crash-tolerant metadata store shared by APK and .NET workspaces. */
 final class ProjectWorkspaceMetadata {
@@ -22,7 +23,9 @@ final class ProjectWorkspaceMetadata {
     private static final int MAX_RECORDS = 1000;
     private static final int MAX_DIRECTORY_ENTRIES_SCANNED = 1000;
     private static final int MAX_DIRECTORY_FILES_SHOWN = 100;
+    private static final ConcurrentHashMap<String, Object> ROOT_LOCKS = new ConcurrentHashMap<>();
     private final File root;
+    private final Object projectLock;
 
     ProjectWorkspaceMetadata(File projectRoot) throws IOException {
         if (projectRoot == null || Files.isSymbolicLink(projectRoot.toPath())
@@ -30,38 +33,51 @@ final class ProjectWorkspaceMetadata {
             throw new IOException("Project folder is unavailable or is a symbolic link.");
         this.root = projectRoot.getCanonicalFile();
         if (!root.isDirectory()) throw new IOException("Project folder does not exist.");
+        this.projectLock = ROOT_LOCKS.computeIfAbsent(root.getPath(), ignored -> new Object());
     }
 
-    synchronized void appendNote(String note) throws IOException {
-        append("notes.md", note, true);
+    void appendNote(String note) throws IOException {
+        synchronized (projectLock) { append("notes.md", note, true); }
     }
 
-    synchronized void addBookmark(String label, String target) throws IOException {
-        append("workspace-bookmarks.txt", clean(label) + "\t" + clean(target), false);
+    void addBookmark(String label, String target) throws IOException {
+        synchronized (projectLock) {
+            append("workspace-bookmarks.txt", clean(label) + "\t" + clean(target), false);
+        }
     }
 
-    synchronized void saveSearch(String query, String scope) throws IOException {
-        append("workspace-saved-searches.txt", clean(scope) + "\t" + clean(query), false);
+    void saveSearch(String query, String scope) throws IOException {
+        synchronized (projectLock) {
+            append("workspace-saved-searches.txt", clean(scope) + "\t" + clean(query), false);
+        }
     }
 
-    synchronized void recordOperation(String operation, String detail) throws IOException {
-        append("operation-history.log", System.currentTimeMillis() + "\t"
-                + clean(operation) + "\t" + clean(detail), false);
+    void recordOperation(String operation, String detail) throws IOException {
+        synchronized (projectLock) {
+            append("operation-history.log", System.currentTimeMillis() + "\t"
+                    + clean(operation) + "\t" + clean(detail), false);
+        }
     }
 
-    synchronized void beginOperation(String operation, String detail) throws IOException {
-        writeAtomic("operation-in-progress.txt", System.currentTimeMillis() + "\n"
-                + clean(operation) + "\n" + clean(detail) + "\n");
-        recordOperation("STARTED", operation + ": " + detail);
+    void beginOperation(String operation, String detail) throws IOException {
+        synchronized (projectLock) {
+            writeAtomic("operation-in-progress.txt", System.currentTimeMillis() + "\n"
+                    + clean(operation) + "\n" + clean(detail) + "\n");
+            recordOperation("STARTED", operation + ": " + detail);
+        }
     }
 
-    synchronized void finishOperation(String operation, String detail) throws IOException {
-        recordOperation("FINISHED", operation + ": " + detail);
-        File marker = child("operation-in-progress.txt");
-        if (marker.exists() && !marker.delete()) throw new IOException("Cannot clear operation recovery marker.");
+    void finishOperation(String operation, String detail) throws IOException {
+        synchronized (projectLock) {
+            recordOperation("FINISHED", operation + ": " + detail);
+            File marker = child("operation-in-progress.txt");
+            if (marker.exists() && !marker.delete())
+                throw new IOException("Cannot clear operation recovery marker.");
+        }
     }
 
-    synchronized String readOverview() throws IOException {
+    String readOverview() throws IOException {
+        synchronized (projectLock) {
         StringBuilder out = new StringBuilder();
         out.append("PROJECT METADATA\n");
         out.append("Folder: ").append(root.getName()).append('\n');
@@ -79,6 +95,7 @@ final class ProjectWorkspaceMetadata {
         appendDirectory(out, "BUILD OUTPUTS", "build");
         appendRootFiles(out);
         return out.toString();
+        }
     }
 
     private void append(String filename, String value, boolean markdown) throws IOException {
