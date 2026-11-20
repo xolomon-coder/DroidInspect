@@ -258,8 +258,10 @@ jobs:
         run: |
           mkdir -p ../artifacts
           gradle --no-daemon :app:dependencies --configuration releaseRuntimeClasspath \
-            > ../artifacts/release-runtime-dependencies.txt
+            | tee ../artifacts/release-runtime-dependencies.txt
           test -s ../artifacts/release-runtime-dependencies.txt
+          echo "===== REVIEWABLE RELEASE RUNTIME DEPENDENCY GRAPH ====="
+          cat ../artifacts/release-runtime-dependencies.txt
 
       - name: Compile debug APK
         id: compile_debug
@@ -396,6 +398,18 @@ jobs:
 
           sha256sum "$DEBUG_APK" "$RELEASE_APK" artifacts/droidinspect-ci-signed.apk \
             | tee artifacts/SHA256SUMS.txt
+      - name: Inspect native shared-library dynamic dependencies
+        id: native_dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v readelf
+          for LIB in droidinspect/app/src/main/jniLibs/arm64-v8a/*.so; do
+            test -s "$LIB"
+            echo "===== ELF DYNAMIC DEPENDENCIES: $LIB ====="
+            readelf -d "$LIB" | sed -n '/(NEEDED)/p'
+          done
+
       - name: Publish verification summary
         if: always()
         shell: bash
@@ -426,6 +440,7 @@ jobs:
             echo "| Android release compilation | ${{ steps.compile_release.outcome || 'skipped' }} |"
             echo "| APK signing/tamper verification | ${{ steps.signing_verification.outcome || 'skipped' }} |"
             echo "| APK payload/ABI/security checks | ${{ steps.payload_verification.outcome || 'skipped' }} |"
+            echo "| Native ELF dynamic dependencies | ${{ steps.native_dependencies.outcome || 'skipped' }} |"
             echo
             echo "APK files and temporary audit outputs are not uploaded. Runner-local build outputs are discarded when the job ends."
           } >> "$GITHUB_STEP_SUMMARY"
