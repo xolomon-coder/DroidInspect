@@ -10,7 +10,7 @@
 
 ## Latest continuation update — 21 November 2026
 
-**Latest workflow/source commit:** `a507bab47a7b74ca43eca8307e69209eda1b1d21` — `Expose release and native dependency graphs in CI logs`. **Latest documentation-only `main` commit at this checkpoint:** `008d80b7d515363f5a013aa662dfdd256aaa1106`.
+**Latest workflow/source commit:** `a507bab47a7b74ca43eca8307e69209eda1b1d21` — `Expose release and native dependency graphs in CI logs`. **Latest documentation-only `main` commit:** `f4da8ebe0fd6fc91e2e55e0fdb994a97e9c953cd`.
 
 **Latest completed production CI:** [run #678](https://github.com/xolomon-coder/DroidInspect/actions/runs/44837694111), successful on source commit `af2e8e4a41f649685220ffb34a70c42c20c9a72d`. All 13 host test steps, NuGet audit, Android debug/release compilation, CI signing, signature verification, tamper rejection, APK payload, ARM64 ABI and offline-permission checks completed successfully. The current HEAD changes only the verification workflow; its newly added checks still require their own run before being marked passed.
 
