@@ -166,20 +166,3 @@ jobs:
           done
           echo "Could not publish M12 payload after three attempts."
           exit 1
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: DroidInspect-M12-Roslyn-Compiler-Proof
-          path: |
-            artifacts/DroidInspect.M12.EditedFixture.dll
-            artifacts/m12-nuget-transitive-dependencies.txt
-            artifacts/libdroidinspect_m12_compiler.so
-            artifacts/libdroidinspect_m12_jni.so
-            artifacts/DroidInspect-M12-Roslyn-Android-Proof.apk
-            /tmp/m12-elf-header.txt
-            /tmp/m12-engine-needed.txt
-            /tmp/m12-exports.txt
-            /tmp/m12-jni-needed.txt
-            /tmp/m12-apk-list.txt
-          if-no-files-found: error
-          retention-days: 14
