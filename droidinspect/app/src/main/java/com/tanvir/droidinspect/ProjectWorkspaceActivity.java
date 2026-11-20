@@ -141,7 +141,7 @@ public final class ProjectWorkspaceActivity extends Activity {
                 screen.entries.addAll(result);
                 screen.adapter.notifyDataSetChanged();
                 String message = "Recent projects: " + screen.entries.size();
-                screen.status.setText(warning.isEmpty() ? message : message + "\\n" + warning);
+                screen.status.setText(warning.isEmpty() ? message : message + "\n" + warning);
             });
         });
     }
