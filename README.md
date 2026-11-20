@@ -12,7 +12,7 @@
 
 **Repository:** [xolomon-coder/DroidInspect](https://github.com/xolomon-coder/DroidInspect)  
 **Branch:** `main` only. No feature branches or pull requests.  
-**Source checkpoint before this documentation update:** `84413f5a93a3225ca5cc844837436872fc3e82db` — added the artifact-free NuGet audit to the production workflow.  
+**Latest source-hardening commit before this README refresh:** `35d28c260c17156362a53d99a6e6a1ebcafdcca4`. **Latest CI workflow commit before this refresh:** `3b01e0963691e26bfd5084e4a3f6e9952785261d` — added the NuGet audit outcome to the job summary.  
 **Production package:** `com.tanvir.droidinspect`. **M11:** accepted; do not repeat its device tests.
 
 ### CI failure investigation — run #660
