@@ -54,6 +54,73 @@ It prints the transitive package graph, NuGet vulnerability-advisory results, an
 | NuGet transitive license/security audit | Added to CI; results and manual review pending |
 | Final release / project completion | **NOT ACCEPTED / NOT READY** |
 
+### Consolidated Android 11 / CodeAssist device acceptance — M12–M20
+
+**Do not start this batch until the latest source CI run is green.** Use the `main.zip` source; do not use Actions artifacts. M11 is already accepted: skip all M11 decompilation retests unless a new regression is observed.
+
+**Preflight and data safety**
+- [ ] Confirm the commit in the downloaded `main.zip` matches the latest verified `main` source.
+- [ ] Build the existing `droidinspect/` project in CodeAssist 3.36.1 using its local build process; record build output and APK version.
+- [ ] Before replacing an installed build, export any project data that must be preserved. If Android reports a signing-certificate mismatch, do not uninstall the existing app until its private workspaces have been exported or otherwise safely backed up.
+- [ ] Use copies of all APK/DLL/EXE fixtures. Never select an original file as an output destination.
+
+**M12 — source editing and managed DLL rebuild**
+- [ ] Open a supported managed test assembly and create a separate C# source project.
+- [ ] Edit a simple method, save the source, compile offline, and confirm a new managed PE/CLI DLL is produced.
+- [ ] Reopen the output in DroidInspect and verify the expected edited symbol or method is present.
+- [ ] Confirm the original assembly and untouched decompilation source are unchanged.
+- [ ] Introduce a deliberate C# syntax error; confirm compilation fails with diagnostics and does not overwrite the last valid output.
+
+**M13 — dependency and target-framework resolution**
+- [ ] Open the dependency view for a test assembly and review requested versus resolved assembly identities/framework versions.
+- [ ] Test one exact local dependency, one missing dependency, and one version/framework mismatch where suitable fixtures are available.
+- [ ] Confirm missing or mismatched references are explicitly reported and never silently replaced with an incompatible reference pack.
+
+**M14 — Assembly Explorer and IL navigation**
+- [ ] Navigate assembly/module/namespace/type/member trees, including fields, properties, events and methods where present.
+- [ ] Open selected methods in the raw IL viewer; verify tokens, offsets, opcodes and operands are readable.
+- [ ] Use search, bookmarks and cross-reference navigation on a fixture containing supported invoke instructions.
+
+**M15 — phone-oriented C# source editor**
+- [ ] Verify line numbers, syntax highlighting, current-file search/find-replace and unsaved-change indication.
+- [ ] Create/import at least two `.cs` files, save them, close the editor and reopen the project to confirm persistence.
+- [ ] Verify the file selector can switch files. A tabbed editor is not currently claimed; record any usability limitation on the phone.
+
+**M16 — assembly comparison and resources**
+- [ ] Compare a known original assembly with its rebuilt/edited copy; verify added, removed and changed members are classified accurately.
+- [ ] Compare an identical copy and confirm unchanged records are not reported as modified.
+- [ ] Export a supported embedded resource through SAF and verify the exported file is non-empty and has the expected content/size.
+- [ ] Record linked-resource entries as a known limitation: they may be listed without being extracted. The comparison is structural, not proof of semantic or binary equivalence.
+
+**M17 — advanced APK inspection and DEX analysis**
+- [ ] Open a representative APK and inspect the structured manifest view: components, permissions, intent filters, exported/enabled state and SDK declarations.
+- [ ] Inspect the resource catalog and navigate at least one supported DEX invoke cross-reference to its indexed target class/method.
+- [ ] When a split APK set is available, inspect base/split package identity, version, split names and dependency consistency. Inventory does not mean DroidInspect merges or installs the split set.
+- [ ] Confirm malformed/unsupported DEX or APK inputs produce a bounded error rather than a crash.
+
+**M18 — APK edit → rebuild → sign → verify**
+- [ ] Create a project from a copy of a representative APK and verify the original remains separate and unchanged.
+- [ ] Change a supported manifest field or named string resource, rebuild to a separate unsigned APK, and inspect the changed output.
+- [ ] Sign the rebuilt APK with a test key and run signature verification; confirm the signature is reported against that key, not represented as the original developer's identity.
+- [ ] Run the update-compatibility assessment for package ID, version code and signer certificate; record WARNING/FAIL where the test signing key differs.
+- [ ] Verify a deliberately tampered copy is rejected by signature verification. Do not install a tampered APK.
+
+**M19 — persistent workspaces and recovery**
+- [ ] Create or reopen one APK project, one C# source project and one .NET dependency project; verify all appear in recent projects with the right type/name/state.
+- [ ] Add notes, bookmarks and saved searches to each project. Close the Activity/app, reopen the projects, and confirm the entries persist and remain isolated between projects.
+- [ ] Record an operation as started, force-stop or close the app before marking it finished, reopen the project and confirm the recovery notice/history is visible; mark it finished and confirm the notice clears.
+- [ ] Import a rebuilt APK as a new working revision, view history, restore a previous revision, and verify the original APK is still unchanged.
+- [ ] Export a project report and working output via SAF; confirm the project remains reopenable after export.
+
+**M20 — lifecycle, responsiveness and final regression**
+- [ ] Open/close the project launcher repeatedly and return from child screens; verify background index refresh completes without freezing or stale project entries.
+- [ ] During a large but in-limit import/copy, background the app or cancel/close the relevant Activity; reopen the project and verify the last committed working copy is intact.
+- [ ] Test representative large APK and .NET inputs within documented per-file limits; record any low-memory warning, slow operation or force-close.
+- [ ] Recheck offline behavior and the absence of an Internet permission; verify no network access is required for inspection, editing, compilation or workspace operations.
+- [ ] Repeat only the affected test after a fix; do not repeat accepted M11 tests.
+
+**Acceptance record to send back:** CodeAssist build result and APK version; Android version/device; PASS / FAIL / BLOCKED for each M12–M20 section; exact failed screen/action and error text; whether the original input hash/size stayed unchanged; and any observed lag, crash or data loss. Do not mark a milestone PASS on compilation alone.
+
 **Exact source and workflow files changed in this checkpoint:**
 
 - `droidinspect/app/src/main/java/com/tanvir/droidinspect/ProjectWorkspaceMetadata.java`
@@ -65,7 +132,7 @@ It prints the transitive package graph, NuGet vulnerability-advisory results, an
 - `.github/workflows/phase1-android.yml`
 - `README.md`
 
-**Next action:** inspect the first runner-backed execution after source checkpoint `84413f5`; inspect every host test, NuGet audit output, Android debug/release compile, signing/tamper check and payload check; fix only verified failures on `main`. Once CI verification is complete, prepare one consolidated M12–M20 CodeAssist / Android 11 acceptance session. Do not repeat M11 tests, do not download CI artifacts, and do not declare project completion before device acceptance.
+**Next action:** inspect the first runner-backed execution after source checkpoint `35d28c2` and CI workflow checkpoint `3b01e09`; inspect every host test, NuGet audit output, Android debug/release compile, signing/tamper check and payload check; fix only verified failures on `main`. Once CI verification is complete, use the consolidated M12–M20 device checklist below. Do not repeat M11 tests, do not download CI artifacts, and do not declare project completion before device acceptance.
 
 Offline-first Android APK and .NET assembly inspection and analysis application.
 
