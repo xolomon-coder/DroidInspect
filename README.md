@@ -10,6 +10,19 @@
 
 ## Current continuation checkpoint — 21 November 2026
 
+## Latest verification update — 21 November 2026
+
+**Current source fix:** `a07bf1dca1fbfe21fbcf9a31c758aaa7ccc152ea` — `ApkSigningActivity.java` now catches checked `IOException` from temporary-file cleanup in the three catch paths identified by production CI run #675. Cleanup failures are attached as suppressed exceptions so the original signing/import failure remains the primary diagnostic.
+
+**Previous failing production run:** [#675](https://github.com/xolomon-coder/DroidInspect/actions/runs/44829668942), commit `549598ba46952c86ef5696d3a5c1dac4f0598d96`. All 13 host-test steps passed, release dependency resolution passed, and the NuGet audit step completed. Android debug compilation failed at `ApkSigningActivity.java` lines 205, 245 and 427 because three calls to `deleteTemporaryFile(...)` did not handle its declared checked `IOException`. Release build, signing/tamper checks and APK payload checks were skipped as downstream steps.
+
+**Current verification:** [#676](https://github.com/xolomon-coder/DroidInspect/actions/runs/44837050076), commit `a07bf1dca1fbfe21fbcf9a31c758aaa7ccc152ea`, was started after the fix. At this checkpoint, all host-test steps completed successfully, including the cross-instance workspace metadata/recovery concurrency test, workspace index, bookmarks, bounded traversal/inventory, workspace rollback and DEX parser. NuGet audit completed and Android SDK setup succeeded; the Gradle debug build was still running. Do not treat this run as green until its final conclusion and all downstream steps are inspected.
+
+**NuGet audit findings from run #675:** all three configured projects restored successfully and reported no vulnerable packages from the NuGet advisory source used at audit time. The license inventory found 13 restored package instances across the three projects: MIT and Apache-2.0 declarations only, with zero packages flagged for manual license review. This is a point-in-time advisory result, not a guarantee that no undisclosed vulnerabilities exist.
+
+**M19/M20 status remains open:** host-side M19 regression coverage has passed in run #676, but M19 SAF/device acceptance and M20 Android lifecycle, repeated open/close, cancellation, stress, memory and responsiveness acceptance have not been performed. A passing CI run will unlock the consolidated Android 11 test batch; it does not replace it.
+
+
 **Repository:** [xolomon-coder/DroidInspect](https://github.com/xolomon-coder/DroidInspect)  
 **Branch:** `main` only. No feature branches or pull requests.  
 **Latest source-hardening commit before this README refresh:** `35d28c260c17156362a53d99a6e6a1ebcafdcca4`. **Latest CI workflow commit before this refresh:** `549598ba46952c86ef5696d3a5c1dac4f0598d96` — added latest-run concurrency control; the workflow also performs the NuGet audit and reports its outcome in the job summary.  
