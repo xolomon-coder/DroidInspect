@@ -10,6 +10,11 @@ on:
 permissions:
   contents: read
 
+# Keep only the latest main verification active when several commits are pushed quickly.
+concurrency:
+  group: droidinspect-main-ci
+  cancel-in-progress: true
+
 jobs:
   build-debug-apk:
     name: Host parser tests, Android compile, and debug APK
