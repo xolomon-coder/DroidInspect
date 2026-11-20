@@ -164,10 +164,10 @@ jobs:
                 ;;
             esac
             echo "===== TRANSITIVE PACKAGE GRAPH: $PROJECT ====="
-            dotnet list "$PROJECT" package --include-transitive \
+            dotnet package list --project "$PROJECT" --include-transitive \
               | tee "/tmp/droidinspect-nuget-audit/$NAME-packages.txt"
             echo "===== VULNERABILITY ADVISORIES: $PROJECT ====="
-            dotnet list "$PROJECT" package --vulnerable --include-transitive \
+            dotnet package list --project "$PROJECT" --vulnerable --include-transitive \
               | tee "/tmp/droidinspect-nuget-audit/$NAME-vulnerabilities.txt"
           done
           python3 - <<'PY'
