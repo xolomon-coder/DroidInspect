@@ -415,6 +415,7 @@ jobs:
             echo "| Bounded APK inventories | ${{ steps.bounded_project_files.outcome || 'skipped' }} |"
             echo "| Workspace transaction/rollback | ${{ steps.workspace_transaction.outcome || 'skipped' }} |"
             echo "| DEX parser | ${{ steps.dex_parser.outcome || 'skipped' }} |"
+            echo "| NuGet dependency/license/security audit | ${{ steps.nuget_audit.outcome || 'skipped' }} |"
             echo "| Release dependency resolution | ${{ steps.release_dependencies.outcome || 'skipped' }} |"
             echo "| Android debug compilation | ${{ steps.compile_debug.outcome || 'skipped' }} |"
             echo "| Android release compilation | ${{ steps.compile_release.outcome || 'skipped' }} |"
