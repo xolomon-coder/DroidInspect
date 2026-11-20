@@ -16,36 +16,38 @@
 
 **Previous failing production run:** [#675](https://github.com/xolomon-coder/DroidInspect/actions/runs/44829668942), commit `549598ba46952c86ef5696d3a5c1dac4f0598d96`. All 13 host-test steps passed, release dependency resolution passed, and the NuGet audit step completed. Android debug compilation failed at `ApkSigningActivity.java` lines 205, 245 and 427 because three calls to `deleteTemporaryFile(...)` did not handle its declared checked `IOException`. Release build, signing/tamper checks and APK payload checks were skipped as downstream steps.
 
-**Current verification:** [#676](https://github.com/xolomon-coder/DroidInspect/actions/runs/44837050076), commit `a07bf1dca1fbfe21fbcf9a31c758aaa7ccc152ea`, was started after the fix. At this checkpoint, all host-test steps completed successfully, including the cross-instance workspace metadata/recovery concurrency test, workspace index, bookmarks, bounded traversal/inventory, workspace rollback and DEX parser. NuGet audit completed and Android SDK setup succeeded; the Gradle debug build was still running. Do not treat this run as green until its final conclusion and all downstream steps are inspected.
+**Latest production verification:** [#676](https://github.com/xolomon-coder/DroidInspect/actions/runs/44837050076) completed **SUCCESS** on source commit `a07bf1dca1fbfe21fbcf9a31c758aaa7ccc152ea`. All host tests, NuGet audit, release dependency resolution, Android debug and release compilation, CI signing, tamper rejection, APK payload, ABI and offline-permission checks passed. No failure steps remained. The README-only follow-up commit does not alter the verified application source.
 
-**NuGet audit findings from run #675:** all three configured projects restored successfully and reported no vulnerable packages from the NuGet advisory source used at audit time. The license inventory found 13 restored package instances across the three projects: MIT and Apache-2.0 declarations only, with zero packages flagged for manual license review. This is a point-in-time advisory result, not a guarantee that no undisclosed vulnerabilities exist.
+Run #676 produced runner-local debug/release APKs of 88,411,727 and 87,899,175 bytes. Both contained only `arm64-v8a` native libraries, including the M11 decompiler and M12 compiler payloads; no Internet permission was present. The test signer verified under APK Signature Schemes v2 and v3, and a deliberately modified APK was rejected. `apksigner` reported v1=false; the production app has `minSdk=26`, so v1 is not required for its supported Android range. The v1 result is recorded rather than misrepresented as a verified scheme. No APK or report artifacts were uploaded.
 
-**M19/M20 status remains open:** host-side M19 regression coverage has passed in run #676, but M19 SAF/device acceptance and M20 Android lifecycle, repeated open/close, cancellation, stress, memory and responsiveness acceptance have not been performed. A passing CI run will unlock the consolidated Android 11 test batch; it does not replace it.
+**NuGet audit findings from runs #675 and #676:** all three configured projects restored successfully and reported no vulnerable packages from the NuGet advisory source used at audit time. Each run inventoried 13 restored package instances across the three projects: MIT and Apache-2.0 declarations only, with zero packages flagged for manual license review. This is a point-in-time advisory result, not a guarantee that no undisclosed vulnerabilities exist.
+
+**M19/M20 status remains open:** M19 host regression coverage passed in run #676, including concurrent metadata writes, persistence/recovery, workspace index and rollback tests. M19 SAF export/reopen and Android device acceptance remain pending. M20 Activity lifecycle, repeated open/close, cancellation, stress, memory and responsiveness acceptance remain pending. The green CI run unlocks the consolidated Android 11 test batch; it does not replace it.
 
 
 **Repository:** [xolomon-coder/DroidInspect](https://github.com/xolomon-coder/DroidInspect)  
 **Branch:** `main` only. No feature branches or pull requests.  
-**Latest source-hardening commit before this README refresh:** `35d28c260c17156362a53d99a6e6a1ebcafdcca4`. **Latest CI workflow commit before this refresh:** `549598ba46952c86ef5696d3a5c1dac4f0598d96` — added latest-run concurrency control; the workflow also performs the NuGet audit and reports its outcome in the job summary.  
+**Latest application source fix:** `a07bf1dca1fbfe21fbcf9a31c758aaa7ccc152ea`. **Latest production CI workflow change:** `549598ba46952c86ef5696d3a5c1dac4f0598d96`. **Latest successful production verification:** run #676 on the application source fix. **Current README checkpoint commit before this refresh:** `275d423098f8dd35c47bab877b39de6c5decace5`.  
 **Production package:** `com.tanvir.droidinspect`. **M11:** accepted; do not repeat its device tests.
 
 ### CI failure investigation — run #660
 
 Run [#660](https://github.com/xolomon-coder/DroidInspect/actions/runs/44302103843) targeted commit `66f90efc08fde0052d8fd9e692fdb26a103968f4`. The job-list endpoint returned zero jobs and the commit-status endpoint returned no checks; consequently there is no step log or runner output to quote. The commit diff identifies the workflow defect: `Publish verification summary` was placed at the YAML root rather than under `jobs.build-debug-apk.steps`. The next main commit `bfcaf647135d1070e0fc337113dfb04e96b7fb5b` corrected its indentation. This was a workflow-definition failure before job creation, not evidence of a Java or Gradle compile failure. The exact GitHub YAML parser message was not available.
 
-Subsequent runner-backed history recorded 12 host tests and release dependency resolution passing, then found and fixed a Java help-string compile error (`6cd93e1`) and additional missing imports / lifecycle state / Handler scope errors (`73fb7c3`). No post-fix Android compilation result has been verified in this continuation session. The current GitHub connector exposes no push-run listing; the latest push job IDs and logs could not be retrieved. Do not infer CI success.
+Subsequent runner-backed history recorded 12 host tests and release dependency resolution passing, then found and fixed a Java help-string compile error (`6cd93e1`) and additional missing imports / lifecycle state / Handler scope errors (`73fb7c3`). The later run #675 exposed three checked-IOException compile errors in APK signing cleanup; commit `a07bf1d` fixed them and run #676 verified the correction with a complete production CI pass. The earlier run #660 parser investigation remains historical context.
 
 ### M19/M20 source hardening committed on main
 
 - `ProjectWorkspaceMetadata.java`: replaced object-instance-only synchronization with a canonical-project lock shared by every metadata-store instance for the same project. This protects concurrent notes, bookmarks, saved searches, operation history, recovery markers, and overview reads from lost updates.
-- `ProjectWorkspaceMetadataSelfTest.java`: added an eight-thread regression that creates separate metadata instances and performs 160 concurrent history writes, then verifies that all records remain present. This is a new test, not yet executed by CI.
+- `ProjectWorkspaceMetadataSelfTest.java`: added an eight-thread regression that creates separate metadata instances and performs 160 concurrent history writes, then verifies that all records remain present. This test passed in production CI run #676.
 - `ProjectWorkspaceActivity.java`: moved unified APK / C# source / .NET dependency project discovery to a single background executor. Results return on the main thread, stale scans are discarded using a generation counter, and Activity destruction invalidates callbacks and shuts down the worker.
-- Existing M19 transaction, project-index, metadata persistence, symlink-boundary, rollback, and bounded-traversal tests remain in the host workflow. Their current post-change execution is pending.
+- Existing M19 transaction, project-index, metadata persistence, symlink-boundary, rollback, and bounded-traversal tests passed in production CI run #676. Android SAF and device acceptance remain pending.
 
 ### Repository-wide artifact-free Actions policy
 
-The production workflow and the three legacy proof/fixture workflows were inspected directly on `main`. All four currently contain zero `actions/upload-artifact` and zero `actions/download-artifact` steps. APKs, ZIPs, test DLLs, dependency inventories and temporary reports may be produced only inside the ephemeral runner for verification; they are not published as downloadable workflow artifacts. The M11/M12 workflows may still commit verified native source payloads to `main`, which is source code/input for CodeAssist rather than a workflow artifact.
+The production workflow and the three legacy proof/fixture workflows were inspected directly on `main`. All four contain zero `actions/upload-artifact` and zero `actions/download-artifact` steps. APKs, ZIPs, test DLLs, dependency inventories and temporary reports may be produced only inside the ephemeral runner for verification; they are not published as downloadable workflow artifacts. The M11/M12 workflows may still commit verified native source payloads to `main`, which is source code/input for CodeAssist rather than a workflow artifact.
 
-### NuGet audit added; results still pending
+### NuGet dependency and license audit — CI results reviewed
 
 The artifact-free production workflow now restores and audits these three .NET projects:
 
@@ -53,7 +55,7 @@ The artifact-free production workflow now restores and audits these three .NET p
 - `tools/m12-poc/engine/DroidInspect.M12.Compiler.csproj`
 - `tools/m11-poc/dependency-assembly-tests/DependencyAssemblyTests.csproj`
 
-It prints the transitive package graph, NuGet vulnerability-advisory results, and license expression / license-file / license-URL metadata parsed from each restored package's nuspec into Actions logs and the job summary. Missing license metadata is marked for manual review. This is verification machinery only: no NuGet audit has passed in this session, and the transitive license/security review remains open until real results are inspected and every flagged package is resolved.
+It prints the transitive package graph, NuGet vulnerability-advisory results, and license expression / license-file / license-URL metadata parsed from each restored package's nuspec into Actions logs and the job summary. Missing license metadata is marked for manual review. Run #676 completed this audit successfully: 13 package instances were inventoried, zero vulnerabilities were reported by the configured advisory source, and zero packages required manual license review. The result is point-in-time and must be refreshed before a future release if dependencies change.
 
 ### Current acceptance state
 
@@ -61,15 +63,15 @@ It prints the transitive package graph, NuGet vulnerability-advisory results, an
 |---|---|
 | M11 C# decompilation | **ACCEPTED** by the user; no retest required |
 | M12–M18 | Implementation integrated; consolidated Android 11 device acceptance pending |
-| M19 | In progress; cross-instance metadata serialization and background project indexing added; host/Android execution pending |
+| M19 | Host regression tests passed in #676; Android SAF export/reopen, process-restart recovery and device acceptance pending |
 | M20 | In progress; project-index UI blocking reduced; lifecycle, performance and stress testing pending |
-| Android debug/release build, CI signing and tamper checks | Not verified for the current source checkpoint |
-| NuGet transitive license/security audit | Added to CI; results and manual review pending |
+| Android debug/release build, CI signing and tamper checks | **PASS** in production CI #676; phone installation and acceptance pending |
+| NuGet transitive license/security audit | **PASS** in #676: 13 packages, zero reported vulnerabilities, zero manual-review flags |
 | Final release / project completion | **NOT ACCEPTED / NOT READY** |
 
 ### Consolidated Android 11 / CodeAssist device acceptance — M12–M20
 
-**Do not start this batch until the latest source CI run is green.** Use the `main.zip` source; do not use Actions artifacts. M11 is already accepted: skip all M11 decompilation retests unless a new regression is observed.
+**The latest source CI run #676 is green.** Proceed with this consolidated batch using the `main.zip` source; do not use Actions artifacts. M11 is already accepted: skip all M11 decompilation retests unless a new regression is observed.
 
 **Preflight and data safety**
 - [ ] Confirm the commit in the downloaded `main.zip` matches the latest verified `main` source.
