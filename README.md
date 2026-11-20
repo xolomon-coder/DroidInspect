@@ -16,18 +16,20 @@
 
 **Previous failing production run:** [#675](https://github.com/xolomon-coder/DroidInspect/actions/runs/44829668942), commit `549598ba46952c86ef5696d3a5c1dac4f0598d96`. All 13 host-test steps passed, release dependency resolution passed, and the NuGet audit step completed. Android debug compilation failed at `ApkSigningActivity.java` lines 205, 245 and 427 because three calls to `deleteTemporaryFile(...)` did not handle its declared checked `IOException`. Release build, signing/tamper checks and APK payload checks were skipped as downstream steps.
 
+**Follow-up M20 lifecycle hardening:** commits `0a12e3e942a76f389bb04ec61dd02b82f07ab4b6` and `af2e8e4a41f649685220ffb34a70c42c20c9a72d` changed the background project-index callback to use a `WeakReference` to the Activity, while retaining the application context, main-thread Handler, stale-generation rejection and executor shutdown. The newline formatting of multi-line index warnings was preserved. Production CI [#678](https://github.com/xolomon-coder/DroidInspect/actions/runs/44837694111) completed **SUCCESS** on the final source commit, including all host tests, debug/release compilation, NuGet audit, signing/tamper verification and APK payload checks. Run #677 was cancelled by the latest-run concurrency policy before completion; it is not a failure.
+
 **Latest production verification:** [#676](https://github.com/xolomon-coder/DroidInspect/actions/runs/44837050076) completed **SUCCESS** on source commit `a07bf1dca1fbfe21fbcf9a31c758aaa7ccc152ea`. All host tests, NuGet audit, release dependency resolution, Android debug and release compilation, CI signing, tamper rejection, APK payload, ABI and offline-permission checks passed. No failure steps remained. The README-only follow-up commit does not alter the verified application source.
 
 Run #676 produced runner-local debug/release APKs of 88,411,727 and 87,899,175 bytes. Both contained only `arm64-v8a` native libraries, including the M11 decompiler and M12 compiler payloads; no Internet permission was present. The test signer verified under APK Signature Schemes v2 and v3, and a deliberately modified APK was rejected. `apksigner` reported v1=false; the production app has `minSdk=26`, so v1 is not required for its supported Android range. The v1 result is recorded rather than misrepresented as a verified scheme. No APK or report artifacts were uploaded.
 
 **NuGet audit findings from runs #675 and #676:** all three configured projects restored successfully and reported no vulnerable packages from the NuGet advisory source used at audit time. Each run inventoried 13 restored package instances across the three projects: MIT and Apache-2.0 declarations only, with zero packages flagged for manual license review. This is a point-in-time advisory result, not a guarantee that no undisclosed vulnerabilities exist.
 
-**M19/M20 status remains open:** M19 host regression coverage passed in run #676, including concurrent metadata writes, persistence/recovery, workspace index and rollback tests. M19 SAF export/reopen and Android device acceptance remain pending. M20 Activity lifecycle, repeated open/close, cancellation, stress, memory and responsiveness acceptance remain pending. The green CI run unlocks the consolidated Android 11 test batch; it does not replace it.
+**M19/M20 status remains open:** M19 host regression coverage passed in runs #676 and #678, including concurrent metadata writes, persistence/recovery, workspace index and rollback tests. M20 Activity callback lifecycle hardening passed the #678 Android compilation gate. M19 SAF export/reopen and Android device acceptance remain pending. M20 Activity lifecycle, repeated open/close, cancellation, stress, memory and responsiveness acceptance remain pending. The green CI run unlocks the consolidated Android 11 test batch; it does not replace it.
 
 
 **Repository:** [xolomon-coder/DroidInspect](https://github.com/xolomon-coder/DroidInspect)  
 **Branch:** `main` only. No feature branches or pull requests.  
-**Latest application source fix:** `a07bf1dca1fbfe21fbcf9a31c758aaa7ccc152ea`. **Latest production CI workflow change:** `549598ba46952c86ef5696d3a5c1dac4f0598d96`. **Latest successful production verification:** run #676 on the application source fix. **Current README checkpoint commit before this refresh:** `275d423098f8dd35c47bab877b39de6c5decace5`.  
+**Latest application source commits:** `0a12e3e942a76f389bb04ec61dd02b82f07ab4b6` (WeakReference lifecycle hardening) and `af2e8e4a41f649685220ffb34a70c42c20c9a72d` (warning display correction). **Latest production CI workflow change:** `549598ba46952c86ef5696d3a5c1dac4f0598d96`. **Latest successful production verification:** run #678 on `af2e8e4a41f649685220ffb34a70c42c20c9a72d`. **Previous successful baseline:** run #676 on `a07bf1dca1fbfe21fbcf9a31c758aaa7ccc152ea`.  
 **Production package:** `com.tanvir.droidinspect`. **M11:** accepted; do not repeat its device tests.
 
 ### CI failure investigation — run #660
@@ -63,8 +65,8 @@ It prints the transitive package graph, NuGet vulnerability-advisory results, an
 |---|---|
 | M11 C# decompilation | **ACCEPTED** by the user; no retest required |
 | M12–M18 | Implementation integrated; consolidated Android 11 device acceptance pending |
-| M19 | Host regression tests passed in #676; Android SAF export/reopen, process-restart recovery and device acceptance pending |
-| M20 | In progress; project-index UI blocking reduced; lifecycle, performance and stress testing pending |
+| M19 | Host regression tests passed in #678; Android SAF export/reopen, process-restart recovery and device acceptance pending |
+| M20 | Background indexing, stale-result rejection, Activity WeakReference callback and executor shutdown integrated; CI compilation passed in #678; Android lifecycle, repeated open/close, cancellation, stress, memory and responsiveness acceptance pending |
 | Android debug/release build, CI signing and tamper checks | **PASS** in production CI #676; phone installation and acceptance pending |
 | NuGet transitive license/security audit | **PASS** in #676: 13 packages, zero reported vulnerabilities, zero manual-review flags |
 | Final release / project completion | **NOT ACCEPTED / NOT READY** |
