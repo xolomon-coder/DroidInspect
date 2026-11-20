@@ -140,7 +140,7 @@ public final class ProjectWorkspaceActivity extends Activity {
                 entries.addAll(result);
                 adapter.notifyDataSetChanged();
                 String message = "Recent projects: " + entries.size();
-                status.setText(warning.isEmpty() ? message : message + "\\n" + warning);
+                status.setText(warning.isEmpty() ? message : message + "\n" + warning);
             });
         });
     }
@@ -169,7 +169,7 @@ public final class ProjectWorkspaceActivity extends Activity {
                 target.add(new ProjectEntry(item.kind, item.id,
                         item.name + "  [" + item.state + "]", item.updated));
         } catch (Exception error) {
-            if (warnings.length() > 0) warnings.append('\\n');
+            if (warnings.length() > 0) warnings.append('\n');
             warnings.append(kind).append(" index: ").append(error.getMessage());
         }
     }
