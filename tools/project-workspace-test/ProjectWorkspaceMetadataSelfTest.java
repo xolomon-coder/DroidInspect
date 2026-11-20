@@ -4,6 +4,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 /** Host-JVM regression tests for project isolation, persistence and interrupted-operation recovery. */
 public final class ProjectWorkspaceMetadataSelfTest {
@@ -44,6 +46,40 @@ public final class ProjectWorkspaceMetadataSelfTest {
             require(noteText.contains("Investigate assembly identity"), "note bytes survive reopen");
             require(!new File(firstRoot, "operation-in-progress.txt").exists(),
                     "recovery marker removed only after completion record");
+
+            File operationHistory = new File(firstRoot, "operation-history.log");
+            int historyBefore = Files.readAllLines(operationHistory.toPath(), StandardCharsets.UTF_8).size();
+            final int threadCount = 8;
+            final int operationsPerThread = 20;
+            CountDownLatch ready = new CountDownLatch(threadCount);
+            CountDownLatch start = new CountDownLatch(1);
+            CountDownLatch done = new CountDownLatch(threadCount);
+            AtomicReference<Throwable> concurrentFailure = new AtomicReference<>();
+            for (int thread = 0; thread < threadCount; thread++) {
+                final int threadId = thread;
+                new Thread(() -> {
+                    ready.countDown();
+                    try {
+                        start.await();
+                        for (int operation = 0; operation < operationsPerThread; operation++) {
+                            new ProjectWorkspaceMetadata(firstRoot).recordOperation(
+                                    "CONCURRENT", threadId + ":" + operation);
+                        }
+                    } catch (Throwable error) {
+                        concurrentFailure.compareAndSet(null, error);
+                    } finally {
+                        done.countDown();
+                    }
+                }, "workspace-metadata-test-" + thread).start();
+            }
+            ready.await();
+            start.countDown();
+            done.await();
+            if (concurrentFailure.get() != null)
+                throw new AssertionError("concurrent metadata update failed", concurrentFailure.get());
+            int historyAfter = Files.readAllLines(operationHistory.toPath(), StandardCharsets.UTF_8).size();
+            require(historyAfter - historyBefore == threadCount * operationsPerThread,
+                    "separate metadata instances serialize concurrent history writes without lost records");
 
             File reports = new File(firstRoot, "reports");
             require(reports.mkdir(), "create report listing directory");
