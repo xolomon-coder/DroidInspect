@@ -15,13 +15,9 @@ import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -150,18 +146,17 @@ public final class ProjectWorkspaceActivity extends Activity {
         ArrayList<ProjectEntry> result = new ArrayList<>();
         for (ApkProjectWorkspace.ProjectSummary project : ApkProjectWorkspace.listRecentProjects(context))
             result.add(new ProjectEntry("APK", project.id, project.name, project.updated));
-        addIndexedDirectory(context, result, new File(context.getFilesDir(), "csharp-projects"),
+        addIndexedDirectory(result, new File(context.getFilesDir(), "csharp-projects"),
                 ".droidinspect-project", "C# SOURCE",
                 new String[]{"src", "original/OriginalAssembly.bin"}, warnings);
-        addIndexedDirectory(context, result, new File(context.getFilesDir(), "dotnet-dependency-projects"),
+        addIndexedDirectory(result, new File(context.getFilesDir(), "dotnet-dependency-projects"),
                 ".droidinspect-dependency-project", ".NET DEPENDENCIES",
                 new String[]{"OriginalAssembly.bin", "local-dependencies"}, warnings);
         Collections.sort(result, (a,b) -> Long.compare(b.updated, a.updated));
         return result;
     }
 
-    private static void addIndexedDirectory(android.content.Context context,
-                                            List<ProjectEntry> target, File base,
+    private static void addIndexedDirectory(List<ProjectEntry> target, File base,
                                             String markerName, String kind, String[] required,
                                             StringBuilder warnings) {
         try {
