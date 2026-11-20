@@ -8,6 +8,20 @@
 >
 > This policy supersedes older workflow and artifact-delivery instructions in the historical development journal below. Historical entries are retained as records of what was true at the time.
 
+## Latest continuation update — 21 November 2026
+
+**Current `main` HEAD:** `a507bab47a7b74ca43eca8307e69209eda1b1d21` — `Expose release and native dependency graphs in CI logs`.
+
+**Latest completed production CI:** [run #678](https://github.com/xolomon-coder/DroidInspect/actions/runs/44837694111), successful on source commit `af2e8e4a41f649685220ffb34a70c42c20c9a72d`. All 13 host test steps, NuGet audit, Android debug/release compilation, CI signing, signature verification, tamper rejection, APK payload, ARM64 ABI and offline-permission checks completed successfully. The current HEAD changes only the verification workflow; its newly added checks still require their own run before being marked passed.
+
+**Dependency-review finding and correction:** run #678 captured the Android `releaseRuntimeClasspath` graph to a runner-local file but did not print that file, so the graph was not independently reviewable from retained logs. Commit `a507bab` changes the workflow to stream the full graph into ordinary Actions logs and inspect ELF `DT_NEEDED` entries for every tracked ARM64 shared library using `readelf`. The new native dependency step is included in the job summary. No artifacts are uploaded. The new run's results must be inspected before claiming the Android/native dependency review complete.
+
+**NuGet audit evidence from run #678:** all three configured .NET projects restored successfully (3 + 5 + 5 = 13 package instances). The advisory check reported no vulnerable packages for each project from the sources available at audit time. The package license inventory reported MIT for the M11/M12 compiler packages and MIT/Apache-2.0 for the dependency-test packages; zero packages lacked license metadata requiring manual review. This is a point-in-time advisory/license-metadata check, not a guarantee against undisclosed vulnerabilities or a legal opinion.
+
+**Android dependency declarations inspected on current main:** the production app directly declares `io.github.reandroid:ARSCLib:1.4.0` and `com.android.tools.build:apksig:8.13.0`; the project uses Android Gradle Plugin `8.13.0`, repositories Google Maven and Maven Central, and no additional declared production app dependencies. Their resolved transitive runtime graph is awaiting the new log-visible CI inspection. Native payload remains ARM64-only by design; dynamic library dependencies are awaiting the new `readelf` output review.
+
+**Acceptance remains unchanged:** M11 is accepted and must not be retested. M12–M18 consolidated Android 11 acceptance is pending. M19 host tests pass, but SAF export/reopen, persistent device data and recovery acceptance remain pending. M20 lifecycle hardening compiles and host indexing tests pass, but Activity destruction/reopen, cancellation, stress, memory and responsiveness acceptance remain pending. Project status is **NOT COMPLETE**.
+
 ## Current continuation checkpoint — 21 November 2026
 
 ## Latest verification update — 21 November 2026
