@@ -136,6 +136,103 @@ jobs:
             tools/dex-parser-test/DexFileParserSelfTest.java
           java -cp /tmp/droidinspect-dex-test com.tanvir.droidinspect.DexFileParserSelfTest
 
+      - name: Set up .NET 11 SDK for NuGet audit
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '11.0.100'
+
+      - name: Audit transitive NuGet packages, licenses and known vulnerabilities
+        id: nuget_audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROJECTS=(
+            tools/m11-poc/engine/DroidInspect.M11.Engine.csproj
+            tools/m12-poc/engine/DroidInspect.M12.Compiler.csproj
+            tools/m11-poc/dependency-assembly-tests/DependencyAssemblyTests.csproj
+          )
+          mkdir -p /tmp/droidinspect-nuget-audit
+          for PROJECT in "${PROJECTS[@]}"; do
+            NAME="$(basename "$PROJECT" .csproj)"
+            echo "===== RESTORE: $PROJECT ====="
+            case "$PROJECT" in
+              *DroidInspect.M11.Engine.csproj|*DroidInspect.M12.Compiler.csproj)
+                dotnet restore "$PROJECT" -r linux-bionic-arm64
+                ;;
+              *)
+                dotnet restore "$PROJECT"
+                ;;
+            esac
+            echo "===== TRANSITIVE PACKAGE GRAPH: $PROJECT ====="
+            dotnet list "$PROJECT" package --include-transitive \
+              | tee "/tmp/droidinspect-nuget-audit/$NAME-packages.txt"
+            echo "===== VULNERABILITY ADVISORIES: $PROJECT ====="
+            dotnet list "$PROJECT" package --vulnerable --include-transitive \
+              | tee "/tmp/droidinspect-nuget-audit/$NAME-vulnerabilities.txt"
+          done
+          python3 - <<'PY'
+          import glob
+          import json
+          import os
+          import xml.etree.ElementTree as ET
+
+          projects = [
+              "tools/m11-poc/engine/DroidInspect.M11.Engine.csproj",
+              "tools/m12-poc/engine/DroidInspect.M12.Compiler.csproj",
+              "tools/m11-poc/dependency-assembly-tests/DependencyAssemblyTests.csproj",
+          ]
+          cache = os.environ.get("NUGET_PACKAGES", os.path.expanduser("~/.nuget/packages"))
+          needs_review = []
+          print("===== TRANSITIVE PACKAGE LICENSE INVENTORY =====")
+          for project in projects:
+              assets_path = os.path.join(os.path.dirname(project), "obj", "project.assets.json")
+              with open(assets_path, encoding="utf-8") as stream:
+                  assets = json.load(stream)
+              packages = []
+              for key, record in assets.get("libraries", {}).items():
+                  if record.get("type") == "package":
+                      package_id, version = key.rsplit("/", 1)
+                      packages.append((package_id, version))
+              print(f"PROJECT {project}: {len(packages)} restored NuGet packages")
+              for package_id, version in sorted(packages, key=lambda item: (item[0].lower(), item[1])):
+                  folder = os.path.join(cache, package_id.lower(), version.lower())
+                  nuspecs = glob.glob(os.path.join(folder, "*.nuspec"))
+                  expression = ""
+                  license_url = ""
+                  license_file = ""
+                  if nuspecs:
+                      try:
+                          document = ET.parse(nuspecs[0]).getroot()
+                          metadata = next(node for node in document.iter()
+                                          if node.tag.rsplit("}", 1)[-1] == "metadata")
+                          for node in metadata:
+                              tag = node.tag.rsplit("}", 1)[-1]
+                              if tag == "license":
+                                  kind = node.attrib.get("type", "")
+                                  value = (node.text or "").strip()
+                                  if kind == "expression":
+                                      expression = value
+                                  elif kind == "file":
+                                      license_file = value
+                              elif tag == "licenseUrl":
+                                  license_url = (node.text or "").strip()
+                      except (ET.ParseError, StopIteration, OSError) as error:
+                          print(f"  REVIEW {package_id} {version}: cannot read nuspec: {error}")
+                  license = expression or (f"file:{license_file}" if license_file else license_url)
+                  if not license:
+                      needs_review.append(f"{package_id} {version}")
+                      license = "NEEDS MANUAL REVIEW (no nuspec license expression/file/url)"
+                  print(f"  {package_id} {version} | {license}")
+          print(f"PACKAGES REQUIRING MANUAL LICENSE REVIEW: {len(needs_review)}")
+          for item in needs_review:
+              print("  REVIEW: " + item)
+          PY
+          {
+            echo
+            echo "NuGet restores, transitive package inventories, vulnerability advisory checks, and nuspec license metadata are printed above."
+            echo "Any package reported as NEEDS MANUAL REVIEW must be checked against its upstream license before release."
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
