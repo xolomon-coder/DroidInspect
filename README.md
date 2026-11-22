@@ -4420,3 +4420,22 @@ Inspect the first production `main` push run after workflow commit `549598ba4695
 Only after that CI run is demonstrably green should the user download the [latest main ZIP](https://github.com/xolomon-coder/DroidInspect/archive/refs/heads/main.zip), import `droidinspect/` into CodeAssist, build and install locally, and perform the one consolidated M12–M20 acceptance batch recorded above. Preserve/export important app-private workspaces before any reinstall that could be required by a signing-key mismatch. M11 must not be retested without a concrete regression.
 
 **Final state at this checkpoint:** source hardening and artifact-free workflow configuration are committed; CI, dependency audit, M19/M20 runtime verification and final device acceptance remain open. The project is **NOT COMPLETE**.
+
+## Android 11 device acceptance — M11 C# decompilation on Serilog.Extensions.Logging.dll (2026-11-23)
+
+**Result: C# source reconstruction PASS WITH DEPENDENCY WARNINGS.**
+
+The user tested the production app's **Decompile to C# source** flow with `Serilog.Extensions.Logging.dll` (previously inspected as a .NET assembly targeting .NET 9.0). The app produced substantial readable C# including assembly attributes, namespaces, classes, methods, fields, properties, generic types, nullable annotations, a record struct, lambdas and switch expressions. This confirms that the decompiler can reconstruct useful source for this fixture.
+
+The dependency diagnostic correctly reported that several required .NET 9.0 references were not resolved from the configured search directories. In particular, available `System.*` and `Microsoft.Extensions.*` candidates were version 11.0.0.0 and therefore identity-mismatched; `Serilog, Version=4.2.0.0` and `Microsoft.Extensions.Logging, Version=9.0.0.0` were not found. The output explicitly stated that source reconstruction does not mean dependencies were resolved. Some reconstructed methods contain `Unknown result type` comments, consistent with incomplete reference resolution.
+
+**Interpretation and limits:**
+- Source generation itself passed; dependency resolution for this fixture did not.
+- The warnings are meaningful compatibility diagnostics, not proof that the DLL is corrupt or that decompilation failed.
+- The reconstructed source is useful for inspection but may contain incomplete or approximate type information where references are missing.
+- This test does not establish that the emitted source compiles, that it can be recompiled into a loadable assembly, or that a rebuilt assembly is equivalent to the original.
+- Do not claim pagination, source-search highlighting, compilation, or round-trip fidelity from this result; those behaviors were not established by the supplied test output.
+
+**Next engineering direction:** improve framework/reference-pack discovery so the resolver can locate matching .NET 9 reference assemblies and the required Serilog/Microsoft.Extensions dependencies when supplied or available offline. Preserve explicit unresolved/mismatched-reference diagnostics when they are unavailable. Keep the existing no-network/offline behavior; do not silently substitute .NET 11 assemblies for .NET 9 references.
+
+This is a device-test finding and follow-up engineering requirement, not a claim that dependency resolution or source recompilation has been implemented. The project remains **NOT COMPLETE**.
