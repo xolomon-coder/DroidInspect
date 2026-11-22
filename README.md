@@ -8,6 +8,29 @@
 >
 > This policy supersedes older workflow and artifact-delivery instructions in the historical development journal below. Historical entries are retained as records of what was true at the time.
 
+## Device acceptance update — .NET IL editing usability (2026-11-23)
+
+The user tested the production app on Android 11 / CodeAssist after building and installing the current `droidinspect/` project.
+
+**Observed device results:**
+- Runtime diagnostics: PASS (Android API 30; ARM64 native decompiler/compiler payloads loaded; offline operation; SAF file selection).
+- PE/.NET metadata inspection: PASS on `Serilog.Extensions.Logging.dll` (Serilog.Extensions.Logging 9.0.2.0; PE32/x86; CLI metadata and type/member tables decoded).
+- IL instruction browser: PASS. The selected method displayed byte offsets, raw instruction bytes, decoded opcode names, metadata tokens/operands, branch targets and explanatory text (for example `newobj`, `stloc.0`, `ldloc.0`, `ldarg.1`, `stfld`, and `brtrue.s`).
+- Method rename attempt on that fixture: safely refused with `IOException: Strong-name signed assemblies cannot be edited by this writer.` This is expected protection for a strong-name-signed input, not a successful rename. The user confirmed the refusal.
+- C# decompilation screen has not yet been tested in this acceptance sequence.
+
+**New product requirement — make .NET editing understandable on a phone:**
+The current edit path exposes a continuous hexadecimal IL byte string, which is not understandable or safely editable for an ordinary user. This is a usability gap; raw hex must not be the default editing interface.
+
+Required roadmap work:
+1. Provide a human-readable IL editor as the default low-level editing view, showing instruction offsets, decoded opcodes, operands/metadata tokens, branch targets and concise explanations.
+2. Retain raw hexadecimal as an optional advanced view, not the primary editor.
+3. Plan a higher-level C# source editing and recompilation workflow where technically feasible, with compiler diagnostics, validation and preservation of the original assembly and last valid output.
+4. Clearly communicate that decompiled C# may not perfectly reconstruct the original assembly or preserve all metadata/compiler-generated details; do not promise lossless round-tripping.
+5. Keep strong-name/signature safety explicit: do not silently modify signed assemblies or imply that editing a signed file preserves its signature. Require a deliberate, supported re-signing workflow if that capability is implemented.
+
+**Status:** ROADMAP / NOT IMPLEMENTED. The IL browser's decoding capability is device-confirmed, but the user-facing hex editing experience is not accepted as usable. The signed-assembly rename refusal is a PASS for safe refusal only; unsigned-assembly rename/export remains untested. Do not mark method renaming generally accepted based on this test.
+
 ## Latest continuation update — 21 November 2026
 
 **Latest workflow/source commit:** `a507bab47a7b74ca43eca8307e69209eda1b1d21` — `Expose release and native dependency graphs in CI logs`. **Latest documentation-only `main` commit:** `f4da8ebe0fd6fc91e2e55e0fdb994a97e9c953cd`.
