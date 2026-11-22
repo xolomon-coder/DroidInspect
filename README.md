@@ -4434,7 +4434,7 @@ The dependency diagnostic correctly reported that several required .NET 9.0 refe
 - The warnings are meaningful compatibility diagnostics, not proof that the DLL is corrupt or that decompilation failed.
 - The reconstructed source is useful for inspection but may contain incomplete or approximate type information where references are missing.
 - 
-- **C# source search:** on the same fixture, the user confirmed that Find in C# Source can find the method name `AddSerilog`. This confirms basic source-text search. It does not establish result-count display, current-match numbering, automatic highlighting, or navigation behavior beyond locating the match.
+- **C# source search:** on the same fixture, the user confirmed that Find in C# Source can find the method name `AddSerilog`. Pressing **Next** moves to the next match. Search does not automatically jump to a match immediately when the query is entered; explicit Next navigation is required. This confirms basic search and manual next-match navigation. It does not establish result-count display, current-match numbering, automatic highlighting, or previous-match navigation.
 
 This test does not establish that the emitted source compiles, that it can be recompiled into a loadable assembly, or that a rebuilt assembly is equivalent to the original.
 - Do not claim pagination, source-search highlighting, compilation, or round-trip fidelity from this result; those behaviors were not established by the supplied test output.
