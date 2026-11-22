@@ -4433,7 +4433,10 @@ The dependency diagnostic correctly reported that several required .NET 9.0 refe
 - Source generation itself passed; dependency resolution for this fixture did not.
 - The warnings are meaningful compatibility diagnostics, not proof that the DLL is corrupt or that decompilation failed.
 - The reconstructed source is useful for inspection but may contain incomplete or approximate type information where references are missing.
-- This test does not establish that the emitted source compiles, that it can be recompiled into a loadable assembly, or that a rebuilt assembly is equivalent to the original.
+- 
+- **C# source search:** on the same fixture, the user confirmed that Find in C# Source can find the method name `AddSerilog`. This confirms basic source-text search. It does not establish result-count display, current-match numbering, automatic highlighting, or navigation behavior beyond locating the match.
+
+This test does not establish that the emitted source compiles, that it can be recompiled into a loadable assembly, or that a rebuilt assembly is equivalent to the original.
 - Do not claim pagination, source-search highlighting, compilation, or round-trip fidelity from this result; those behaviors were not established by the supplied test output.
 
 **Next engineering direction:** improve framework/reference-pack discovery so the resolver can locate matching .NET 9 reference assemblies and the required Serilog/Microsoft.Extensions dependencies when supplied or available offline. Preserve explicit unresolved/mismatched-reference diagnostics when they are unavailable. Keep the existing no-network/offline behavior; do not silently substitute .NET 11 assemblies for .NET 9 references.
