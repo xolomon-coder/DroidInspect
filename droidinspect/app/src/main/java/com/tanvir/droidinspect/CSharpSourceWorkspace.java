@@ -8,6 +8,9 @@ import android.provider.OpenableColumns;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FilterOutputStream;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.io.InputStream;
@@ -112,6 +115,18 @@ final class CSharpSourceWorkspace {
     String getDisplayName() { return displayName; }
     File getSourceRoot() { return sourceRoot; }
     File getOriginalAssemblyFile() { return new File(originalRoot, "OriginalAssembly.bin"); }
+    File getOriginalDecompilationFile() { return new File(originalRoot, "Decompiled.cs"); }
+
+    String readOriginalDecompilation() throws IOException {
+        File file = getOriginalDecompilationFile();
+        if (!isDirectChild(originalRoot, file) || !file.isFile() || file.length() > MAX_SOURCE_FILE)
+            throw new IOException("Untouched decompilation is unavailable or exceeds the 32 MB safety limit.");
+        byte[] bytes = Files.readAllBytes(file.toPath());
+        if (bytes.length > MAX_SOURCE_FILE)
+            throw new IOException("Untouched decompilation exceeds the 32 MB safety limit.");
+        return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+    }
+
     File getBuildOutputFile() throws IOException {
         File build = new File(root, "build");
         if (Files.isSymbolicLink(build.toPath()) || !isDirectChild(root, build))
@@ -333,14 +348,13 @@ final class CSharpSourceWorkspace {
         File temporary = new File(parent, target.getName() + ".tmp-" + UUID.randomUUID());
         Throwable primaryFailure = null;
         try {
-            byte[] bytes = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-            if (bytes.length > MAX_SOURCE_FILE)
-                throw new IOException("C# source file exceeds the 32 MB safety limit.");
-            try (FileOutputStream output = new FileOutputStream(temporary)) {
+            try (FileOutputStream raw = new FileOutputStream(temporary);
+                 OutputStream bounded = new BoundedOutputStream(raw, MAX_SOURCE_FILE);
+                 Writer writer = new OutputStreamWriter(bounded, java.nio.charset.StandardCharsets.UTF_8)) {
                 checkCancelled();
-                output.write(bytes);
-                output.flush();
-                output.getFD().sync();
+                writer.write(text == null ? "" : text);
+                writer.flush();
+                raw.getFD().sync();
             }
             Files.move(temporary.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException | RuntimeException | Error error) {
@@ -348,6 +362,37 @@ final class CSharpSourceWorkspace {
             throw error;
         } finally {
             deleteTemporaryFile(temporary, primaryFailure);
+        }
+    }
+
+    /** Enforces the UTF-8 byte limit without allocating a second full-source byte array. */
+    private static final class BoundedOutputStream extends FilterOutputStream {
+        private final long maximumBytes;
+        private long written;
+
+        BoundedOutputStream(OutputStream output, long maximumBytes) {
+            super(output);
+            this.maximumBytes = maximumBytes;
+        }
+
+        @Override public void write(int value) throws IOException {
+            ensureCapacity(1);
+            out.write(value);
+            written++;
+        }
+
+        @Override public void write(byte[] bytes, int offset, int length) throws IOException {
+            if (bytes == null) throw new NullPointerException("bytes");
+            if (offset < 0 || length < 0 || length > bytes.length - offset)
+                throw new IndexOutOfBoundsException();
+            ensureCapacity(length);
+            out.write(bytes, offset, length);
+            written += length;
+        }
+
+        private void ensureCapacity(int amount) throws IOException {
+            if (amount < 0 || written > maximumBytes - amount)
+                throw new IOException("C# source file exceeds the 32 MB safety limit.");
         }
     }
 
