@@ -103,6 +103,7 @@ public class CSharpSourceEditorActivity extends Activity {
             @Override public void afterTextChanged(Editable s) {
                 if (!largeFileMode) CSharpSyntaxHighlighter.apply(s);
                 updateLineNumbers();
+                updatePageControls();
             }
         });
 
@@ -198,9 +199,18 @@ public class CSharpSourceEditorActivity extends Activity {
         editor.setSelection(safeSelection);
         loadingText = false;
         updateLineNumbers();
-        if (pageInfo != null) pageInfo.setText("Edit page " + (currentPage + 1) + " / " + currentDocument.pageCount());
-        previousPageButton.setEnabled(largeFileMode && currentPage > 0);
-        nextPageButton.setEnabled(largeFileMode && currentPage + 1 < currentDocument.pageCount());
+        updatePageControls();
+    }
+
+    private void updatePageControls() {
+        if (currentDocument == null) return;
+        if (pageInfo != null)
+            pageInfo.setText("Edit page " + (currentPage + 1) + " / " + currentDocument.pageCount());
+        if (previousPageButton != null) previousPageButton.setEnabled(largeFileMode && currentPage > 0);
+        boolean pendingOverflowPage = largeFileMode && editor != null
+                && editor.length() > PagedSourceDocument.DEFAULT_PAGE_CHARS;
+        if (nextPageButton != null) nextPageButton.setEnabled(largeFileMode
+                && (currentPage + 1 < currentDocument.pageCount() || pendingOverflowPage));
     }
 
     private void syncEditorPage() {
@@ -210,8 +220,10 @@ public class CSharpSourceEditorActivity extends Activity {
     }
 
     private void showSourcePage(int page) {
-        if (!largeFileMode || currentDocument == null || page < 0 || page >= currentDocument.pageCount()) return;
+        if (!largeFileMode || currentDocument == null) return;
         syncEditorPage();
+        updatePageControls();
+        if (page < 0 || page >= currentDocument.pageCount()) return;
         renderEditorPage(page, 0);
         status.setText("Editing page " + (currentPage + 1) + " of " + currentDocument.pageCount()
                 + ". Changes remain in the source project when moving between pages.");
@@ -221,6 +233,7 @@ public class CSharpSourceEditorActivity extends Activity {
         if (project == null || currentFile == null) return false;
         try {
             syncEditorPage();
+            updatePageControls();
             project.save(currentFile, currentDocument);
             new ProjectWorkspaceMetadata(project.getSourceRoot().getParentFile())
                     .recordOperation("SOURCE_SAVE", currentFile.getName());
