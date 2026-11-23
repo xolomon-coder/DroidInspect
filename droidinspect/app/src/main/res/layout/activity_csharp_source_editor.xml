@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/sourceEditorRoot"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
@@ -34,6 +35,7 @@
         android:layout_height="wrap_content" />
 
     <LinearLayout
+        android:id="@+id/sourceEditorFileActionsRow"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal">
@@ -61,6 +63,7 @@
     </LinearLayout>
 
     <LinearLayout
+        android:id="@+id/sourceEditorProjectActionsRow"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal">
@@ -81,6 +84,7 @@
     </LinearLayout>
 
     <LinearLayout
+        android:id="@+id/sourceEditorOutputActionsRow"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal">
