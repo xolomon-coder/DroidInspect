@@ -1,6 +1,6 @@
 # DroidInspect
 
-> **Current authoritative development policy — 21 November 2026**
+> **Current authoritative development policy — 24 November 2026**
 >
 > DroidInspect uses a **source-first, artifact-free** workflow. GitHub `main` is the source of truth; development changes are committed directly to `main` only. GitHub Actions may run host tests, Android debug/release compilation, signing/tamper checks, and APK payload/security verification, but it must not upload or download APKs, ZIPs, or generated reports. Verification results are retained in normal Actions logs and the job summary; runner-local build outputs are discarded when the job ends. No GitHub Releases are used as an artifact workaround.
 >
@@ -22,6 +22,44 @@ Track these as two separate C# workspace blockers:
 2. Investigate and fix the crash when opening the editable workspace for this Unity-game DLL. Reproduce with the user's approximately 1+ MB fixture if it can be supplied, inspect editor/workspace initialization and large-source handling, and preserve the original assembly and decompiled source.
 
 **Acceptance status:** decompilation of the Unity fixture is accepted as working; opening the editor for that fixture is not accepted. Editing, saving, and recompiling remain untested. Do not mark the C# editing workflow accepted until both workspace blockers are fixed and the user verifies editing on-device.
+
+## Paged C# editor implementation update — 2026-11-24
+
+A targeted production `main` update was made after the Unity DLL crash and keyboard obstruction reports. This is an implementation checkpoint, not device acceptance.
+
+**Changes now present in production source:**
+
+- `PagedSourceDocument` keeps the default editable page size at 16,000 UTF-16 characters and preserves the existing UTF-8 load/save path and 32 MiB per-source-file limit.
+- Backward search now walks pages from the end and retains only the short overlap needed to match across page boundaries. It no longer calls `toString()` to allocate a second complete-source `String`.
+- Replace All and cross-page range replacement now stream output into bounded page chunks instead of building a second complete-document `StringBuilder`. Case-insensitive matching and cross-page matches remain supported.
+- The paged-model regression test now covers backward matches across page boundaries, backward wraparound, bounded replacement output, surrogate-pair page boundaries, and deleting all source text to a valid empty document. Existing longer/shorter replacement, save/reopen, small-file, Unicode and range-boundary cases remain in the test.
+- Source-project creation now writes UTF-8 through a bounded streaming output stream rather than first allocating a full-source byte array. The 32 MiB byte limit remains enforced, and the raw file descriptor is synced only after the UTF-8 writer has finalized its encoding.
+- When the user opens the editable workspace, the decompiler Activity releases its retained complete-source `String`; if the user returns to the decompiler screen, the untouched decompilation is reloaded from the private `original/Decompiled.cs` copy. The original assembly and untouched decompilation remain separate from editable source.
+- Editor loading now disables search/replacement while file I/O is in progress. A failed file load reports the requested file and explicitly states when the previously open file remains active. The initial source load re-enables editing only after a valid paged document is installed.
+
+**Source commits on `main`:**
+
+- `b188cc2e96f0eb39d39bff1ac63d07a9c7483e59` — page-based backward search and bounded replacement output.
+- `0828aae127a841966984669248e32b04138c9f7b` — backward boundary and wraparound regression tests.
+- `bad0f45877af9bb8578591a46538e5fdc4afa4bb` and `47dab6440f7960eb05a40bdafc53138d7686271e` — bounded streaming UTF-8 workspace writes and correct post-encoder sync.
+- `96144b670002c8780787a9c98d55363113324f1f` — release the decompiler's full-source field while the editor is active and restore it from the untouched copy on return.
+- `20bb1c313abd672b23729c50f747b9d2054b2bb8` and `9d474747ef55d3fc8c9b4bce516a0d6b6baed49b` — editor busy/failure-state hardening and initial-load enable correction.
+- `426ead6ef90bbff8471e4a6ee64e8b8e44da81c4` — bounded-page and empty-document replacement regression cases.
+
+**CI evidence and limitation:** production CI run [#713](https://github.com/xolomon-coder/DroidInspect/actions/runs/45227796020) completed successfully on commit `0f55294a2aa9e053de3c1874d5f10e6fef721557`. It passed all then-current host tests, NuGet audit, Android debug/release compilation, signing/tamper verification, APK payload/ABI/offline checks, native-library dependency inspection and the earlier paged-model regression test. **Run #713 predates every source commit listed above and does not verify these follow-up changes.** The available GitHub connection did not return a newer push-run record or check result for current source HEAD `426ead6ef90bbff8471e4a6ee64e8b8e44da81c4`; follow-up CI must therefore remain **UNVERIFIED**, not PASS. No Actions artifacts or Releases were used.
+
+**Keyboard status:** the production editor manifest already specifies `windowSoftInputMode="adjustResize"`, and the editor `EditText` already specifies `imeOptions="flagNoExtractUi"`. These settings are present in source; they are not proof that Android 11 keeps the active code visible. No layout change is being labelled as device-verified.
+
+**Acceptance remains open:**
+
+- Unity DLL decompilation: previously device-tested PASS.
+- Large Unity DLL editable workspace: the earlier black-screen/crash report remains a device FAIL until the user repeats only this affected test on the updated build.
+- Keyboard visibility and viewport resizing: device verification required.
+- Page navigation, edit/return preservation, search, replace, save and reopen on a large source file: device verification required.
+- C# recompilation: do not test or mark accepted until editing and saving are stable.
+- Small-file editor behavior and all previously accepted M11 decompilation tests must be preserved; do not repeat M11 acceptance.
+
+**Current code HEAD before this README update:** `426ead6ef90bbff8471e4a6ee64e8b8e44da81c4`. Project status remains **NOT COMPLETE**. Do not provide a device-acceptance ZIP until the follow-up source commit has a verified green CI run; then request the targeted Android 11 editor acceptance batch above.
 
 ## Device acceptance update — .NET IL editing usability (2026-11-23)
 
