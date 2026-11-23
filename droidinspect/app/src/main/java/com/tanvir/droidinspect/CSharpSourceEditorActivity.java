@@ -557,21 +557,27 @@ public class CSharpSourceEditorActivity extends Activity {
     private void showFindDialog() {
         EditText query = new EditText(this);
         query.setSingleLine(true);
-        query.setHint("Find text in current file");
+        query.setHint("Find text in complete source file");
         new AlertDialog.Builder(this)
                 .setTitle("Find in C# source")
                 .setView(query)
                 .setNegativeButton("CLOSE", null)
                 .setPositiveButton("FIND NEXT", (dialog, which) -> {
                     String needle = query.getText().toString();
-                    if (needle.isEmpty()) return;
-                    String source = editor.getText().toString();
-                    int start = Math.max(editor.getSelectionEnd(), 0);
-                    int found = source.indexOf(needle, start);
-                    if (found < 0) found = source.indexOf(needle);
+                    if (needle.isEmpty() || currentDocument == null) return;
+                    syncEditorPage();
+                    int start = largeFileMode
+                            ? currentDocument.getPageStart(currentPage) + Math.max(0, editor.getSelectionEnd())
+                            : Math.max(0, editor.getSelectionEnd());
+                    int found = currentDocument.find(needle, start, true, true);
                     if (found >= 0) {
+                        int page = largeFileMode ? currentDocument.pageForOffset(found) : 0;
+                        int local = found - (largeFileMode ? currentDocument.getPageStart(page) : 0);
+                        renderEditorPage(page, local);
                         editor.requestFocus();
-                        editor.setSelection(found, found + needle.length());
+                        editor.setSelection(local, Math.min(editor.length(), local + needle.length()));
+                        status.setText("Found in complete source — character " + (found + 1)
+                                + (largeFileMode ? ", page " + (page + 1) + " / " + currentDocument.pageCount() : ""));
                     } else {
                         status.setText("No match found in " + currentFile.getName() + ".");
                     }
@@ -585,47 +591,51 @@ public class CSharpSourceEditorActivity extends Activity {
         fields.setPadding(pad, 0, pad, 0);
         EditText find = new EditText(this);
         find.setSingleLine(true);
-        find.setHint("Find");
+        find.setHint("Find in complete source");
         EditText replacement = new EditText(this);
         replacement.setSingleLine(true);
         replacement.setHint("Replace with");
         fields.addView(find);
         fields.addView(replacement);
         new AlertDialog.Builder(this)
-                .setTitle("Replace in current C# file")
+                .setTitle("Replace in C# source")
                 .setView(fields)
                 .setNegativeButton("CANCEL", null)
                 .setPositiveButton("REPLACE NEXT", (dialog, which) -> {
                     String needle = find.getText().toString();
-                    if (needle.isEmpty()) return;
-                    String source = editor.getText().toString();
-                    int start = Math.max(editor.getSelectionStart(), 0);
-                    int found = source.indexOf(needle, start);
-                    if (found < 0) found = source.indexOf(needle);
+                    if (needle.isEmpty() || currentDocument == null) return;
+                    syncEditorPage();
+                    int start = largeFileMode
+                            ? currentDocument.getPageStart(currentPage) + Math.max(0, editor.getSelectionStart())
+                            : Math.max(0, editor.getSelectionStart());
+                    int found = currentDocument.find(needle, start, true, true);
                     if (found >= 0) {
-                        editor.getText().replace(found, found + needle.length(), replacement.getText());
-                        editor.setSelection(found + replacement.length());
+                        String value = replacement.getText().toString();
+                        currentDocument.replaceRange(found, found + needle.length(), value);
+                        int page = largeFileMode ? currentDocument.pageForOffset(found) : 0;
+                        int local = found - (largeFileMode ? currentDocument.getPageStart(page) : 0);
+                        renderEditorPage(page, Math.min(editor.length(), local + value.length()));
+                        editor.requestFocus();
+                        editor.setSelection(Math.min(editor.length(), local + value.length()));
+                        dirty = true;
+                        updateDirtyState();
                     } else {
                         status.setText("No match found in " + currentFile.getName() + ".");
                     }
                 })
                 .setNeutralButton("REPLACE ALL", (dialog, which) -> {
                     String needle = find.getText().toString();
-                    if (needle.isEmpty()) return;
-                    String source = editor.getText().toString();
-                    int count = 0, at = 0;
-                    while ((at = source.indexOf(needle, at)) >= 0) {
-                        count++;
-                        at += needle.length();
-                    }
+                    if (needle.isEmpty() || currentDocument == null) return;
+                    syncEditorPage();
+                    int count = currentDocument.replaceAll(needle, replacement.getText().toString(), true);
                     if (count == 0) {
                         status.setText("No matches found in " + currentFile.getName() + ".");
                         return;
                     }
-                    editor.setText(source.replace(needle, replacement.getText().toString()));
+                    renderEditorPage(largeFileMode ? Math.min(currentPage, currentDocument.pageCount() - 1) : 0, 0);
                     dirty = true;
                     updateDirtyState();
-                    status.setText("Replaced " + count + " occurrence(s) in " + currentFile.getName() + ".");
+                    status.setText("Replaced " + count + " occurrence(s) across the complete source file.");
                 }).show();
     }
 
