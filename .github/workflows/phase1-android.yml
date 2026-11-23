@@ -114,6 +114,15 @@ jobs:
             tools/bounded-source-tree-test/BoundedSourceTreeSelfTest.java
           java -cp /tmp/droidinspect-source-tree-test com.tanvir.droidinspect.BoundedSourceTreeSelfTest
 
+      - name: Test paged C# source editor model
+        id: paged_source_document
+        run: |
+          mkdir -p /tmp/droidinspect-paged-source-test
+          javac -d /tmp/droidinspect-paged-source-test \
+            droidinspect/app/src/main/java/com/tanvir/droidinspect/PagedSourceDocument.java \
+            tools/paged-source-document-test/PagedSourceDocumentSelfTest.java
+          java -cp /tmp/droidinspect-paged-source-test com.tanvir.droidinspect.PagedSourceDocumentSelfTest
+
       - name: Test bounded APK project file inventories
         id: bounded_project_files
         run: |
