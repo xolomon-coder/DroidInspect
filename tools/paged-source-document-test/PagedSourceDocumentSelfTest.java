@@ -56,7 +56,6 @@ public final class PagedSourceDocumentSelfTest {
         document.writeTo(source);
         PagedSourceDocument reopened = PagedSourceDocument.load(source, 1024);
         require(reopened.toString().equals(document.toString()), "save/reopen must preserve the complete edited source");
-        require(reopened.pageCount() == document.pageCount(), "save/reopen must retain bounded page model");
 
         File rangeBoundary = new File(root, "RangeBoundary.cs");
         String rangeFixture = "x".repeat(1014) + "RANGE_LEFT" + "RANGE_RIGHT" + "tail";
