@@ -193,11 +193,36 @@ final class PagedSourceDocument {
     }
 
     void replaceRange(int start, int end, String replacement) {
-        if (start < 0 || end < start || end > totalLength) throw new IndexOutOfBoundsException("Invalid replacement range.");
-        String source = toString();
+        if (start < 0 || end <= start || end > totalLength)
+            throw new IndexOutOfBoundsException("Invalid replacement range.");
         String value = replacement == null ? "" : replacement;
-        StringBuilder output = new StringBuilder(source.length() - (end - start) + value.length());
-        output.append(source, 0, start).append(value).append(source, end, source.length());
+        StringBuilder output = new StringBuilder(totalLength - (end - start) + value.length());
+        int absolute = 0;
+        boolean inserted = false;
+        for (String page : pages) {
+            int pageStart = absolute;
+            int pageEnd = pageStart + page.length();
+            if (pageEnd <= start) {
+                output.append(page);
+            } else if (pageStart >= end) {
+                if (!inserted) {
+                    output.append(value);
+                    inserted = true;
+                }
+                output.append(page);
+            } else {
+                int prefixLength = Math.max(0, Math.min(page.length(), start - pageStart));
+                int suffixStart = Math.max(0, Math.min(page.length(), end - pageStart));
+                output.append(page, 0, prefixLength);
+                if (!inserted) {
+                    output.append(value);
+                    inserted = true;
+                }
+                output.append(page, suffixStart, page.length());
+            }
+            absolute = pageEnd;
+        }
+        if (!inserted) output.append(value);
         rebuild(output);
     }
 
