@@ -59,13 +59,13 @@ public final class PagedSourceDocumentSelfTest {
         require(reopened.pageCount() == document.pageCount(), "save/reopen must retain bounded page model");
 
         File rangeBoundary = new File(root, "RangeBoundary.cs");
-        String rangeFixture = "x".repeat(1011) + "RANGE_LEFT" + "RANGE_RIGHT" + "tail";
+        String rangeFixture = "x".repeat(1014) + "RANGE_LEFT" + "RANGE_RIGHT" + "tail";
         Files.write(rangeBoundary.toPath(), rangeFixture.getBytes(StandardCharsets.UTF_8));
         PagedSourceDocument rangeDocument = PagedSourceDocument.load(rangeBoundary, 1024);
         int rangeStart = rangeDocument.find("RANGE_LEFTRANGE_RIGHT", 0, true, false);
-        require(rangeStart == 1011, "range replacement fixture must cross a page boundary");
+        require(rangeStart == 1014, "range replacement fixture must cross a page boundary");
         rangeDocument.replaceRange(rangeStart, rangeStart + "RANGE_LEFTRANGE_RIGHT".length(), "RANGE_REPLACED");
-        require(rangeDocument.toString().equals("x".repeat(1011) + "RANGE_REPLACED" + "tail"),
+        require(rangeDocument.toString().equals("x".repeat(1014) + "RANGE_REPLACED" + "tail"),
                 "range replacement must preserve text on both sides of a page boundary");
 
         File small = new File(root, "Small.cs");
