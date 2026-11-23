@@ -205,7 +205,8 @@ public class CSharpSourceEditorActivity extends Activity {
 
     private void syncEditorPage() {
         if (currentDocument == null || editor == null) return;
-        currentDocument.setPage(largeFileMode ? currentPage : 0, editor.getText().toString());
+        if (largeFileMode) currentDocument.setPage(currentPage, editor.getText().toString());
+        else currentDocument.setAll(editor.getText().toString());
     }
 
     private void showSourcePage(int page) {
