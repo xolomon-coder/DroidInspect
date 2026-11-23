@@ -156,22 +156,39 @@ final class PagedSourceDocument {
 
     int replaceAll(String query, String replacement, boolean ignoreCase) {
         if (query == null || query.isEmpty()) return 0;
-        String source = toString();
         String value = replacement == null ? "" : replacement;
-        StringBuilder output = new StringBuilder(source.length());
+        StringBuilder pending = new StringBuilder();
+        StringBuilder output = new StringBuilder(totalLength);
         int count = 0;
+        for (String page : pages) {
+            pending.append(page);
+            int safeEnd = Math.max(0, pending.length() - query.length() + 1);
+            int cursor = 0;
+            while (cursor < safeEnd) {
+                int found = ignoreCase
+                        ? indexOfIgnoreCase(pending.toString(), query, cursor)
+                        : pending.indexOf(query, cursor);
+                if (found < 0 || found >= safeEnd) break;
+                output.append(pending, cursor, found).append(value);
+                cursor = found + query.length();
+                count++;
+            }
+            int flushEnd = Math.max(cursor, safeEnd);
+            output.append(pending, cursor, flushEnd);
+            pending.delete(0, flushEnd);
+        }
         int cursor = 0;
-        while (cursor <= source.length() - query.length()) {
-            int found = ignoreCase ? indexOfIgnoreCase(source, query, cursor) : source.indexOf(query, cursor);
+        while (cursor <= pending.length() - query.length()) {
+            int found = ignoreCase
+                    ? indexOfIgnoreCase(pending.toString(), query, cursor)
+                    : pending.indexOf(query, cursor);
             if (found < 0) break;
-            output.append(source, cursor, found).append(value);
+            output.append(pending, cursor, found).append(value);
             cursor = found + query.length();
             count++;
         }
-        if (count > 0) {
-            output.append(source, cursor, source.length());
-            rebuild(output);
-        }
+        output.append(pending, cursor, pending.length());
+        if (count > 0) rebuild(output);
         return count;
     }
 
