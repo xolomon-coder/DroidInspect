@@ -5,13 +5,16 @@ import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.Context;
 import android.graphics.Typeface;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.View;
+import android.view.WindowInsets;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -57,6 +60,7 @@ public class CSharpSourceEditorActivity extends Activity {
     private boolean largeFileMode;
     private boolean compiling;
     private boolean ioBusy;
+    private boolean keyboardCompactMode;
     private volatile boolean activityDestroyed;
     private final ExecutorService compilerWorker = Executors.newSingleThreadExecutor();
     private final ExecutorService ioWorker = Executors.newSingleThreadExecutor();
@@ -84,6 +88,7 @@ public class CSharpSourceEditorActivity extends Activity {
         findButton.setOnClickListener(v -> showFindDialog());
         replaceButton.setOnClickListener(v -> showReplaceDialog());
         editor.setOnScrollChangeListener((view, x, y, oldX, oldY) -> lineNumbers.scrollTo(0, y));
+        installKeyboardLayoutHandling();
 
         findViewById(R.id.sourceEditorAdd).setOnClickListener(v -> addFile());
         findViewById(R.id.sourceEditorImport).setOnClickListener(v -> importFiles());
@@ -130,6 +135,61 @@ public class CSharpSourceEditorActivity extends Activity {
             @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
         });
         if (currentFile == null && !sourceFiles.isEmpty()) switchFile(sourceFiles.get(0));
+    }
+
+    /**
+     * On Android 11+ use the IME inset visibility directly. Older supported
+     * versions fall back to the visible display frame. When the keyboard is
+     * open, collapse project-management rows so the code viewport keeps useful
+     * height; Save and large-file page controls remain on screen.
+     */
+    private void installKeyboardLayoutHandling() {
+        View root = findViewById(R.id.sourceEditorRoot);
+        if (root == null) return;
+        root.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
+            boolean visible;
+            if (Build.VERSION.SDK_INT >= 30) {
+                WindowInsets insets = root.getRootWindowInsets();
+                visible = insets != null && insets.isVisible(WindowInsets.Type.ime());
+            } else {
+                Rect frame = new Rect();
+                root.getWindowVisibleDisplayFrame(frame);
+                int rootHeight = root.getRootView().getHeight();
+                int obscuredHeight = rootHeight - frame.bottom;
+                visible = obscuredHeight > (int) (160 * getResources().getDisplayMetrics().density);
+            }
+            if (visible != keyboardCompactMode) setKeyboardCompactMode(visible);
+        });
+    }
+
+    private void setKeyboardCompactMode(boolean compact) {
+        keyboardCompactMode = compact;
+        status.setVisibility(compact ? View.GONE : View.VISIBLE);
+        filesSpinner.setVisibility(compact ? View.GONE : View.VISIBLE);
+        findViewById(R.id.sourceEditorAdd).setVisibility(compact ? View.GONE : View.VISIBLE);
+        findViewById(R.id.sourceEditorImport).setVisibility(compact ? View.GONE : View.VISIBLE);
+        findViewById(R.id.sourceEditorProjectActionsRow).setVisibility(compact ? View.GONE : View.VISIBLE);
+        findViewById(R.id.sourceEditorOutputActionsRow).setVisibility(compact ? View.GONE : View.VISIBLE);
+        if (compact) editor.post(this::scrollActiveCursorIntoView);
+    }
+
+    private void scrollActiveCursorIntoView() {
+        if (editor == null || !editor.hasFocus() || editor.length() == 0) return;
+        android.text.Layout layout = editor.getLayout();
+        if (layout == null) return;
+        int offset = Math.max(0, Math.min(editor.getSelectionEnd(), editor.length() - 1));
+        int line = layout.getLineForOffset(offset);
+        int lineTop = layout.getLineTop(line);
+        int lineBottom = layout.getLineBottom(line);
+        int viewportHeight = editor.getHeight()
+                - editor.getCompoundPaddingTop() - editor.getCompoundPaddingBottom();
+        if (viewportHeight <= 0) return;
+        int scrollY = editor.getScrollY();
+        if (lineBottom > scrollY + viewportHeight) {
+            editor.scrollTo(editor.getScrollX(), Math.max(0, lineBottom - viewportHeight + editor.getLineHeight()));
+        } else if (lineTop < scrollY) {
+            editor.scrollTo(editor.getScrollX(), Math.max(0, lineTop));
+        }
     }
 
     private void refreshFiles(File select) throws IOException {
