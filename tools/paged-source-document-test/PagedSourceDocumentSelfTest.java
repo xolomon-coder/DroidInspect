@@ -67,6 +67,17 @@ public final class PagedSourceDocumentSelfTest {
         require(PagedSourceDocument.load(small, 1024).toString().contains("Value = 2"),
                 "small-file edit/save/reopen regression must pass");
 
+        File unicodeBoundary = new File(root, "UnicodeBoundary.cs");
+        StringBuilder unicodeInput = new StringBuilder();
+        for (int i = 0; i < 8191; i++) unicodeInput.append('a');
+        unicodeInput.append("🚀");
+        Files.write(unicodeBoundary.toPath(), unicodeInput.toString().getBytes(StandardCharsets.UTF_8));
+        PagedSourceDocument unicodeDocument = PagedSourceDocument.load(unicodeBoundary, 8192);
+        require(unicodeDocument.toString().equals(unicodeInput.toString()),
+                "UTF-16 surrogate pair must survive a reader-buffer boundary");
+        require(!Character.isHighSurrogate(unicodeDocument.getPage(0).charAt(8190)),
+                "page split must not leave a high surrogate at the end of the previous page");
+
         File empty = new File(root, "Empty.cs");
         Files.createNewFile(empty.toPath());
         PagedSourceDocument emptyDocument = PagedSourceDocument.load(empty, 1024);
