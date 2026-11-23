@@ -358,7 +358,13 @@ final class PagedSourceDocument {
                 if (amount > 0 && offset + amount < end
                         && Character.isHighSurrogate(text.charAt(offset + amount - 1))
                         && Character.isLowSurrogate(text.charAt(offset + amount))) {
-                    amount++;
+                    // Do not let a two-char surrogate pair overrun the page limit.
+                    // Flush this partial page and copy the pair together onto the next one.
+                    if (amount > 1) amount--;
+                    else {
+                        flush();
+                        continue;
+                    }
                 }
                 if (amount <= 0) {
                     flush();
