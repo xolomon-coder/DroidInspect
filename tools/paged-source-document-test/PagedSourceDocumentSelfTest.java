@@ -93,6 +93,73 @@ public final class PagedSourceDocumentSelfTest {
                         && deleteDocument.getPage(0).isEmpty(),
                 "deleting all source text must leave one valid empty page");
 
+        require(document.find("namespace Test0", document.length(), true, false) == input.indexOf("namespace Test0"),
+                "forward search must wrap from the end of the document to the first match");
+        require(document.find("NAMESPACE TEST1", 0, true, true) == input.indexOf("namespace Test1"),
+                "ignore-case search must match across the complete document");
+        require(document.find("NAMESPACE TEST1", 0, true, false) == -1,
+                "case-sensitive search must not match different letter casing");
+
+        File pageEditFixture = new File(root, "PageEdit.cs");
+        String pageEditOriginal = "A".repeat(1024) + "B".repeat(1024) + "C".repeat(1024);
+        Files.write(pageEditFixture.toPath(), pageEditOriginal.getBytes(StandardCharsets.UTF_8));
+        PagedSourceDocument pageEdit = PagedSourceDocument.load(pageEditFixture, 1024);
+        String oversizedPage = "X".repeat(1023) + "🚀" + "Y".repeat(601);
+        pageEdit.setPage(1, oversizedPage);
+        String expandedExpected = "A".repeat(1024) + oversizedPage + "C".repeat(1024);
+        require(pageEdit.toString().equals(expandedExpected),
+                "oversized page edits must split while preserving following page content");
+        require(pageEdit.pageCount() == 4,
+                "oversized page edit must create the required additional bounded page");
+        for (int i = 0; i < pageEdit.pageCount(); i++) {
+            require(pageEdit.pageLength(i) <= 1024, "oversized page edit must keep every page bounded");
+            String current = pageEdit.getPage(i);
+            if (i + 1 < pageEdit.pageCount() && current.length() > 0) {
+                String following = pageEdit.getPage(i + 1);
+                require(following.length() == 0
+                                || !(Character.isHighSurrogate(current.charAt(current.length() - 1))
+                                && Character.isLowSurrogate(following.charAt(0))),
+                        "oversized page edit must not split a surrogate pair");
+            }
+        }
+        pageEdit.setPage(1, "tiny\r\n");
+        String shrunkExpected = "A".repeat(1024) + "tiny\r\n"
+                + oversizedPage.substring(1023) + "C".repeat(1024);
+        require(pageEdit.toString().equals(shrunkExpected),
+                "shrinking an edited page must preserve its overflow page and CRLF line endings");
+        pageEdit.setPage(2, "");
+        pageEdit.setPage(1, "");
+        String deletedExpected = "A".repeat(1024) + "C".repeat(1024);
+        require(pageEdit.toString().equals(deletedExpected),
+                "deleting edited page content must preserve text on both sides");
+        pageEdit.writeTo(pageEditFixture);
+        require(PagedSourceDocument.load(pageEditFixture, 1024).toString().equals(deletedExpected),
+                "page insertion, shrink and deletion must survive save/reopen");
+
+        File protectedSave = new File(root, "Protected.cs");
+        Files.write(protectedSave.toPath(), "KEEP ORIGINAL".getBytes(StandardCharsets.UTF_8));
+        boolean sizeRejected = false;
+        try {
+            pageEdit.writeTo(protectedSave, 1);
+        } catch (java.io.IOException expected) {
+            sizeRejected = true;
+        }
+        require(sizeRejected, "save must reject a document above the caller's byte limit");
+        require(new String(Files.readAllBytes(protectedSave.toPath()), StandardCharsets.UTF_8)
+                        .equals("KEEP ORIGINAL"),
+                "a rejected save must leave the existing destination untouched");
+
+        boolean cancelledLoad = false;
+        Thread.currentThread().interrupt();
+        try {
+            PagedSourceDocument.load(source, 1024);
+        } catch (java.io.InterruptedIOException expected) {
+            cancelledLoad = true;
+        } finally {
+            Thread.interrupted();
+        }
+        require(cancelledLoad, "paged source loading must stop when its background worker is interrupted");
+
         int oldLength = document.length();
         int rocket = document.toString().indexOf("\uD83D\uDE80");
         require(rocket >= 0, "supplementary Unicode character must survive page splitting");

@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
@@ -43,6 +44,8 @@ final class PagedSourceDocument {
                 new FileInputStream(file), StandardCharsets.UTF_8))) {
             int count;
             while ((count = reader.read(buffer)) != -1) {
+                if (Thread.currentThread().isInterrupted())
+                    throw new InterruptedIOException("C# source loading was cancelled because the editor was closed.");
                 int offset = 0;
                 while (offset < count) {
                     int amount = Math.min(pageChars - page.length(), count - offset);

@@ -314,17 +314,26 @@ jobs:
               changed = False
               for item in src.infolist():
                   data = src.read(item.filename)
-                  if item.filename == "AndroidManifest.xml" and data:
-                      data = bytes([data[0] ^ 1]) + data[1:]
+                  # Preserve AndroidManifest.xml so apksigner can parse the APK and
+                  # reject the changed signed payload specifically for integrity.
+                  if item.filename == "resources.arsc" and data:
+                      data = data[:-1] + bytes([data[-1] ^ 1])
                       changed = True
                   dst.writestr(item, data)
-              assert changed, "AndroidManifest.xml missing from test APK"
+              assert changed, "resources.arsc missing from test APK"
           PY
-          if "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify "$TAMPERED"; then
+          if "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$TAMPERED" \
+              > /tmp/droidinspect-tamper-verification.txt 2>&1; then
+            cat /tmp/droidinspect-tamper-verification.txt
             echo "ERROR: tampered APK unexpectedly verified"
             exit 1
           else
-            echo "PASS: modified APK signature rejected"
+            cat /tmp/droidinspect-tamper-verification.txt
+            if ! grep -Eiq 'signature|digest|integrity' /tmp/droidinspect-tamper-verification.txt; then
+              echo "ERROR: APK verifier failed for a reason unrelated to signature integrity"
+              exit 1
+            fi
+            echo "PASS: modified signed resource rejected while the binary manifest remained intact"
           fi
           sha256sum "$SIGNED"
           ls -lh "$SIGNED"
