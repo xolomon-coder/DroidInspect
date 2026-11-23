@@ -51,6 +51,25 @@ public final class PagedSourceDocumentSelfTest {
         int count = document.replaceAll("public int Value0 =", "public int EditedValue0 =", false);
         require(count == 9, "replace-all must operate across all pages; expected 9, got " + count);
         require(document.toString().contains("public int EditedValue0 ="), "replacement text must be present");
+        for (int i = 0; i < document.pageCount(); i++) {
+            require(document.pageLength(i) <= 1024, "replace-all output pages must remain bounded");
+            if (i + 1 < document.pageCount()) {
+                String left = document.getPage(i);
+                String right = document.getPage(i + 1);
+                require(!(Character.isHighSurrogate(left.charAt(left.length() - 1))
+                                && Character.isLowSurrogate(right.charAt(0))),
+                        "replacement page boundaries must not split surrogate pairs");
+            }
+        }
+
+        File deleteFixture = new File(root, "DeleteAll.cs");
+        Files.write(deleteFixture.toPath(), "REMOVE_ME".getBytes(StandardCharsets.UTF_8));
+        PagedSourceDocument deleteDocument = PagedSourceDocument.load(deleteFixture, 1024);
+        require(deleteDocument.replaceAll("REMOVE_ME", "", false) == 1,
+                "replace-all must support deletion to an empty document");
+        require(deleteDocument.length() == 0 && deleteDocument.pageCount() == 1
+                        && deleteDocument.getPage(0).isEmpty(),
+                "deleting all source text must leave one valid empty page");
 
         int oldLength = document.length();
         int rocket = document.toString().indexOf("\uD83D\uDE80");
