@@ -31,11 +31,15 @@ public final class PagedSourceDocumentSelfTest {
         require(leftBoundary % 1024 == 1011, "fixture should position the token at a page boundary");
         int boundaryAt = document.find(boundary, 0, true, false);
         require(boundaryAt == leftBoundary, "whole-document search must find a token spanning page boundaries");
+        require(document.replaceAll(boundary, "BOUNDARY_FIXED", false) == 1,
+                "replace-all must also match text spanning page boundaries");
 
         String first = document.getPage(0);
         document.setPage(0, first + "// first page edit\n");
         int inserted = document.toString().indexOf("// first page edit");
         require(inserted >= 0, "page edit must persist in the document model");
+        for (int i = 0; i < document.pageCount(); i++)
+            require(document.pageLength(i) <= 1024, "edited pages must remain bounded");
 
         int count = document.replaceAll("public int Value0 =", "public int EditedValue0 =", false);
         require(count == 9, "replace-all must operate across all pages; expected 9, got " + count);
