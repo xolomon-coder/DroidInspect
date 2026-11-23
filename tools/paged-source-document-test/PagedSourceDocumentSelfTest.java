@@ -62,6 +62,28 @@ public final class PagedSourceDocumentSelfTest {
             }
         }
 
+        File replacementUnicodeBoundary = new File(root, "ReplacementUnicodeBoundary.cs");
+        String replacementUnicodeInput = "a".repeat(1023) + "X";
+        Files.write(replacementUnicodeBoundary.toPath(),
+                replacementUnicodeInput.getBytes(StandardCharsets.UTF_8));
+        PagedSourceDocument replacementUnicodeDocument =
+                PagedSourceDocument.load(replacementUnicodeBoundary, 1024);
+        require(replacementUnicodeDocument.replaceAll("X", "🚀", false) == 1,
+                "replace-all must find the match immediately before a page boundary");
+        require(replacementUnicodeDocument.toString().equals("a".repeat(1023) + "🚀"),
+                "replacement must preserve a supplementary Unicode pair at the page boundary");
+        for (int i = 0; i < replacementUnicodeDocument.pageCount(); i++) {
+            require(replacementUnicodeDocument.pageLength(i) <= 1024,
+                    "supplementary replacement must not exceed the configured page size");
+            if (i + 1 < replacementUnicodeDocument.pageCount()) {
+                String left = replacementUnicodeDocument.getPage(i);
+                String right = replacementUnicodeDocument.getPage(i + 1);
+                require(!(Character.isHighSurrogate(left.charAt(left.length() - 1))
+                                && Character.isLowSurrogate(right.charAt(0))),
+                        "supplementary replacement must not split its surrogate pair across pages");
+            }
+        }
+
         File deleteFixture = new File(root, "DeleteAll.cs");
         Files.write(deleteFixture.toPath(), "REMOVE_ME".getBytes(StandardCharsets.UTF_8));
         PagedSourceDocument deleteDocument = PagedSourceDocument.load(deleteFixture, 1024);
