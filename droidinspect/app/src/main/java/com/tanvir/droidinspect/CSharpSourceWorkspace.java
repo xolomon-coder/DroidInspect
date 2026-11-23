@@ -143,6 +143,22 @@ final class CSharpSourceWorkspace {
         write(file, text == null ? "" : text);
     }
 
+    PagedSourceDocument readPaged(File file) throws IOException {
+        ensureInsideSource(file);
+        if (!file.isFile() || file.length() > MAX_SOURCE_FILE)
+            throw new IOException("C# source file is missing or exceeds the 32 MB safety limit.");
+        PagedSourceDocument document = PagedSourceDocument.load(file);
+        if (document.utf8Length() > MAX_SOURCE_FILE)
+            throw new IOException("C# source file exceeds the 32 MB safety limit.");
+        return document;
+    }
+
+    void save(File file, PagedSourceDocument document) throws IOException {
+        ensureInsideSource(file);
+        if (document == null) throw new IOException("Paged source document is unavailable.");
+        document.writeTo(file, MAX_SOURCE_FILE);
+    }
+
     File createSourceFile(String requestedName) throws IOException {
         String name = safeFileName(requestedName);
         if (!name.toLowerCase(java.util.Locale.ROOT).endsWith(".cs")) name += ".cs";
