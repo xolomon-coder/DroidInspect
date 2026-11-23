@@ -24,7 +24,9 @@
         android:paddingBottom="5dp"
         android:text="Source workspace"
         android:textColor="#80CBC4"
-        android:textSize="12sp" />
+        android:textSize="12sp"
+        android:maxLines="2"
+        android:ellipsize="end" />
 
     <Spinner
         android:id="@+id/sourceEditorFiles"
@@ -58,31 +60,47 @@
             android:text="IMPORT" />
     </LinearLayout>
 
-    <Button
-        android:id="@+id/sourceEditorExport"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="EXPORT SOURCE PROJECT ZIP" />
+        android:orientation="horizontal">
 
-    <Button
-        android:id="@+id/sourceEditorCompile"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="COMPILE OFFLINE TO NEW DLL" />
+        <Button
+            android:id="@+id/sourceEditorExport"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="EXPORT SOURCE ZIP" />
 
-    <Button
-        android:id="@+id/sourceEditorExportDll"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:enabled="false"
-        android:text="EXPORT REBUILT DLL" />
+        <Button
+            android:id="@+id/sourceEditorCompile"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="COMPILE TO DLL" />
+    </LinearLayout>
 
-    <Button
-        android:id="@+id/sourceEditorExportReport"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:enabled="false"
-        android:text="EXPORT DLL COMPATIBILITY REPORT" />
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/sourceEditorExportDll"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:enabled="false"
+            android:text="EXPORT DLL" />
+
+        <Button
+            android:id="@+id/sourceEditorExportReport"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:enabled="false"
+            android:text="EXPORT REPORT" />
+    </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
