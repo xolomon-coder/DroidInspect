@@ -120,20 +120,39 @@ final class PagedSourceDocument {
     }
 
     int find(String query, int fromOffset, boolean forward, boolean ignoreCase) {
-        if (query == null || query.isEmpty() || pages.isEmpty()) return -1;
+        if (query == null || query.isEmpty() || pages.isEmpty() || query.length() > totalLength) return -1;
         int start = Math.max(0, Math.min(fromOffset, totalLength));
         if (forward) {
             int found = findForward(query, start, ignoreCase);
             return found >= 0 ? found : (start == 0 ? -1 : findForward(query, 0, ignoreCase));
         }
-        String all = toString();
-        int found = ignoreCase
-                ? lastIndexOfIgnoreCase(all, query, Math.min(start - 1, all.length() - query.length()))
-                : all.lastIndexOf(query, Math.min(start - 1, all.length()));
-        if (found >= 0) return found;
-        return ignoreCase
-                ? lastIndexOfIgnoreCase(all, query, all.length() - query.length())
-                : all.lastIndexOf(query);
+        int found = findBackward(query, start, ignoreCase);
+        return found >= 0 ? found : (start == totalLength ? -1 : findBackward(query, totalLength, ignoreCase));
+    }
+
+    /**
+     * Searches from the end without joining every page into one document-sized String.
+     * The carry contains at most query.length()-1 characters from the beginning of
+     * the already-visited suffix so matches crossing a page boundary are retained.
+     */
+    private int findBackward(String query, int fromOffset, boolean ignoreCase) {
+        String carry = "";
+        int nextPageStart = totalLength;
+        for (int i = pages.size() - 1; i >= 0; i--) {
+            String page = pages.get(i);
+            int pageStart = nextPageStart - page.length();
+            String combined = page + carry;
+            int allowedStart = Math.min(fromOffset - 1, pageStart + page.length() - 1);
+            int localStart = allowedStart - pageStart;
+            int found = localStart < 0 ? -1 : (ignoreCase
+                    ? lastIndexOfIgnoreCase(combined, query, localStart)
+                    : combined.lastIndexOf(query, localStart));
+            if (found >= 0) return pageStart + found;
+            int keep = Math.min(query.length() - 1, combined.length());
+            carry = keep == 0 ? "" : combined.substring(0, keep);
+            nextPageStart = pageStart;
+        }
+        return -1;
     }
 
     private int findForward(String query, int fromOffset, boolean ignoreCase) {
@@ -155,10 +174,10 @@ final class PagedSourceDocument {
     }
 
     int replaceAll(String query, String replacement, boolean ignoreCase) {
-        if (query == null || query.isEmpty()) return 0;
+        if (query == null || query.isEmpty() || query.length() > totalLength) return 0;
         String value = replacement == null ? "" : replacement;
         StringBuilder pending = new StringBuilder();
-        StringBuilder output = new StringBuilder(totalLength);
+        PageAccumulator output = new PageAccumulator();
         int count = 0;
         for (String page : pages) {
             pending.append(page);
@@ -166,10 +185,11 @@ final class PagedSourceDocument {
             int cursor = 0;
             while (cursor < safeEnd) {
                 int found = ignoreCase
-                        ? indexOfIgnoreCase(pending.toString(), query, cursor)
+                        ? indexOfIgnoreCase(pending, query, cursor)
                         : pending.indexOf(query, cursor);
                 if (found < 0 || found >= safeEnd) break;
-                output.append(pending, cursor, found).append(value);
+                output.append(pending, cursor, found);
+                output.append(value, 0, value.length());
                 cursor = found + query.length();
                 count++;
             }
@@ -180,15 +200,16 @@ final class PagedSourceDocument {
         int cursor = 0;
         while (cursor <= pending.length() - query.length()) {
             int found = ignoreCase
-                    ? indexOfIgnoreCase(pending.toString(), query, cursor)
+                    ? indexOfIgnoreCase(pending, query, cursor)
                     : pending.indexOf(query, cursor);
             if (found < 0) break;
-            output.append(pending, cursor, found).append(value);
+            output.append(pending, cursor, found);
+            output.append(value, 0, value.length());
             cursor = found + query.length();
             count++;
         }
         output.append(pending, cursor, pending.length());
-        if (count > 0) rebuild(output);
+        if (count > 0) replacePages(output.finish());
         return count;
     }
 
@@ -196,34 +217,34 @@ final class PagedSourceDocument {
         if (start < 0 || end <= start || end > totalLength)
             throw new IndexOutOfBoundsException("Invalid replacement range.");
         String value = replacement == null ? "" : replacement;
-        StringBuilder output = new StringBuilder(totalLength - (end - start) + value.length());
+        PageAccumulator output = new PageAccumulator();
         int absolute = 0;
         boolean inserted = false;
         for (String page : pages) {
             int pageStart = absolute;
             int pageEnd = pageStart + page.length();
             if (pageEnd <= start) {
-                output.append(page);
+                output.append(page, 0, page.length());
             } else if (pageStart >= end) {
                 if (!inserted) {
-                    output.append(value);
+                    output.append(value, 0, value.length());
                     inserted = true;
                 }
-                output.append(page);
+                output.append(page, 0, page.length());
             } else {
                 int prefixLength = Math.max(0, Math.min(page.length(), start - pageStart));
                 int suffixStart = Math.max(0, Math.min(page.length(), end - pageStart));
                 output.append(page, 0, prefixLength);
                 if (!inserted) {
-                    output.append(value);
+                    output.append(value, 0, value.length());
                     inserted = true;
                 }
                 output.append(page, suffixStart, page.length());
             }
             absolute = pageEnd;
         }
-        if (!inserted) output.append(value);
-        rebuild(output);
+        if (!inserted) output.append(value, 0, value.length());
+        replacePages(output.finish());
     }
 
     long utf8Length() {
@@ -299,6 +320,72 @@ final class PagedSourceDocument {
         return result;
     }
 
+    private void replacePages(ArrayList<String> updated) {
+        pages.clear();
+        totalLength = 0;
+        if (updated == null || updated.isEmpty()) {
+            pages.add("");
+            return;
+        }
+        for (String page : updated) addPage(page);
+    }
+
+    /**
+     * Builds replacement pages incrementally. This avoids holding a second
+     * full-document StringBuilder during Replace All or a cross-page Replace Next.
+     */
+    private final class PageAccumulator {
+        private final ArrayList<String> result = new ArrayList<>();
+        private final StringBuilder current = new StringBuilder(pageChars);
+
+        void append(CharSequence text, int start, int end) {
+            if (text == null || start >= end) return;
+            int offset = start;
+            while (offset < end) {
+                if (current.length() >= pageChars) {
+                    if (current.length() == pageChars
+                            && Character.isHighSurrogate(current.charAt(current.length() - 1))
+                            && Character.isLowSurrogate(text.charAt(offset))) {
+                        char pendingHigh = current.charAt(current.length() - 1);
+                        current.setLength(current.length() - 1);
+                        flush();
+                        current.append(pendingHigh);
+                    } else {
+                        flush();
+                    }
+                }
+                int amount = Math.min(pageChars - current.length(), end - offset);
+                if (amount > 0 && offset + amount < end
+                        && Character.isHighSurrogate(text.charAt(offset + amount - 1))
+                        && Character.isLowSurrogate(text.charAt(offset + amount))) {
+                    amount++;
+                }
+                if (amount <= 0) {
+                    flush();
+                    continue;
+                }
+                current.append(text, offset, offset + amount);
+                offset += amount;
+                if (current.length() >= pageChars
+                        && !Character.isHighSurrogate(current.charAt(current.length() - 1))) {
+                    flush();
+                }
+            }
+        }
+
+        ArrayList<String> finish() {
+            flush();
+            if (result.isEmpty()) result.add("");
+            return result;
+        }
+
+        private void flush() {
+            if (current.length() == 0) return;
+            result.add(current.toString());
+            current.setLength(0);
+        }
+    }
+
     private void addPage(String page) {
         pages.add(page);
         totalLength += page.length();
@@ -308,10 +395,24 @@ final class PagedSourceDocument {
         if (page < 0 || page >= pages.size()) throw new IndexOutOfBoundsException("Invalid source page.");
     }
 
-    private static int indexOfIgnoreCase(String text, String query, int from) {
+    private static int indexOfIgnoreCase(CharSequence text, String query, int from) {
         int last = text.length() - query.length();
-        for (int i = Math.max(0, from); i <= last; i++)
-            if (text.regionMatches(true, i, query, 0, query.length())) return i;
+        for (int i = Math.max(0, from); i <= last; i++) {
+            boolean matches = true;
+            for (int j = 0; j < query.length(); j++) {
+                char left = text.charAt(i + j);
+                char right = query.charAt(j);
+                if (left == right) continue;
+                char upperLeft = Character.toUpperCase(left);
+                char upperRight = Character.toUpperCase(right);
+                if (upperLeft != upperRight
+                        && Character.toLowerCase(upperLeft) != Character.toLowerCase(upperRight)) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (matches) return i;
+        }
         return -1;
     }
 
