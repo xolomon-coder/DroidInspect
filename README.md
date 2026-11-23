@@ -4516,3 +4516,6 @@ The first large-file mitigation was not sufficient: it disabled whole-document s
 
 **Verification status:** the earlier CI run #681 passed all 27 steps for the initial mitigation commit `07d3fe313a54ab1074fae0bac9527fcf8c7b0da2`. The new paged-editor implementation and its additional host test require their own complete CI run; that result is not yet recorded here. Android 11 device acceptance is also pending. Do not treat the large Unity DLL crash or keyboard overlap as fixed until the new CI run passes and the user verifies the editor on-device.
 
+
+
+**Follow-up implementation hardening:** forward Find now scans page chunks with a bounded overlap buffer instead of flattening the complete document for every search. Replace All carries only the necessary cross-page search overlap while rebuilding the result, and Replace Next updates the affected page range without first creating a second full-source string. Page controls also recalculate after edits that expand the active page beyond the configured page size. Latest source hardening commit at this update: `9e6233c5cf358e5f0878b12f39332821d46cef5e` (test coverage for cross-page range replacement).
