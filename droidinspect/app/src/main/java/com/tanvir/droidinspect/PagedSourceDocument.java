@@ -149,8 +149,19 @@ final class PagedSourceDocument {
         rebuild(output);
     }
 
+    long utf8Length() {
+        long bytes = 0;
+        for (String page : pages) bytes += page.getBytes(StandardCharsets.UTF_8).length;
+        return bytes;
+    }
+
     void writeTo(File target) throws IOException {
+        writeTo(target, Long.MAX_VALUE);
+    }
+
+    void writeTo(File target, long maxBytes) throws IOException {
         if (target == null) throw new IOException("Save destination is unavailable.");
+        if (utf8Length() > maxBytes) throw new IOException("C# source file exceeds the 32 MB safety limit.");
         File parent = target.getParentFile();
         if (parent != null && !parent.isDirectory() && !parent.mkdirs())
             throw new IOException("Cannot create source directory.");
