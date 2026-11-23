@@ -26,14 +26,16 @@ public final class PagedSourceDocumentSelfTest {
         require(document.pageCount() > 5, "large source should be split into multiple bounded pages");
         require(document.toString().equals(input.toString()), "load must preserve every character and line ending");
 
+        String boundary = "BOUNDARY_LEFTBOUNDARY_RIGHT";
+        int leftBoundary = input.indexOf("BOUNDARY_LEFT");
+        require(leftBoundary % 1024 == 1011, "fixture should position the token at a page boundary");
+        int boundaryAt = document.find(boundary, 0, true, false);
+        require(boundaryAt == leftBoundary, "whole-document search must find a token spanning page boundaries");
+
         String first = document.getPage(0);
         document.setPage(0, first + "// first page edit\n");
         int inserted = document.toString().indexOf("// first page edit");
         require(inserted >= 0, "page edit must persist in the document model");
-
-        String boundary = "BOUNDARY_LEFTBOUNDARY_RIGHT";
-        int boundaryAt = document.find(boundary, 0, true, false);
-        require(boundaryAt >= 0, "whole-document search must find a token spanning page boundaries");
 
         int count = document.replaceAll("public int Value0 =", "public int EditedValue0 =", false);
         require(count == 9, "replace-all must operate across all pages; expected 9, got " + count);
