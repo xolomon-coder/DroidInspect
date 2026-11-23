@@ -45,8 +45,10 @@ A targeted production `main` update was made after the Unity DLL crash and keybo
 - `96144b670002c8780787a9c98d55363113324f1f` — release the decompiler's full-source field while the editor is active and restore it from the untouched copy on return.
 - `20bb1c313abd672b23729c50f747b9d2054b2bb8` and `9d474747ef55d3fc8c9b4bce516a0d6b6baed49b` — editor busy/failure-state hardening and initial-load enable correction.
 - `426ead6ef90bbff8471e4a6ee64e8b8e44da81c4` — bounded-page and empty-document replacement regression cases.
+- `9cd3470ac2bcd91640f66544eb35b08499c33a83` — keep supplementary Unicode replacements within the page-size bound.
+- `98df2c9d46e240850a7f1c76a3658b3641e61972` — regression for supplementary Unicode replacement exactly at a page boundary.
 
-**CI evidence and limitation:** production CI run [#713](https://github.com/xolomon-coder/DroidInspect/actions/runs/45227796020) completed successfully on commit `0f55294a2aa9e053de3c1874d5f10e6fef721557`. It passed all then-current host tests, NuGet audit, Android debug/release compilation, signing/tamper verification, APK payload/ABI/offline checks, native-library dependency inspection and the earlier paged-model regression test. **Run #713 predates every source commit listed above and does not verify these follow-up changes.** The available GitHub connection did not return a newer push-run record or check result for current source HEAD `426ead6ef90bbff8471e4a6ee64e8b8e44da81c4`; follow-up CI must therefore remain **UNVERIFIED**, not PASS. No Actions artifacts or Releases were used.
+**CI evidence and limitation:** production CI run [#713](https://github.com/xolomon-coder/DroidInspect/actions/runs/45227796020) completed successfully on commit `0f55294a2aa9e053de3c1874d5f10e6fef721557`. It passed all then-current host tests, NuGet audit, Android debug/release compilation, signing/tamper verification, APK payload/ABI/offline checks, native-library dependency inspection and the earlier paged-model regression test. **Run #713 predates every source commit listed above and does not verify these follow-up changes.** The available GitHub connection did not return a newer push-run record or check result for current source HEAD `98df2c9d46e240850a7f1c76a3658b3641e61972`; follow-up CI must therefore remain **UNVERIFIED**, not PASS. The production workflow is push-triggered on `main` and cancels earlier main runs when newer commits arrive; run #713 predates these changes. No Actions artifacts or Releases were used.
 
 **Keyboard status:** the production editor manifest already specifies `windowSoftInputMode="adjustResize"`, and the editor `EditText` already specifies `imeOptions="flagNoExtractUi"`. These settings are present in source; they are not proof that Android 11 keeps the active code visible. No layout change is being labelled as device-verified.
 
@@ -59,7 +61,7 @@ A targeted production `main` update was made after the Unity DLL crash and keybo
 - C# recompilation: do not test or mark accepted until editing and saving are stable.
 - Small-file editor behavior and all previously accepted M11 decompilation tests must be preserved; do not repeat M11 acceptance.
 
-**Current code HEAD before this README update:** `426ead6ef90bbff8471e4a6ee64e8b8e44da81c4`. Project status remains **NOT COMPLETE**. Do not provide a device-acceptance ZIP until the follow-up source commit has a verified green CI run; then request the targeted Android 11 editor acceptance batch above.
+**Current production source HEAD before this README update:** `98df2c9d46e240850a7f1c76a3658b3641e61972`. The later README-only documentation commit does not trigger Android CI because the workflow ignores README-only pushes. Project status remains **NOT COMPLETE**. Do not provide a device-acceptance ZIP until the latest source commit has a verified green CI run; then request the targeted Android 11 editor acceptance batch above.
 
 ## Device acceptance update — .NET IL editing usability (2026-11-23)
 
