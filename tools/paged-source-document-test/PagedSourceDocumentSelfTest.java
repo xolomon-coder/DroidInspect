@@ -52,6 +52,21 @@ public final class PagedSourceDocumentSelfTest {
         require(reopened.toString().equals(document.toString()), "save/reopen must preserve the complete edited source");
         require(reopened.pageCount() == document.pageCount(), "save/reopen must retain bounded page model");
 
+        File small = new File(root, "Small.cs");
+        Files.write(small.toPath(), "class Small { int Value = 1; }".getBytes(StandardCharsets.UTF_8));
+        PagedSourceDocument smallDocument = PagedSourceDocument.load(small, 1024);
+        require(smallDocument.pageCount() == 1, "small source files should remain a single editor page");
+        smallDocument.setAll("class Small { int Value = 2; }");
+        smallDocument.writeTo(small);
+        require(PagedSourceDocument.load(small, 1024).toString().contains("Value = 2"),
+                "small-file edit/save/reopen regression must pass");
+
+        File empty = new File(root, "Empty.cs");
+        Files.createNewFile(empty.toPath());
+        PagedSourceDocument emptyDocument = PagedSourceDocument.load(empty, 1024);
+        require(emptyDocument.pageCount() == 1 && emptyDocument.length() == 0,
+                "empty source files should have one empty page");
+
         deleteTree(root);
         System.out.println("Paged C# source document tests passed.");
     }
