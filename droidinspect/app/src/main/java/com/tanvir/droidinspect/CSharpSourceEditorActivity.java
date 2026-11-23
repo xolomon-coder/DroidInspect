@@ -5,7 +5,6 @@ import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.Context;
 import android.graphics.Typeface;
-import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Build;
@@ -61,6 +60,7 @@ public class CSharpSourceEditorActivity extends Activity {
     private boolean compiling;
     private boolean ioBusy;
     private boolean keyboardCompactMode;
+    private int rootHeightWithoutIme;
     private volatile boolean activityDestroyed;
     private final ExecutorService compilerWorker = Executors.newSingleThreadExecutor();
     private final ExecutorService ioWorker = Executors.newSingleThreadExecutor();
@@ -152,11 +152,15 @@ public class CSharpSourceEditorActivity extends Activity {
                 WindowInsets insets = root.getRootWindowInsets();
                 visible = insets != null && insets.isVisible(WindowInsets.Type.ime());
             } else {
-                Rect frame = new Rect();
-                root.getWindowVisibleDisplayFrame(frame);
-                int rootHeight = root.getRootView().getHeight();
-                int obscuredHeight = rootHeight - frame.bottom;
-                visible = obscuredHeight > (int) (160 * getResources().getDisplayMetrics().density);
+                // With adjustResize, the decor itself shrinks. Compare against its
+                // largest observed non-IME height instead of subtracting screen-space
+                // coordinates from a view height (which varies with status bars).
+                int rootHeight = root.getHeight();
+                if (rootHeight > rootHeightWithoutIme) rootHeightWithoutIme = rootHeight;
+                int shrinkage = rootHeightWithoutIme - rootHeight;
+                int threshold = (int) (160 * getResources().getDisplayMetrics().density);
+                visible = shrinkage > threshold
+                        || (keyboardCompactMode && shrinkage > threshold / 2);
             }
             if (visible != keyboardCompactMode) setKeyboardCompactMode(visible);
         });
