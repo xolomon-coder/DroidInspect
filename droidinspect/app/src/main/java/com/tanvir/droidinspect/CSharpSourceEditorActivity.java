@@ -179,6 +179,7 @@ public class CSharpSourceEditorActivity extends Activity {
                 }
                 activity.currentFile = file;
                 activity.currentDocument = document;
+                activity.setIoBusy(false, "Source loaded.");
                 activity.currentPage = 0;
                 activity.largeFileMode = document.length() > LARGE_SOURCE_THRESHOLD_CHARS;
                 activity.lineNumbers.setVisibility(activity.largeFileMode ? View.GONE : View.VISIBLE);
