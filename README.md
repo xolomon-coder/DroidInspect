@@ -4460,3 +4460,24 @@ This test does not establish that the emitted source compiles, that it can be re
 **Next engineering direction:** improve framework/reference-pack discovery so the resolver can locate matching .NET 9 reference assemblies and the required Serilog/Microsoft.Extensions dependencies when supplied or available offline. Preserve explicit unresolved/mismatched-reference diagnostics when they are unavailable. Keep the existing no-network/offline behavior; do not silently substitute .NET 11 assemblies for .NET 9 references.
 
 This is a device-test finding and follow-up engineering requirement, not a claim that dependency resolution or source recompilation has been implemented. The project remains **NOT COMPLETE**.
+
+
+## Android 11 device acceptance — large Unity assembly editable-workspace crash (2026-11-23)
+
+The user clarified the scope of the C# editor crash:
+
+- Small decompiled source files open in the editable C# workspace successfully.
+- A DLL from a Unity game, approximately 1+ MB, decompiles successfully in the source viewer.
+- Tapping the Edit / create-open-workspace control for that large source causes a black screen followed by an app crash.
+- The keyboard/IME also covers the code in the editor, independently blocking comfortable editing.
+
+**Working hypothesis (not yet confirmed):** the editable workspace may be loading/rendering the entire large reconstructed source in one editor view. The source viewer already uses page navigation, so applying bounded, page/chunk-based loading to the editor may reduce peak memory and UI rendering pressure. File size alone is not proof of the cause; investigate source character count, allocation/heap pressure, editor widget/layout limits, syntax-highlighting work, and workspace initialization/crash logs before deciding the fix.
+
+**Required investigation and engineering direction:**
+1. Reproduce with both a small working fixture and the large Unity DLL/source; capture the exception or crash trace.
+2. Inspect whether the editor creates one large text/layout object or performs expensive whole-document processing during workspace initialization.
+3. Prefer a scalable paged/chunked editing model if the evidence supports it: load a bounded visible region, preserve edits across page transitions, and retain whole-document search/navigation semantics.
+4. Fix IME behavior so the editor resizes or scrolls to keep the active code and editing controls visible while the keyboard is open.
+5. Preserve the original assembly and source; do not silently truncate large source files.
+
+**Acceptance status:** small-file workspace launch/source display PASS; large-file decompilation PASS; large-file editable-workspace launch FAIL (black screen/crash); editor keyboard visibility FAIL; edit/save/recompile remain untested. The suspected memory/rendering cause and paged-editor solution are hypotheses, not implemented fixes. Do not mark C# editing as accepted until large-file opening and keyboard behavior are retested on the Android 11 device.
