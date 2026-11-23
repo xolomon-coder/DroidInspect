@@ -15,7 +15,7 @@ import java.util.ArrayList;
 import java.util.UUID;
 
 /**
- * File-backed editor model split into bounded editable pages.
+ * Paged source model split into bounded editable chunks.
  * Only the active page needs to be attached to an Android text widget.
  */
 final class PagedSourceDocument {
