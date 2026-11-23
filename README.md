@@ -4496,3 +4496,23 @@ The production editor received an initial mitigation on `main` after the Android
 **Commits:** editor mitigation `14e55ae231575d99d7c6687a21aa83e83434e4fd`; keyboard resize `07d3fe313a54ab1074fae0bac9527fcf8c7b0da2`.
 
 **Verification status:** source edits are committed, but Android compilation/CI and device retesting have not yet been verified. This is a mitigation, not proof that the large-file crash is fixed. The editable workspace still uses a single full-file `EditText`; true paged/chunked editing has not been implemented. If the crash persists, capture the Android crash trace and implement bounded editor paging with safe edit persistence across page changes. Retest large Unity source opening, typing, save/reopen, search/replace, compilation, and keyboard visibility before accepting C# editing.
+
+
+## C# editor — bounded page editing implementation (2026-11-23)
+
+The first large-file mitigation was not sufficient: it disabled whole-document syntax highlighting and line-number generation, but still loaded the complete reconstructed source into one Android `EditText`. The editor also performed file reading synchronously while switching files.
+
+**Production implementation now on `main`:**
+
+- Added `PagedSourceDocument`, which reads UTF-8 source files off the UI thread and divides the document into bounded 16,000-character pages. Unicode surrogate pairs are kept together at page and reader-buffer boundaries.
+- The large-file editor now places only the active page in the Android `EditText`; Previous Page / Next Page controls navigate the complete source without truncation.
+- Before leaving a page, the active page is synchronized into the document model. Edits are retained across page navigation and reconstructed in order when the full source file is saved.
+- Whole-file Find, Replace Next and Replace All operate against the complete document model, including matches that cross page boundaries. Search navigation opens the page containing the match.
+- Source loading uses the editor's background I/O executor. Save writes all pages to a unique temporary file and replaces the source file only after the complete write succeeds. The original assembly and the separately preserved untouched decompilation remain unchanged.
+- Small files retain the single-view editing experience. Large files use the bounded page view; syntax highlighting and the full-document line-number gutter remain disabled in that mode.
+- The editor toolbar was compacted to leave more vertical space for the code viewport. The activity uses `adjustResize`, and the code input opts out of the keyboard's full-screen extract editor so the visible code area can resize and scroll normally.
+
+**Host regression coverage added to production CI:** large multi-page load, exact page-boundary search, replacement across a page boundary, page edit persistence, page-size bounds after edits, complete-source save/reopen, small-file save/reopen, empty files, and supplementary Unicode handling at a buffered-read boundary.
+
+**Verification status:** the earlier CI run #681 passed all 27 steps for the initial mitigation commit `07d3fe313a54ab1074fae0bac9527fcf8c7b0da2`. The new paged-editor implementation and its additional host test require their own complete CI run; that result is not yet recorded here. Android 11 device acceptance is also pending. Do not treat the large Unity DLL crash or keyboard overlap as fixed until the new CI run passes and the user verifies the editor on-device.
+
