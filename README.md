@@ -8,6 +8,21 @@
 >
 > This policy supersedes older workflow and artifact-delivery instructions in the historical development journal below. Historical entries are retained as records of what was true at the time.
 
+## Latest C# workspace device findings — 2026-11-23
+
+The user clarified that the soft keyboard covers the code itself in the editable C# workspace, obstructing the source while typing. This confirms the keyboard/IME layout issue affects the editor content, not merely a small toolbar area.
+
+The user also tested a Unity-game managed file of approximately 1+ MB:
+- **C# decompilation: PASS** — the app successfully decompiled the file.
+- **Open/edit workspace: FAIL / CRASH** — tapping the Edit control led to a black screen and the app crashed.
+- No source edit, save, or recompilation was completed for this fixture.
+
+Track these as two separate C# workspace blockers:
+1. Fix the keyboard/IME layout so the editor viewport resizes or scrolls appropriately, keeping the active code and editing controls visible while typing.
+2. Investigate and fix the crash when opening the editable workspace for this Unity-game DLL. Reproduce with the user's approximately 1+ MB fixture if it can be supplied, inspect editor/workspace initialization and large-source handling, and preserve the original assembly and decompiled source.
+
+**Acceptance status:** decompilation of the Unity fixture is accepted as working; opening the editor for that fixture is not accepted. Editing, saving, and recompiling remain untested. Do not mark the C# editing workflow accepted until both workspace blockers are fixed and the user verifies editing on-device.
+
 ## Device acceptance update — .NET IL editing usability (2026-11-23)
 
 The user tested the production app on Android 11 / CodeAssist after building and installing the current `droidinspect/` project.
