@@ -31,6 +31,13 @@ public final class PagedSourceDocumentSelfTest {
         require(leftBoundary % 1024 == 1011, "fixture should position the token at a page boundary");
         int boundaryAt = document.find(boundary, 0, true, false);
         require(boundaryAt == leftBoundary, "whole-document search must find a token spanning page boundaries");
+        require(document.find(boundary, leftBoundary + boundary.length(), false, false) == leftBoundary,
+                "backward search must find a token spanning page boundaries without flattening the document");
+        require(document.find("namespace Test0", 0, false, false) == input.indexOf("namespace Test0"),
+                "backward search must wrap from the beginning to the final matching occurrence");
+        String repeated = "public int Value0 =";
+        require(document.find(repeated, 0, false, false) == input.lastIndexOf(repeated),
+                "backward search wraparound must return the last complete-document match");
         require(document.replaceAll(boundary, "BOUNDARY_FIXED", false) == 1,
                 "replace-all must also match text spanning page boundaries");
 
