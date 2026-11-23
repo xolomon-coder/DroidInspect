@@ -171,7 +171,12 @@ public class CSharpSourceEditorActivity extends Activity {
                 CSharpSourceEditorActivity activity = reference.get();
                 if (activity == null || activity.activityDestroyed || activity.isFinishing() || activity.isDestroyed()) return;
                 activity.setIoBusy(false, errorText == null ? "Source loaded." : "SOURCE LOAD FAILED: " + errorText);
-                if (document == null) return;
+                if (document == null) {
+                    String previous = activity.currentFile == null ? null : activity.currentFile.getName();
+                    activity.status.setText("Could not open " + file.getName() + ": " + errorText
+                            + (previous == null ? "" : ". Previous file remains open: " + previous));
+                    return;
+                }
                 activity.currentFile = file;
                 activity.currentDocument = document;
                 activity.currentPage = 0;
@@ -543,13 +548,16 @@ public class CSharpSourceEditorActivity extends Activity {
     private void setIoBusy(boolean busy, String message) {
         ioBusy = busy;
         status.setText(message);
-        editor.setEnabled(!busy);
+        boolean hasDocument = currentDocument != null && currentFile != null;
+        editor.setEnabled(!busy && hasDocument);
         if (filesSpinner != null) filesSpinner.setEnabled(!busy);
+        if (findButton != null) findButton.setEnabled(!busy && hasDocument);
+        if (replaceButton != null) replaceButton.setEnabled(!busy && hasDocument);
         if (previousPageButton != null) previousPageButton.setEnabled(!busy && largeFileMode && currentPage > 0);
         if (nextPageButton != null) nextPageButton.setEnabled(!busy && largeFileMode
                 && currentDocument != null && currentPage + 1 < currentDocument.pageCount());
-        saveButton.setEnabled(!busy && !compiling);
-        compileButton.setEnabled(!busy && !compiling);
+        saveButton.setEnabled(!busy && !compiling && dirty);
+        compileButton.setEnabled(!busy && !compiling && hasDocument);
         findViewById(R.id.sourceEditorAdd).setEnabled(!busy && !compiling);
         findViewById(R.id.sourceEditorImport).setEnabled(!busy && !compiling);
         findViewById(R.id.sourceEditorExport).setEnabled(!busy && !compiling);
@@ -671,9 +679,12 @@ public class CSharpSourceEditorActivity extends Activity {
     }
 
     private void setEditorEnabled(boolean enabled) {
-        editor.setEnabled(enabled);
-        saveButton.setEnabled(false);
-        compileButton.setEnabled(enabled && !compiling);
+        boolean ready = enabled && currentDocument != null && currentFile != null;
+        editor.setEnabled(ready);
+        saveButton.setEnabled(ready && dirty);
+        compileButton.setEnabled(ready && !compiling && !ioBusy);
+        if (findButton != null) findButton.setEnabled(ready && !ioBusy);
+        if (replaceButton != null) replaceButton.setEnabled(ready && !ioBusy);
     }
 
     @Override protected void onDestroy() {
