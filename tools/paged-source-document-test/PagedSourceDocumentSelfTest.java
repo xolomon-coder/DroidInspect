@@ -15,6 +15,7 @@ public final class PagedSourceDocumentSelfTest {
             for (int j = 0; j < 190; j++) input.append("    public int Value").append(j).append(" = ").append(i + j).append(";\n");
             input.append("}\n");
         }
+        while (input.length() % 1024 != 1011) input.append(" ");
         input.append("BOUNDARY_LEFT").append("BOUNDARY_RIGHT");
         input.append(" emoji=\uD83D\uDE80 end");
         try (FileOutputStream out = new FileOutputStream(source)) {
@@ -34,9 +35,9 @@ public final class PagedSourceDocumentSelfTest {
         int boundaryAt = document.find(boundary, 0, true, false);
         require(boundaryAt >= 0, "whole-document search must find a token spanning page boundaries");
 
-        int count = document.replaceAll("Value0", "EditedValue0", false);
+        int count = document.replaceAll("public int Value0 =", "public int EditedValue0 =", false);
         require(count == 9, "replace-all must operate across all pages; expected 9, got " + count);
-        require(document.toString().contains("EditedValue0"), "replacement text must be present");
+        require(document.toString().contains("public int EditedValue0 ="), "replacement text must be present");
 
         int oldLength = document.length();
         int rocket = document.toString().indexOf("\uD83D\uDE80");
