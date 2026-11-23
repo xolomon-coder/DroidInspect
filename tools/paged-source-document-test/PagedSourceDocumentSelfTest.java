@@ -88,7 +88,7 @@ public final class PagedSourceDocumentSelfTest {
                 "page split must not leave a high surrogate at the end of the previous page");
 
         File empty = new File(root, "Empty.cs");
-        Files.createNewFile(empty.toPath());
+        if (!empty.createNewFile()) throw new java.io.IOException("Could not create empty source fixture.");
         PagedSourceDocument emptyDocument = PagedSourceDocument.load(empty, 1024);
         require(emptyDocument.pageCount() == 1 && emptyDocument.length() == 0,
                 "empty source files should have one empty page");
