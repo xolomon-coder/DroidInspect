@@ -232,7 +232,15 @@ public class CSharpSourceEditorActivity extends Activity {
     private boolean saveCurrent() {
         if (project == null || currentFile == null) return false;
         try {
+            int absoluteCursor = largeFileMode
+                    ? currentDocument.getPageStart(currentPage) + Math.max(0, editor.getSelectionStart())
+                    : 0;
             syncEditorPage();
+            if (largeFileMode) {
+                int targetPage = currentDocument.pageForOffset(Math.min(absoluteCursor, currentDocument.length()));
+                int localCursor = absoluteCursor - currentDocument.getPageStart(targetPage);
+                renderEditorPage(targetPage, localCursor);
+            }
             updatePageControls();
             project.save(currentFile, currentDocument);
             new ProjectWorkspaceMetadata(project.getSourceRoot().getParentFile())
