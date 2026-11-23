@@ -348,12 +348,12 @@ final class CSharpSourceWorkspace {
         File temporary = new File(parent, target.getName() + ".tmp-" + UUID.randomUUID());
         Throwable primaryFailure = null;
         try {
-            try (FileOutputStream raw = new FileOutputStream(temporary);
-                 OutputStream bounded = new BoundedOutputStream(raw, MAX_SOURCE_FILE);
-                 Writer writer = new OutputStreamWriter(bounded, java.nio.charset.StandardCharsets.UTF_8)) {
-                checkCancelled();
-                writer.write(text == null ? "" : text);
-                writer.flush();
+            try (FileOutputStream raw = new FileOutputStream(temporary)) {
+                try (OutputStream bounded = new BoundedOutputStream(raw, MAX_SOURCE_FILE);
+                     Writer writer = new OutputStreamWriter(bounded, java.nio.charset.StandardCharsets.UTF_8)) {
+                    checkCancelled();
+                    writer.write(text == null ? "" : text);
+                }
                 raw.getFD().sync();
             }
             Files.move(temporary.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
@@ -393,6 +393,12 @@ final class CSharpSourceWorkspace {
         private void ensureCapacity(int amount) throws IOException {
             if (amount < 0 || written > maximumBytes - amount)
                 throw new IOException("C# source file exceeds the 32 MB safety limit.");
+        }
+
+        // The Writer finalizes UTF-8 encoding on close; keep the raw descriptor
+        // open until after that final flush so sync() includes every encoded byte.
+        @Override public void close() throws IOException {
+            flush();
         }
     }
 
