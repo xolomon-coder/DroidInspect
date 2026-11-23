@@ -11,7 +11,10 @@
         android:theme="@style/Theme.App">
 
         <activity android:name=".CSharpDecompileActivity" android:exported="false" />
-        <activity android:name=".CSharpSourceEditorActivity" android:exported="false" />
+        <activity
+            android:name=".CSharpSourceEditorActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
         <activity android:name=".DotNetDependencyActivity" android:exported="false" />
         <activity android:name=".AssemblyExplorerActivity" android:exported="false" />
         <activity android:name=".AssemblyComparisonActivity" android:exported="false" />
