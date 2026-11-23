@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * File-backed editor model split into bounded editable pages.
@@ -177,7 +178,7 @@ final class PagedSourceDocument {
         File parent = target.getParentFile();
         if (parent != null && !parent.isDirectory() && !parent.mkdirs())
             throw new IOException("Cannot create source directory.");
-        File temporary = new File(parent, target.getName() + ".paged-tmp");
+        File temporary = new File(parent, target.getName() + ".paged-tmp-" + UUID.randomUUID());
         Throwable failure = null;
         try {
             try (FileOutputStream stream = new FileOutputStream(temporary);
