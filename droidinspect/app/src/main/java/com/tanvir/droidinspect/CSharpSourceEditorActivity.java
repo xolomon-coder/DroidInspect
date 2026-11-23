@@ -41,8 +41,11 @@ public class CSharpSourceEditorActivity extends Activity {
     private CSharpSourceWorkspace project;
     private Spinner filesSpinner;
     private EditText editor;
-    private TextView title, status, lineNumbers;
+    private TextView title, status, lineNumbers, pageInfo;
     private Button saveButton, compileButton, exportDllButton, exportReportButton, findButton, replaceButton;
+    private Button previousPageButton, nextPageButton;
+    private PagedSourceDocument currentDocument;
+    private int currentPage;
     private List<File> sourceFiles = new ArrayList<>();
     private File currentFile;
     private File lastBuildFile;
@@ -66,6 +69,11 @@ public class CSharpSourceEditorActivity extends Activity {
         filesSpinner = findViewById(R.id.sourceEditorFiles);
         editor = findViewById(R.id.sourceEditorText);
         lineNumbers = findViewById(R.id.sourceEditorLineNumbers);
+        pageInfo = findViewById(R.id.sourceEditorPageInfo);
+        previousPageButton = findViewById(R.id.sourceEditorPreviousPage);
+        nextPageButton = findViewById(R.id.sourceEditorNextPage);
+        previousPageButton.setOnClickListener(v -> showSourcePage(currentPage - 1));
+        nextPageButton.setOnClickListener(v -> showSourcePage(currentPage + 1));
         findButton = findViewById(R.id.sourceEditorFind);
         replaceButton = findViewById(R.id.sourceEditorReplace);
         saveButton = findViewById(R.id.sourceEditorSave);
@@ -141,32 +149,78 @@ public class CSharpSourceEditorActivity extends Activity {
     }
 
     private void switchFile(File file) {
+        if (file == null) return;
         if (currentFile != null && dirty && !saveCurrent()) return;
-        try {
-            currentFile = file;
-            String sourceText = project.read(file);
-            largeFileMode = sourceText.length() > LARGE_SOURCE_THRESHOLD_CHARS;
-            lineNumbers.setVisibility(largeFileMode ? View.GONE : View.VISIBLE);
-            loadingText = true;
-            editor.setText(sourceText);
-            editor.setSelection(0);
-            loadingText = false;
-            dirty = false;
-            updateDirtyState();
-            status.setText(file.getName() + " — " + sourceFiles.size() + " source file(s)."
-                    + (largeFileMode
-                    ? " Large-file mode: syntax highlighting and line-number gutter are disabled to reduce memory use."
-                    : ""));
-        } catch (Exception error) {
-            loadingText = false;
-            status.setText("Cannot open source file: " + error.getMessage());
-        }
+        loadSourceFileAsync(file);
+    }
+
+    private void loadSourceFileAsync(File file) {
+        final CSharpSourceWorkspace activeProject = project;
+        final WeakReference<CSharpSourceEditorActivity> reference = new WeakReference<>(this);
+        final Handler ui = new Handler(Looper.getMainLooper());
+        setIoBusy(true, "Loading source into bounded editor pages…");
+        ioWorker.execute(() -> {
+            PagedSourceDocument loaded = null;
+            String failure = null;
+            try { loaded = activeProject.readPaged(file); }
+            catch (Exception error) { failure = error.getClass().getSimpleName() + ": " + error.getMessage(); }
+            final PagedSourceDocument document = loaded;
+            final String errorText = failure;
+            ui.post(() -> {
+                CSharpSourceEditorActivity activity = reference.get();
+                if (activity == null || activity.activityDestroyed || activity.isFinishing() || activity.isDestroyed()) return;
+                activity.setIoBusy(false, errorText == null ? "Source loaded." : "SOURCE LOAD FAILED: " + errorText);
+                if (document == null) return;
+                activity.currentFile = file;
+                activity.currentDocument = document;
+                activity.currentPage = 0;
+                activity.largeFileMode = document.length() > LARGE_SOURCE_THRESHOLD_CHARS;
+                activity.lineNumbers.setVisibility(activity.largeFileMode ? View.GONE : View.VISIBLE);
+                activity.pageInfo.setVisibility(activity.largeFileMode ? View.VISIBLE : View.GONE);
+                activity.previousPageButton.setVisibility(activity.largeFileMode ? View.VISIBLE : View.GONE);
+                activity.nextPageButton.setVisibility(activity.largeFileMode ? View.VISIBLE : View.GONE);
+                activity.renderEditorPage(0, 0);
+                activity.dirty = false;
+                activity.updateDirtyState();
+                activity.status.setText(file.getName() + " — " + activity.sourceFiles.size() + " source file(s)."
+                        + (activity.largeFileMode ? " Large file: editing one bounded page at a time." : ""));
+            });
+        });
+    }
+
+    private void renderEditorPage(int page, int selectionOffset) {
+        if (currentDocument == null) return;
+        currentPage = Math.max(0, Math.min(page, currentDocument.pageCount() - 1));
+        String text = largeFileMode ? currentDocument.getPage(currentPage) : currentDocument.toString();
+        loadingText = true;
+        editor.setText(text);
+        int safeSelection = Math.max(0, Math.min(selectionOffset, text.length()));
+        editor.setSelection(safeSelection);
+        loadingText = false;
+        updateLineNumbers();
+        if (pageInfo != null) pageInfo.setText("Edit page " + (currentPage + 1) + " / " + currentDocument.pageCount());
+        previousPageButton.setEnabled(largeFileMode && currentPage > 0);
+        nextPageButton.setEnabled(largeFileMode && currentPage + 1 < currentDocument.pageCount());
+    }
+
+    private void syncEditorPage() {
+        if (currentDocument == null || editor == null) return;
+        currentDocument.setPage(largeFileMode ? currentPage : 0, editor.getText().toString());
+    }
+
+    private void showSourcePage(int page) {
+        if (!largeFileMode || currentDocument == null || page < 0 || page >= currentDocument.pageCount()) return;
+        syncEditorPage();
+        renderEditorPage(page, 0);
+        status.setText("Editing page " + (currentPage + 1) + " of " + currentDocument.pageCount()
+                + ". Changes remain in the source project when moving between pages.");
     }
 
     private boolean saveCurrent() {
         if (project == null || currentFile == null) return false;
         try {
-            project.save(currentFile, editor.getText().toString());
+            syncEditorPage();
+            project.save(currentFile, currentDocument);
             new ProjectWorkspaceMetadata(project.getSourceRoot().getParentFile())
                     .recordOperation("SOURCE_SAVE", currentFile.getName());
             dirty = false;
