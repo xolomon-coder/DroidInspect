@@ -49,6 +49,9 @@ public class CSharpSourceEditorActivity extends Activity {
     private File lastReportFile;
     private boolean loadingText;
     private boolean dirty;
+    // Large reconstructed files can overwhelm EditText syntax spans and a full line-number gutter on phones.
+    private static final int LARGE_SOURCE_THRESHOLD_CHARS = 250_000;
+    private boolean largeFileMode;
     private boolean compiling;
     private boolean ioBusy;
     private volatile boolean activityDestroyed;
@@ -90,7 +93,7 @@ public class CSharpSourceEditorActivity extends Activity {
                 }
             }
             @Override public void afterTextChanged(Editable s) {
-                CSharpSyntaxHighlighter.apply(s);
+                if (!largeFileMode) CSharpSyntaxHighlighter.apply(s);
                 updateLineNumbers();
             }
         });
@@ -141,13 +144,19 @@ public class CSharpSourceEditorActivity extends Activity {
         if (currentFile != null && dirty && !saveCurrent()) return;
         try {
             currentFile = file;
+            String sourceText = project.read(file);
+            largeFileMode = sourceText.length() > LARGE_SOURCE_THRESHOLD_CHARS;
+            lineNumbers.setVisibility(largeFileMode ? View.GONE : View.VISIBLE);
             loadingText = true;
-            editor.setText(project.read(file));
+            editor.setText(sourceText);
             editor.setSelection(0);
             loadingText = false;
             dirty = false;
             updateDirtyState();
-            status.setText(file.getName() + " — " + sourceFiles.size() + " source file(s).");
+            status.setText(file.getName() + " — " + sourceFiles.size() + " source file(s)."
+                    + (largeFileMode
+                    ? " Large-file mode: syntax highlighting and line-number gutter are disabled to reduce memory use."
+                    : ""));
         } catch (Exception error) {
             loadingText = false;
             status.setText("Cannot open source file: " + error.getMessage());
@@ -475,6 +484,11 @@ public class CSharpSourceEditorActivity extends Activity {
 
     private void updateLineNumbers() {
         if (lineNumbers == null || editor == null) return;
+        if (largeFileMode) {
+            lineNumbers.setVisibility(View.GONE);
+            return;
+        }
+        lineNumbers.setVisibility(View.VISIBLE);
         int count = Math.max(1, editor.getLineCount());
         StringBuilder numbers = new StringBuilder(count * 4);
         for (int i = 1; i <= count; i++) {
