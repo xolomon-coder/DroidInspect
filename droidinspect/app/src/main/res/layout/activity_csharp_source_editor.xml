@@ -106,6 +106,40 @@
 
     <LinearLayout
         android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <Button
+            android:id="@+id/sourceEditorPreviousPage"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:visibility="gone"
+            android:text="PREVIOUS PAGE" />
+
+        <TextView
+            android:id="@+id/sourceEditorPageInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:textColor="#80CBC4"
+            android:textSize="12sp"
+            android:visibility="gone"
+            android:text="Edit page 1 / 1" />
+
+        <Button
+            android:id="@+id/sourceEditorNextPage"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:visibility="gone"
+            android:text="NEXT PAGE" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         android:orientation="horizontal"
@@ -139,6 +173,7 @@
             android:background="#191F27"
             android:padding="10dp"
             android:scrollbars="vertical"
+            android:imeOptions="flagNoExtractUi"
             android:hint="C# source"
             android:textColorHint="#9AA6B2" />
     </LinearLayout>
