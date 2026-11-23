@@ -121,19 +121,37 @@ final class PagedSourceDocument {
 
     int find(String query, int fromOffset, boolean forward, boolean ignoreCase) {
         if (query == null || query.isEmpty() || pages.isEmpty()) return -1;
-        String all = toString();
-        int start = Math.max(0, Math.min(fromOffset, all.length()));
-        if (ignoreCase) {
-            if (forward) {
-                int found = indexOfIgnoreCase(all, query, start);
-                return found >= 0 ? found : indexOfIgnoreCase(all, query, 0);
-            }
-            int found = lastIndexOfIgnoreCase(all, query, Math.min(start - 1, all.length() - query.length()));
-            return found >= 0 ? found : lastIndexOfIgnoreCase(all, query, all.length() - query.length());
+        int start = Math.max(0, Math.min(fromOffset, totalLength));
+        if (forward) {
+            int found = findForward(query, start, ignoreCase);
+            return found >= 0 ? found : (start == 0 ? -1 : findForward(query, 0, ignoreCase));
         }
-        int found = forward ? all.indexOf(query, start) : all.lastIndexOf(query, Math.min(start - 1, all.length()));
+        String all = toString();
+        int found = ignoreCase
+                ? lastIndexOfIgnoreCase(all, query, Math.min(start - 1, all.length() - query.length()))
+                : all.lastIndexOf(query, Math.min(start - 1, all.length()));
         if (found >= 0) return found;
-        return forward ? all.indexOf(query) : all.lastIndexOf(query);
+        return ignoreCase
+                ? lastIndexOfIgnoreCase(all, query, all.length() - query.length())
+                : all.lastIndexOf(query);
+    }
+
+    private int findForward(String query, int fromOffset, boolean ignoreCase) {
+        String carry = "";
+        int absolutePageStart = 0;
+        for (String page : pages) {
+            String combined = carry + page;
+            int combinedStart = absolutePageStart - carry.length();
+            int localStart = Math.max(0, fromOffset - combinedStart);
+            int found = ignoreCase
+                    ? indexOfIgnoreCase(combined, query, localStart)
+                    : combined.indexOf(query, localStart);
+            if (found >= 0) return combinedStart + found;
+            absolutePageStart += page.length();
+            int keep = Math.min(Math.max(0, query.length() - 1), combined.length());
+            carry = keep == 0 ? "" : combined.substring(combined.length() - keep);
+        }
+        return -1;
     }
 
     int replaceAll(String query, String replacement, boolean ignoreCase) {
