@@ -523,6 +523,9 @@ public class CSharpSourceEditorActivity extends Activity {
         ioBusy = busy;
         status.setText(message);
         editor.setEnabled(!busy);
+        if (previousPageButton != null) previousPageButton.setEnabled(!busy && largeFileMode && currentPage > 0);
+        if (nextPageButton != null) nextPageButton.setEnabled(!busy && largeFileMode
+                && currentDocument != null && currentPage + 1 < currentDocument.pageCount());
         saveButton.setEnabled(!busy && !compiling);
         compileButton.setEnabled(!busy && !compiling);
         findViewById(R.id.sourceEditorAdd).setEnabled(!busy && !compiling);
