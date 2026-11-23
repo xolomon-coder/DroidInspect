@@ -4481,3 +4481,18 @@ The user clarified the scope of the C# editor crash:
 5. Preserve the original assembly and source; do not silently truncate large source files.
 
 **Acceptance status:** small-file workspace launch/source display PASS; large-file decompilation PASS; large-file editable-workspace launch FAIL (black screen/crash); editor keyboard visibility FAIL; edit/save/recompile remain untested. The suspected memory/rendering cause and paged-editor solution are hypotheses, not implemented fixes. Do not mark C# editing as accepted until large-file opening and keyboard behavior are retested on the Android 11 device.
+
+
+## C# editable workspace — first large-file and keyboard mitigations (2026-11-23)
+
+The production editor received an initial mitigation on `main` after the Android 11 device reported that small source files open but a roughly 1+ MB Unity-game DLL decompiles successfully and then crashes to a black screen when opening the editable workspace.
+
+**Changes committed:**
+- `CSharpSourceEditorActivity` now enters large-file mode when the loaded C# source exceeds 250,000 characters. In that mode, it skips whole-document syntax highlighting and hides the full-document line-number gutter. The source is still loaded in full; no text is truncated or discarded.
+- The production manifest now sets `android:windowSoftInputMode="adjustResize"` for `CSharpSourceEditorActivity`, asking Android to resize the available editor area above the soft keyboard.
+
+**Why these changes:** the previous text watcher applied syntax spans over the entire document after text changes, and the line-number gutter built a second string containing every line number. Those operations can amplify memory and UI work for large generated source files. The keyboard behavior previously had no explicit resize policy on the editor activity.
+
+**Commits:** editor mitigation `14e55ae231575d99d7c6687a21aa83e83434e4fd`; keyboard resize `07d3fe313a54ab1074fae0bac9527fcf8c7b0da2`.
+
+**Verification status:** source edits are committed, but Android compilation/CI and device retesting have not yet been verified. This is a mitigation, not proof that the large-file crash is fixed. The editable workspace still uses a single full-file `EditText`; true paged/chunked editing has not been implemented. If the crash persists, capture the Android crash trace and implement bounded editor paging with safe edit persistence across page changes. Retest large Unity source opening, typing, save/reopen, search/replace, compilation, and keyboard visibility before accepting C# editing.
