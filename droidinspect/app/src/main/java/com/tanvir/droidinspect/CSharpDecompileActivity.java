@@ -41,6 +41,8 @@ public class CSharpDecompileActivity extends Activity {
     private String lastQuery = "";
     private int currentPage, searchCursor, currentMatch = -1;
     private boolean loading = true;
+    private boolean restoringSource;
+    private String workspaceReloadId;
     private Uri selectedAssemblyUri;
 
     @Override protected void onCreate(Bundle state) {
@@ -80,6 +82,45 @@ public class CSharpDecompileActivity extends Activity {
             return;
         }
         startDecompilation(uri);
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        if (workspaceReloadId == null || !completeSource.isEmpty() || restoringSource) return;
+
+        restoringSource = true;
+        setLoading(true, "Restoring the untouched decompilation for viewing…");
+        final String projectId = workspaceReloadId;
+        final Context appContext = getApplicationContext();
+        final WeakReference<CSharpDecompileActivity> reference = new WeakReference<>(this);
+        worker.execute(() -> {
+            String restored = null;
+            String failure = null;
+            try {
+                restored = CSharpSourceWorkspace.open(appContext, projectId).readOriginalDecompilation();
+            } catch (Exception error) {
+                failure = error.getClass().getSimpleName() + ": "
+                        + (error.getMessage() == null ? "No additional details." : error.getMessage());
+            }
+            final String sourceText = restored;
+            final String errorText = failure;
+            handler.post(() -> {
+                CSharpDecompileActivity activity = reference.get();
+                if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
+                activity.restoringSource = false;
+                if (sourceText == null) {
+                    activity.setLoading(false, "Could not restore the untouched decompilation: " + errorText);
+                    return;
+                }
+                activity.completeSource = sourceText;
+                activity.currentPage = Math.min(activity.currentPage,
+                        Math.max(0, activity.pageCount() - 1));
+                activity.searchCursor = 0;
+                activity.currentMatch = -1;
+                activity.setLoading(false, "Untouched decompilation restored from the private workspace.");
+                activity.renderPage();
+            });
+        });
     }
 
     private void startDecompilation(Uri uri) {
@@ -296,6 +337,14 @@ public class CSharpDecompileActivity extends Activity {
                         ? "Could not create editable source workspace."
                         : "Separate C# source project is ready.");
                 if (project != null) {
+                    // The source project now owns both an untouched copy and an editable copy.
+                    // Release the full decompiler result while the editor is active; it is
+                    // reloaded from the untouched file only if the user returns to this screen.
+                    activity.workspaceReloadId = project.getId();
+                    activity.completeSource = "";
+                    activity.currentMatch = -1;
+                    activity.searchCursor = 0;
+                    activity.updateControls();
                     Intent intent = new Intent(activity, CSharpSourceEditorActivity.class);
                     intent.putExtra("project_id", project.getId());
                     activity.startActivity(intent);
