@@ -95,7 +95,7 @@ public final class PagedSourceDocumentSelfTest {
 
         require(document.find("namespace Test0", document.length(), true, false) == input.indexOf("namespace Test0"),
                 "forward search must wrap from the end of the document to the first match");
-        require(document.find("NAMESPACE TEST1", 0, true, true) == input.indexOf("namespace Test1"),
+        require(document.find("NAMESPACE TEST1", 0, true, true) == document.toString().indexOf("namespace Test1"),
                 "ignore-case search must match across the complete document");
         require(document.find("NAMESPACE TEST1", 0, true, false) == -1,
                 "case-sensitive search must not match different letter casing");
