@@ -49,10 +49,18 @@ final class PagedSourceDocument {
                     page.append(buffer, offset, amount);
                     offset += amount;
                     if (page.length() >= pageChars) {
-                        // Keep a UTF-16 surrogate pair together when a chunk boundary is reached.
-                        if (Character.isHighSurrogate(page.charAt(page.length() - 1))
-                                && offset < count && Character.isLowSurrogate(buffer[offset])) {
-                            page.append(buffer[offset++]);
+                        // Keep a UTF-16 surrogate pair together even when the reader buffer ends here.
+                        if (Character.isHighSurrogate(page.charAt(page.length() - 1))) {
+                            if (offset < count && Character.isLowSurrogate(buffer[offset])) {
+                                page.append(buffer[offset++]);
+                            } else if (offset == count) {
+                                char pendingHigh = page.charAt(page.length() - 1);
+                                page.setLength(page.length() - 1);
+                                document.addPage(page.toString());
+                                page.setLength(0);
+                                page.append(pendingHigh);
+                                continue;
+                            }
                         }
                         document.addPage(page.toString());
                         page.setLength(0);
