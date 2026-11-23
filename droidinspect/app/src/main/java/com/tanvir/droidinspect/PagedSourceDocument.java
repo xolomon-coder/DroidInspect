@@ -91,6 +91,10 @@ final class PagedSourceDocument {
         return Math.max(0, pages.size() - 1);
     }
 
+    void setAll(String text) {
+        rebuild(text == null ? "" : text);
+    }
+
     void setPage(int page, String text) {
         checkPage(page);
         String value = text == null ? "" : text;
