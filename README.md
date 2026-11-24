@@ -4609,3 +4609,24 @@ The user installed the current production build on the Android 11 Infinix test p
 **Verification state:** CI run #731 completed successfully for source commit `40ae9c36e9b7e4362bc4b3f18c7bfc1d00dcab9c` ([full run](https://github.com/xolomon-coder/DroidInspect/actions/runs/45346179004)). All 28 substantive workflow steps passed, including the paged-source model regression test, NuGet audit, Android debug and unsigned release compilation, APK signing/tamper verification, payload/ABI/offline-permission/size checks, and ARM64 native dependency inspection. The current `main` HEAD is README-only commit `0dc417d462490815bffd3524466db1c3e0f14f22`, so the green run tested the exact source tree containing the search repair. The separate per-commit runs #729 and #730 were cancelled when the final combined commit triggered run #731; this is expected and not a failure.
 
 **Remaining acceptance:** Android 11 retest of the repaired search UI is pending. Do not mark search accepted until the user verifies multiple results, Previous/Next navigation, page-crossing matches, match count/ordinal, and visible highlighting on-device. Do not repeat already-passed large-file open, page-edit, save, or reopen tests unless a regression appears. The project remains **NOT COMPLETE**.
+
+
+## C# editor UX redesign — persistent search and compact overflow actions (2026-11-24)
+
+Following Android 11 device feedback, the previous modal/floating Find UI and crowded action rows were replaced with a more compact editor layout:
+
+- Main editor actions are grouped in a top-right three-dot overflow menu: Find, Previous Match, Next Match, Clear Search, Replace, Save, New File, Import, Export Source ZIP, Compile to DLL, Export Rebuilt DLL, and Export Compatibility Report.
+- Search now uses an inline panel rather than a floating dialog. It provides a query field, explicit Search action, match count/ordinal/page information, Previous/Next match buttons, and Close.
+- Closing the search panel hides the controls but preserves the query and current result state. Previous/Next Match remain available from the overflow menu while the source code is visible. The query is cleared only through Clear Search.
+- Editing source after a search marks the result set stale; the next search navigation recalculates matches against the edited source.
+- Large-file Previous Page / Next Page controls are positioned at the bottom left/right of the screen, with the current page indicator between them. The code editor occupies the main expandable area.
+
+**Changed production files:**
+- `droidinspect/app/src/main/java/com/tanvir/droidinspect/CSharpSourceEditorActivity.java`
+- `droidinspect/app/src/main/res/layout/activity_csharp_source_editor.xml`
+
+**Commits:** activity behavior `0880c0ac407d345c615e404c5e1aea44e84e948d`; layout redesign `422c06e91819e660ed807af865f5a8082f8f11cf`; keyboard compact-mode compatibility `30d9e2542d64f8d9a79fff80b2b975bee2264c69`.
+
+**CI verification:** GitHub Actions run #734 completed successfully for source commit `30d9e2542d64f8d9a79fff80b2b975bee2264c69` ([full run](https://github.com/xolomon-coder/DroidInspect/actions/runs/45351997586)). All 28 substantive workflow steps passed, including host regression tests, NuGet audit, Android debug and unsigned release compilation, APK signing/tamper verification, payload/ABI/offline-permission/size checks, and ARM64 native dependency inspection.
+
+**Android device acceptance: pending.** The user must install this version and verify the compact layout, persistent search keyword, Previous/Next match navigation with the panel open and closed, result highlighting, and bottom page navigation. Do not mark this redesign accepted until the user tests it on the Android 11 device. Existing large-file open/edit/save/reopen acceptance remains valid; do not repeat those tests unless a regression appears.
