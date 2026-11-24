@@ -176,6 +176,43 @@ final class PagedSourceDocument {
         return -1;
     }
 
+    int countMatches(String query, boolean ignoreCase) {
+        return countMatchesBefore(query, totalLength, ignoreCase);
+    }
+
+    /**
+     * Counts complete-document matches without flattening the paged source.
+     * Overlapping matches are counted, and matches crossing page boundaries
+     * are counted exactly once when their final character becomes available.
+     */
+    int countMatchesBefore(String query, int beforeOffset, boolean ignoreCase) {
+        if (query == null || query.isEmpty() || query.length() > totalLength) return 0;
+        int limit = Math.max(0, Math.min(beforeOffset, totalLength));
+        String carry = "";
+        int pageStart = 0;
+        int count = 0;
+        for (String page : pages) {
+            String combined = carry + page;
+            int combinedStart = pageStart - carry.length();
+            int cursor = 0;
+            while (cursor <= combined.length() - query.length()) {
+                int found = ignoreCase
+                        ? indexOfIgnoreCase(combined, query, cursor)
+                        : combined.indexOf(query, cursor);
+                if (found < 0) break;
+                int absolute = combinedStart + found;
+                int matchEnd = absolute + query.length();
+                int pageEnd = pageStart + page.length();
+                if (matchEnd > pageStart && absolute < pageEnd && absolute < limit) count++;
+                cursor = found + 1;
+            }
+            int keep = Math.min(Math.max(0, query.length() - 1), combined.length());
+            carry = keep == 0 ? "" : combined.substring(combined.length() - keep);
+            pageStart += page.length();
+        }
+        return count;
+    }
+
     int replaceAll(String query, String replacement, boolean ignoreCase) {
         if (query == null || query.isEmpty() || query.length() > totalLength) return 0;
         String value = replacement == null ? "" : replacement;
