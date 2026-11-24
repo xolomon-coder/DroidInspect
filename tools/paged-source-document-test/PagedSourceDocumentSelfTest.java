@@ -36,6 +36,16 @@ public final class PagedSourceDocumentSelfTest {
         require(document.find("namespace Test0", 0, false, false) == input.indexOf("namespace Test0"),
                 "backward search must wrap from the beginning to the final matching occurrence");
         String repeated = "public int Value0 =";
+        require(document.countMatches(repeated, false) == 9,
+                "match counter must count all repeated matches across pages");
+        int firstRepeated = document.find(repeated, 0, true, false);
+        require(document.countMatchesBefore(repeated, firstRepeated + 1, false) == 1,
+                "match ordinal must count the selected first occurrence");
+        int lastRepeated = document.find(repeated, document.length(), false, false);
+        require(document.countMatchesBefore(repeated, lastRepeated + 1, false) == 9,
+                "match ordinal must count the selected final occurrence");
+        require(document.countMatches("BOUNDARY_LEFTRIGHT", false) == 0,
+                "match counter must not invent matches across unrelated page content");
         require(document.find(repeated, 0, false, false) == input.lastIndexOf(repeated),
                 "backward search wraparound must return the last complete-document match");
         require(document.replaceAll(boundary, "BOUNDARY_FIXED", false) == 1,
