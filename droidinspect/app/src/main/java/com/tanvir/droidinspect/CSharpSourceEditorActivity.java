@@ -46,6 +46,15 @@ public class CSharpSourceEditorActivity extends Activity {
     private TextView title, status, lineNumbers, pageInfo;
     private Button saveButton, compileButton, exportDllButton, exportReportButton, findButton, replaceButton;
     private Button previousPageButton, nextPageButton;
+    private LinearLayout searchPanel;
+    private EditText searchInput;
+    private TextView searchInfo;
+    private Button searchPreviousButton, searchNextButton;
+    private String searchQuery = "";
+    private int searchMatchCount;
+    private int searchMatchOrdinal = -1;
+    private int searchMatchOffset = -1;
+    private boolean searchResultsStale = true;
     private PagedSourceDocument currentDocument;
     private int currentPage;
     private List<File> sourceFiles = new ArrayList<>();
@@ -87,6 +96,32 @@ public class CSharpSourceEditorActivity extends Activity {
         exportReportButton.setOnClickListener(v -> exportCompatibilityReport());
         findButton.setOnClickListener(v -> showFindDialog());
         replaceButton.setOnClickListener(v -> showReplaceDialog());
+        findViewById(R.id.sourceEditorOverflow).setOnClickListener(v -> showEditorMenu(v));
+        searchPanel = findViewById(R.id.sourceEditorSearchPanel);
+        searchInput = findViewById(R.id.sourceEditorSearchInput);
+        searchInfo = findViewById(R.id.sourceEditorSearchInfo);
+        searchPreviousButton = findViewById(R.id.sourceEditorSearchPrevious);
+        searchNextButton = findViewById(R.id.sourceEditorSearchNext);
+        findViewById(R.id.sourceEditorSearchRun).setOnClickListener(v -> runSearchFromInput());
+        searchPreviousButton.setOnClickListener(v -> moveSearchMatch(false));
+        searchNextButton.setOnClickListener(v -> moveSearchMatch(true));
+        findViewById(R.id.sourceEditorSearchClose).setOnClickListener(v -> closeSearchPanel());
+        searchInput.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                searchQuery = s.toString();
+                searchResultsStale = true;
+                searchMatchCount = 0;
+                searchMatchOrdinal = -1;
+                searchMatchOffset = -1;
+                updateSearchInfo();
+            }
+            @Override public void afterTextChanged(Editable s) { }
+        });
+        searchInput.setOnEditorActionListener((v, actionId, event) -> {
+            runSearchFromInput();
+            return true;
+        });
         editor.setOnScrollChangeListener((view, x, y, oldX, oldY) -> lineNumbers.scrollTo(0, y));
         installKeyboardLayoutHandling();
 
@@ -103,6 +138,13 @@ public class CSharpSourceEditorActivity extends Activity {
                 if (!loadingText) {
                     dirty = true;
                     updateDirtyState();
+                    if (!searchQuery.isEmpty()) {
+                        searchResultsStale = true;
+                        searchMatchCount = 0;
+                        searchMatchOrdinal = -1;
+                        searchMatchOffset = -1;
+                        updateSearchInfo();
+                    }
                 }
             }
             @Override public void afterTextChanged(Editable s) {
@@ -245,6 +287,10 @@ public class CSharpSourceEditorActivity extends Activity {
                 activity.currentDocument = document;
                 activity.setIoBusy(false, "Source loaded.");
                 activity.currentPage = 0;
+                activity.searchResultsStale = true;
+                activity.searchMatchCount = 0;
+                activity.searchMatchOrdinal = -1;
+                activity.searchMatchOffset = -1;
                 activity.largeFileMode = document.length() > LARGE_SOURCE_THRESHOLD_CHARS;
                 activity.lineNumbers.setVisibility(activity.largeFileMode ? View.GONE : View.VISIBLE);
                 activity.pageInfo.setVisibility(activity.largeFileMode ? View.VISIBLE : View.GONE);
@@ -255,6 +301,7 @@ public class CSharpSourceEditorActivity extends Activity {
                 activity.updateDirtyState();
                 activity.status.setText(file.getName() + " — " + activity.sourceFiles.size() + " source file(s)."
                         + (activity.largeFileMode ? " Large file: editing one bounded page at a time." : ""));
+                activity.updateSearchInfo();
             });
         });
     }
@@ -654,126 +701,155 @@ public class CSharpSourceEditorActivity extends Activity {
 
     private void showFindDialog() {
         if (currentDocument == null || currentFile == null) return;
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        int pad = (int) (16 * getResources().getDisplayMetrics().density);
-        content.setPadding(pad, 0, pad, pad);
+        searchPanel.setVisibility(View.VISIBLE);
+        if (!searchQuery.isEmpty() && !searchQuery.equals(searchInput.getText().toString())) {
+            searchInput.setText(searchQuery);
+            searchInput.setSelection(searchInput.length());
+        }
+        searchInput.requestFocus();
+        android.view.inputmethod.InputMethodManager imm =
+                (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        if (imm != null) imm.showSoftInput(searchInput, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+        updateSearchInfo();
+    }
 
-        EditText query = new EditText(this);
-        query.setSingleLine(true);
-        query.setHint("Find text in complete source file");
-        content.addView(query);
+    private void closeSearchPanel() {
+        searchPanel.setVisibility(View.GONE);
+        android.view.inputmethod.InputMethodManager imm =
+                (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        if (imm != null) imm.hideSoftInputFromWindow(searchInput.getWindowToken(), 0);
+        editor.requestFocus();
+    }
 
-        TextView resultInfo = new TextView(this);
-        resultInfo.setText("Enter text, then tap SEARCH.");
-        resultInfo.setPadding(0, pad / 2, 0, pad / 2);
-        content.addView(resultInfo);
+    private void clearSearch() {
+        searchQuery = "";
+        searchMatchCount = 0;
+        searchMatchOrdinal = -1;
+        searchMatchOffset = -1;
+        searchResultsStale = true;
+        searchInput.setText("");
+        updateSearchInfo();
+        editor.requestFocus();
+    }
 
-        LinearLayout actions = new LinearLayout(this);
-        actions.setOrientation(LinearLayout.HORIZONTAL);
-        Button search = new Button(this);
-        search.setText("SEARCH");
-        Button previous = new Button(this);
-        previous.setText("PREVIOUS");
-        Button next = new Button(this);
-        next.setText("NEXT");
-        actions.addView(search, new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        actions.addView(previous, new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        actions.addView(next, new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        content.addView(actions);
+    private void runSearchFromInput() {
+        if (currentDocument == null || currentFile == null) return;
+        String needle = searchInput.getText().toString();
+        searchQuery = needle;
+        if (needle.trim().isEmpty()) {
+            searchMatchCount = 0;
+            searchMatchOrdinal = -1;
+            searchMatchOffset = -1;
+            searchResultsStale = true;
+            updateSearchInfo();
+            return;
+        }
+        syncEditorPage();
+        searchMatchCount = currentDocument.countMatches(needle, true);
+        int start = largeFileMode
+                ? currentDocument.getPageStart(currentPage) + Math.max(0, editor.getSelectionEnd())
+                : Math.max(0, editor.getSelectionEnd());
+        searchMatchOffset = currentDocument.find(needle, start, true, true);
+        searchMatchOrdinal = searchMatchOffset < 0 ? -1
+                : currentDocument.countMatchesBefore(needle, searchMatchOffset + 1, true);
+        searchResultsStale = false;
+        showSearchMatch();
+    }
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Find in C# source")
-                .setView(content)
-                .setNegativeButton("CLOSE", null)
-                .create();
-
-        final String[] activeQuery = { "" };
-        final int[] matchCount = { 0 };
-        final int[] currentMatch = { -1 };
-        final int[] currentOffset = { -1 };
-
-        Runnable showCurrentMatch = () -> {
-            int found = currentOffset[0];
-            if (found < 0) {
-                resultInfo.setText(matchCount[0] == 0 ? "No matches found."
-                        : "No current result. Tap NEXT or PREVIOUS.");
-                previous.setEnabled(matchCount[0] > 0);
-                next.setEnabled(matchCount[0] > 0);
-                return;
-            }
-            int page = largeFileMode ? currentDocument.pageForOffset(found) : 0;
-            int pageStart = largeFileMode ? currentDocument.getPageStart(page) : 0;
-            int local = found - pageStart;
-            renderEditorPage(page, local);
-            editor.requestFocus();
-            editor.setSelection(local, Math.min(editor.length(), local + activeQuery[0].length()));
-            resultInfo.setText("Match " + currentMatch[0] + " of " + matchCount[0]
-                    + " • character " + (found + 1)
-                    + (largeFileMode ? " • page " + (page + 1) + " / " + currentDocument.pageCount() : ""));
-            previous.setEnabled(matchCount[0] > 1);
-            next.setEnabled(matchCount[0] > 1);
-        };
-
-        search.setOnClickListener(v -> {
-            String needle = query.getText().toString();
-            if (needle.isEmpty()) {
-                activeQuery[0] = "";
-                matchCount[0] = 0;
-                currentMatch[0] = -1;
-                currentOffset[0] = -1;
-                resultInfo.setText("Enter text to search.");
-                previous.setEnabled(false);
-                next.setEnabled(false);
-                return;
-            }
-            syncEditorPage();
-            activeQuery[0] = needle;
-            matchCount[0] = currentDocument.countMatches(needle, true);
-            currentMatch[0] = -1;
+    private void moveSearchMatch(boolean forward) {
+        if (currentDocument == null || currentFile == null || searchQuery.isEmpty()) {
+            showFindDialog();
+            return;
+        }
+        syncEditorPage();
+        if (searchResultsStale || searchMatchCount == 0) {
+            searchMatchCount = currentDocument.countMatches(searchQuery, true);
             int start = largeFileMode
                     ? currentDocument.getPageStart(currentPage) + Math.max(0, editor.getSelectionEnd())
                     : Math.max(0, editor.getSelectionEnd());
-            currentOffset[0] = currentDocument.find(needle, start, true, true);
-            if (currentOffset[0] < 0) {
-                currentMatch[0] = -1;
-                showCurrentMatch.run();
-                return;
-            }
-            currentMatch[0] = currentDocument.countMatchesBefore(needle, currentOffset[0] + 1, true);
-            showCurrentMatch.run();
-        });
+            searchMatchOffset = currentDocument.find(searchQuery, start, forward, true);
+            searchMatchOrdinal = searchMatchOffset < 0 ? -1
+                    : currentDocument.countMatchesBefore(searchQuery, searchMatchOffset + 1, true);
+            searchResultsStale = false;
+        } else if (forward) {
+            searchMatchOffset = currentDocument.find(searchQuery, searchMatchOffset + 1, true, true);
+            searchMatchOrdinal = searchMatchOrdinal >= searchMatchCount ? 1 : searchMatchOrdinal + 1;
+        } else {
+            searchMatchOffset = currentDocument.find(searchQuery, searchMatchOffset, false, true);
+            searchMatchOrdinal = searchMatchOrdinal <= 1 ? searchMatchCount : searchMatchOrdinal - 1;
+        }
+        showSearchMatch();
+    }
 
-        next.setOnClickListener(v -> {
-            String needle = query.getText().toString();
-            if (needle.isEmpty()) return;
-            if (!needle.equals(activeQuery[0]) || matchCount[0] == 0) {
-                search.performClick();
-                return;
-            }
-            currentOffset[0] = currentDocument.find(needle, currentOffset[0] + 1, true, true);
-            currentMatch[0] = currentMatch[0] >= matchCount[0] ? 1 : currentMatch[0] + 1;
-            showCurrentMatch.run();
-        });
+    private void showSearchMatch() {
+        if (searchMatchOffset < 0 || searchMatchCount == 0) {
+            updateSearchInfo();
+            return;
+        }
+        int page = largeFileMode ? currentDocument.pageForOffset(searchMatchOffset) : 0;
+        int pageStart = largeFileMode ? currentDocument.getPageStart(page) : 0;
+        int local = searchMatchOffset - pageStart;
+        renderEditorPage(page, local);
+        editor.requestFocus();
+        editor.setSelection(local, Math.min(editor.length(), local + searchQuery.length()));
+        android.view.inputmethod.InputMethodManager imm =
+                (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        if (imm != null) imm.hideSoftInputFromWindow(searchInput.getWindowToken(), 0);
+        updateSearchInfo();
+    }
 
-        previous.setOnClickListener(v -> {
-            String needle = query.getText().toString();
-            if (needle.isEmpty()) return;
-            if (!needle.equals(activeQuery[0]) || matchCount[0] == 0) {
-                search.performClick();
-                return;
-            }
-            currentOffset[0] = currentDocument.find(needle, currentOffset[0], false, true);
-            currentMatch[0] = currentMatch[0] <= 1 ? matchCount[0] : currentMatch[0] - 1;
-            showCurrentMatch.run();
-        });
+    private void updateSearchInfo() {
+        if (searchInfo == null) return;
+        if (searchQuery.isEmpty()) {
+            searchInfo.setText("Find in complete source");
+        } else if (searchResultsStale) {
+            searchInfo.setText("Search: " + searchQuery + " — source changed; tap Search to refresh");
+        } else if (searchMatchCount == 0) {
+            searchInfo.setText("No matches for “" + searchQuery + "”");
+        } else if (searchMatchOffset >= 0) {
+            int page = largeFileMode ? currentDocument.pageForOffset(searchMatchOffset) + 1 : 1;
+            searchInfo.setText("Match " + searchMatchOrdinal + " of " + searchMatchCount
+                    + "  •  Page " + page + (largeFileMode ? " / " + currentDocument.pageCount() : ""));
+        } else {
+            searchInfo.setText(searchMatchCount + " match(es) — use Previous / Next");
+        }
+        searchPreviousButton.setEnabled(searchMatchCount > 0 && !searchResultsStale);
+        searchNextButton.setEnabled(searchMatchCount > 0 && !searchResultsStale);
+    }
 
-        previous.setEnabled(false);
-        next.setEnabled(false);
-        dialog.show();
+    private void showEditorMenu(View anchor) {
+        android.widget.PopupMenu popup = new android.widget.PopupMenu(this, anchor);
+        android.view.Menu menu = popup.getMenu();
+        menu.add(0, 1, 0, "Find in source");
+        menu.add(0, 2, 1, "Previous match");
+        menu.add(0, 3, 2, "Next match");
+        menu.add(0, 4, 3, "Clear search");
+        menu.add(0, 5, 4, "Replace in source");
+        menu.add(0, 6, 5, "Save source");
+        menu.add(0, 7, 6, "New source file");
+        menu.add(0, 8, 7, "Import source files");
+        menu.add(0, 9, 8, "Export source ZIP");
+        menu.add(0, 10, 9, "Compile to DLL");
+        menu.add(0, 11, 10, "Export rebuilt DLL");
+        menu.add(0, 12, 11, "Export compatibility report");
+        popup.setOnMenuItemClickListener(item -> {
+            switch (item.getItemId()) {
+                case 1: showFindDialog(); return true;
+                case 2: moveSearchMatch(false); return true;
+                case 3: moveSearchMatch(true); return true;
+                case 4: clearSearch(); return true;
+                case 5: showReplaceDialog(); return true;
+                case 6: saveCurrent(); return true;
+                case 7: addFile(); return true;
+                case 8: importFiles(); return true;
+                case 9: exportProject(); return true;
+                case 10: compileProject(); return true;
+                case 11: exportRebuiltDll(); return true;
+                case 12: exportCompatibilityReport(); return true;
+                default: return false;
+            }
+        });
+        popup.show();
     }
 
     private void showReplaceDialog() {
