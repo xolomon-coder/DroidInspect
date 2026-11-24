@@ -1,5 +1,18 @@
 # DroidInspect
 
+
+> **CURRENT ACCEPTANCE STATUS — 2026-11-24 (authoritative update)**
+>
+> - Production branch: `main`; current documentation HEAD before this update: `7fae21c04c8063fde801c6e0cc53c2098cf90b5f`.
+> - The only change after the CI-tested source commit `1e102500ef5f42d8bb0d87176c45563fc10ff183` was a README-only commit. The production Java/XML source and workflow were unchanged. The complete production CI run [#728](https://github.com/xolomon-coder/DroidInspect/actions/runs/45288815735) therefore verifies the exact source tree currently present on `main`, although its Git commit SHA is the parent source commit rather than this documentation HEAD.
+> - Run #728: **SUCCESS**. All substantive steps passed: host parser/workspace tests, paged C# editor model tests, NuGet advisory audit, release dependency resolution, Android debug and release compilation, APK signing/tamper verification, payload/ABI/offline checks, and ARM64 ELF dependency inspection. Its only job completed successfully with no failed steps.
+> - Run #727 is a historical failed attempt. Its only failure was a paged-model test assertion using a pre-edit offset. Commit `1e102500ef5f42d8bb0d87176c45563fc10ff183` corrected the test expectation; run #728 then passed.
+> - Workflow `.github/workflows/phase1-android.yml` supports manual `workflow_dispatch`, but the available GitHub connection exposes no workflow-dispatch write action. The README-only commit is intentionally ignored by the push trigger. No Actions artifacts or Releases were created or used.
+> - **Android 11 device acceptance is NOT DONE.** The previous large Unity DLL editable-workspace black-screen/crash report remains an unverified blocker until the updated source is installed and tested on the Infinix X689B / Android 11 device. Keyboard visibility, page navigation/edit persistence, cross-page search/replacement, save and reopen remain pending. Do not test recompilation yet.
+> - Current source package: [Download main.zip](https://github.com/xolomon-coder/DroidInspect/archive/refs/heads/main.zip). Import the first CodeAssist project option, `droidinspect`.
+>
+> This section supersedes older chronological status statements below where they conflict. Historical entries are retained as a development record; they are not current acceptance claims.
+
 > **Current authoritative development policy — 24 November 2026**
 >
 > DroidInspect uses a **source-first, artifact-free** workflow. GitHub `main` is the source of truth; development changes are committed directly to `main` only. GitHub Actions may run host tests, Android debug/release compilation, signing/tamper checks, and APK payload/security verification, but it must not upload or download APKs, ZIPs, or generated reports. Verification results are retained in normal Actions logs and the job summary; runner-local build outputs are discarded when the job ends. No GitHub Releases are used as an artifact workaround.
