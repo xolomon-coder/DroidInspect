@@ -4584,3 +4584,28 @@ The first large-file mitigation was not sufficient: it disabled whole-document s
 
 
 **Follow-up implementation hardening:** forward Find now scans page chunks with a bounded overlap buffer instead of flattening the complete document for every search. Replace All carries only the necessary cross-page search overlap while rebuilding the result, and Replace Next updates the affected page range without first creating a second full-source string. Page controls also recalculate after edits that expand the active page beyond the configured page size. Latest source hardening commit at this update: `9e6233c5cf358e5f0878b12f39332821d46cef5e` (test coverage for cross-page range replacement).
+
+
+## Android 11 device acceptance — paged C# editor and search follow-up (2026-11-24)
+
+The user installed the current production build on the Android 11 Infinix test phone and confirmed the following large Unity DLL editor behaviors:
+
+- The approximately 1+ MB Unity DLL decompiles and its editable C# workspace opens without the previous black-screen crash.
+- Previous Page / Next Page navigation works.
+- An edit remains after navigating away from a page and returning.
+- Typing and scrolling work while the keyboard is visible; the active code is not obscured in the tested workflow.
+- Saving completes successfully.
+- Exiting and reopening the editable workspace preserves saved changes.
+
+**Device acceptance:** large-file editor opening, page navigation, edit persistence across pages, keyboard visibility for the tested workflow, save, and reopen are PASS. The user noted that keyboard/editor ergonomics should be improved later; track automatic cursor visibility, viewport resizing, and compact toolbar behavior as UX follow-up rather than a current blocker.
+
+**Search acceptance: FAIL.** The user reported that Find returns only one result and offers no Next control. Source inspection confirmed that the editor's original Find dialog exposed a one-shot FIND NEXT action and closed after one search. The underlying paged model already supported whole-document forward/backward search, including page-boundary matches, but the UI did not provide persistent result navigation or match counts.
+
+**Search repair committed to main:**
+- e8d9286b6524e4f098aa5e7de9bfa326b4961d74 — persistent Find dialog with Search, Previous, and Next controls, result highlighting, current match number, total match count, character position, and page position.
+- 7c256da8df8ee11b51c9bd7f1ce491de68727a11 — bounded page-aware match counting without flattening the complete source document.
+- 40ae9c36e9b7e4362bc4b3f18c7bfc1d00dcab9c — host regression assertions for match totals and selected-result ordinals.
+
+**Verification state:** the search changes are present on main. The latest previously confirmed green CI run predates these search commits; the new model/UI changes must receive a fresh CI verification. Android 11 retest of the repaired search UI is also pending. Do not mark search accepted until both the host test/Android build pass and the user verifies multiple results, Previous/Next navigation, page-crossing matches, match count/ordinal, and visible highlighting on-device.
+
+**Next actions:** verify the latest main CI run for the search commits; fix any demonstrated failure on main; then provide the updated main ZIP for a focused Android 11 search retest. Do not repeat already-passed large-file open, page-edit, save, or reopen tests unless a regression appears. The project remains **NOT COMPLETE**.
