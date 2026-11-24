@@ -214,6 +214,8 @@
         android:layout_height="0dp"
         android:visibility="gone">
 
+        <LinearLayout android:id="@+id/sourceEditorProjectActionsRow" android:layout_width="0dp" android:layout_height="0dp" />
+        <LinearLayout android:id="@+id/sourceEditorOutputActionsRow" android:layout_width="0dp" android:layout_height="0dp" />
         <Button android:id="@+id/sourceEditorSave" android:layout_width="wrap_content" android:layout_height="wrap_content" />
         <Button android:id="@+id/sourceEditorAdd" android:layout_width="wrap_content" android:layout_height="wrap_content" />
         <Button android:id="@+id/sourceEditorImport" android:layout_width="wrap_content" android:layout_height="wrap_content" />
