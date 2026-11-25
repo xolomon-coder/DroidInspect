@@ -121,14 +121,14 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:minWidth="0dp"
-                android:text="↑" />
+                android:text="PREV" />
 
             <Button
                 android:id="@+id/sourceEditorSearchNext"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:minWidth="0dp"
-                android:text="↓" />
+                android:text="NEXT" />
         </LinearLayout>
     </LinearLayout>
 
